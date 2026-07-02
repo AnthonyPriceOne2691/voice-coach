@@ -46,7 +46,8 @@ cd frontend && ./node_modules/.bin/tsc -b && ./node_modules/.bin/vitest run
 
 ## Состояние (2026-07-03)
 
-- **Phase 0** ✅ · **Phase 1** 🟡 — код+гейты готовы, остался ручной exit-критерий: 5 живых ходов с микрофоном (шла отладка VAD-чувствительности)
+- **Phase 0** ✅ · **Phase 1** ✅ — voice loop live-проверен (5 ходов, без падений). Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
 - **Phase 2** (next): interview/review оркестраторы, Contract Enforcer, Mode 2, SQLite (doc 12), History UI, summary generator, Vocabulary Bank
+- Наблюдать в использовании: STT на длинных ответах (60–90 s), качество follow-up'ов Генри
 - GitHub: приватный `AnthonyPriceOne2691/voice-coach`, CI зелёный; gh CLI авторизован
 - Коммиты: identity задана локально (noreply-алиас аккаунта); пушить после каждого логического блока

@@ -45,7 +45,7 @@ Benchmark   ──▶  Voice loop   ──▶  Full MVP      ──▶  Enhancem
 
 ## Phase 1 — Minimal voice loop
 
-**Status: 🟡 code + gates complete (2026-07-03); остался ручной exit-критерий (5 живых turns).**
+**Status: ✅ COMPLETE (2026-07-03).** Live-проверка: 5 ходов через реальный микрофон без падений; распознавание корректное, ответы ~2.5–3 s, роль держит. STT на длинных ответах (60–90 s) — наблюдать в регулярном использовании.
 
 **Goal:** end-to-end без orchestrator — «echo interviewer»: STT → LLM as generic interviewer → TTS.
 
@@ -59,7 +59,7 @@ Benchmark   ──▶  Voice loop   ──▶  Full MVP      ──▶  Enhancem
 - [x] `data/prompts/interviewer_system.txt` + injected `profile_condensed.md`
 
 **Exit criteria:**
-- [ ] **5 manual back-and-forth turns without crash** — требует живого микрофона (ручная проверка)
+- [x] **5 manual back-and-forth turns without crash** — выполнено 2026-07-03 (три live-сессии; попутно пофикшены cold-start, echo, VAD-чувствительность, порог слов; агент назван Генри, голос hfc_male + length_scale 1.15)
 - [x] Transcript logged to JSON file (`data/sessions/<id>.json`, flush на каждый turn)
 - [x] **Re-benchmark на продовом промпте** ([20-context-token-budget.md](20-context-token-budget.md)): KV-cache подтверждён (TTFT 0.17 s); perceived 3.0 s PASS / buffered 4.8 s FAIL → streaming обязателен и реализован. STT на 60–90 s utterance — проверить вместе с manual turns
 - [x] **D-8 закрыт**: вариант B — Qwen для Mode 2 voice (R1 31–52 s/ход; doc 14)

@@ -33,8 +33,8 @@
 | Phase | Status |
 |-------|--------|
 | Phase 0 Benchmark | ✅ **Complete** (2026-06-26) |
-| Phase 1 Voice loop | 🟡 **Code + gates done** (2026-07-03) — остался ручной exit-критерий: 5 живых turns с микрофоном |
-| Phase 2 Full MVP | 🔲 |
+| Phase 1 Voice loop | ✅ **Complete** (2026-07-03) — live-проверено с микрофоном |
+| Phase 2 Full MVP | 🔲 **Next**: оркестраторы, Contract Enforcer, Mode 2, SQLite, History, Vocabulary Bank |
 | Phase 3 Enhancements | 🔲 |
 
 ## Conventions

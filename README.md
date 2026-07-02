@@ -2,7 +2,7 @@
 
 Голосовой AI-агент для mock technical interviews на английском.
 
-**Статус:** Phase 0 ✅ · Phase 1 🟡 code+gates done (остался manual 5-turn тест) · **D-8 закрыт: Qwen для всего голосового**  
+**Статус:** Phase 0 ✅ · **Phase 1 ✅** (live-проверено) · Phase 2 next · Интервьюера зовут **Генри**  
 **Автор:** Anton Aspidov  
 **Планирование:** см. [`docs/`](docs/)
 
