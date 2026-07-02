@@ -16,7 +16,7 @@ frontend/dist/
 
 # Env & local data
 .env
-data/sessions/*.db
+data/sessions/
 data/models/
 
 # OS / IDE
