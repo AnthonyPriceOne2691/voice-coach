@@ -11,6 +11,9 @@ from app.voice.pipeline import (
     VoiceTurnPipeline,
     clean_transcript,
 )
+from tests.fakes import FakeLlm, FakeStt, FakeTts
+
+PARAMS = LlmParams(model="m", temperature=0.7, max_tokens=100)
 
 
 def test_clean_transcript_strips_whisper_artifacts() -> None:
@@ -18,11 +21,6 @@ def test_clean_transcript_strips_whisper_artifacts() -> None:
     assert clean_transcript("(wind blowing) Hello there [MUSIC]") == "Hello there"
     assert clean_transcript(" . , ") == ""
     assert clean_transcript("Hello.") == "Hello."
-
-
-from tests.fakes import FakeLlm, FakeStt, FakeTts
-
-PARAMS = LlmParams(model="m", temperature=0.7, max_tokens=100)
 
 
 async def _run(pipeline: VoiceTurnPipeline) -> list[object]:
