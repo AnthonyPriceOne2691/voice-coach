@@ -37,6 +37,14 @@ download \
   "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" \
   "$PIPER_JSON"
 
+echo "==> Piper voice (hfc_male medium — Henry's default voice)"
+download \
+  "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx" \
+  "$PIPER_DIR/en_US-hfc_male-medium.onnx"
+download \
+  "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx.json" \
+  "$PIPER_DIR/en_US-hfc_male-medium.onnx.json"
+
 echo "==> Piper binary (macOS arm64)"
 PIPER_RUNTIME="$PIPER_DIR/piper"
 PIPER_BIN="$PIPER_RUNTIME/piper"

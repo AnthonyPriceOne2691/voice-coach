@@ -23,7 +23,9 @@ class Settings(BaseSettings):
 
     whisper_cpp_bin: Path = Path("/opt/homebrew/bin/whisper-cli")
     whisper_model_path: Path = REPO_ROOT / "data" / "models" / "whisper" / "ggml-small.en.bin"
-    piper_voice_path: Path = REPO_ROOT / "data" / "models" / "piper" / "en_US-lessac-medium.onnx"
+    # Henry's voice: hfc_male-medium — самый естественный из быстрых (~0.12 s/предложение);
+    # максимум качества: en_US-ryan-high (~0.81 s/предложение) через PIPER_VOICE_PATH в .env
+    piper_voice_path: Path = REPO_ROOT / "data" / "models" / "piper" / "en_US-hfc_male-medium.onnx"
 
     prompts_dir: Path = REPO_ROOT / "data" / "prompts"
     knowledge_dir: Path = REPO_ROOT / "data" / "knowledge"

@@ -12,7 +12,7 @@ export function TranscriptPanel({ entries }: { entries: TranscriptEntry[] }) {
     <div className="transcript">
       {entries.map((entry, index) => (
         <p key={index} className={`turn turn-${entry.role}`}>
-          <strong>{entry.role === "agent" ? "Interviewer" : "You"}:</strong> {entry.text}
+          <strong>{entry.role === "agent" ? "Henry" : "You"}:</strong> {entry.text}
         </p>
       ))}
       <div ref={bottomRef} />

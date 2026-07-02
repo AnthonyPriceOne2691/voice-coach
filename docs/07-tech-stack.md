@@ -172,7 +172,7 @@ Mode: **batch after end-of-utterance** (not streaming STT in MVP).
 | Choice | Why |
 |--------|-----|
 | **Piper** | Offline, fast, low RAM |
-| **Voice** | `en_US-lessac-medium` or `en_GB-alan-medium` — pick **one**, document in config |
+| **Voice** | **`en_US-hfc_male-medium`** — голос Генри (естественный мужской, ~0.12 s/предложение); опция качества `en_US-ryan-high` (+0.7 s) через `PIPER_VOICE_PATH` |
 | **Integration** | `piper` binary subprocess → WAV chunk per sentence |
 
 **Phase 0 benchmark:** Kokoro-82M — adopt only if Piper quality unacceptable.

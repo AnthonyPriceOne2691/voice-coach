@@ -37,6 +37,7 @@ export function useVoiceSession() {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
   const [micLevel, setMicLevel] = useState(-Infinity); // dBFS, for the level meter
+  const [playingUi, setPlayingUi] = useState(false); // agent audio audible right now
   const refs = useRef<SessionRefs>({
     ws: null,
     stream: null,
@@ -105,7 +106,10 @@ export function useVoiceSession() {
       } else if (message.type === "transcript") {
         setTranscript((prev) => [...prev, message.payload]);
       } else if (message.type === "audio") {
-        if (message.payload.chunk_base64) r.playing = true;
+        if (message.payload.chunk_base64) {
+          r.playing = true;
+          setPlayingUi(true);
+        }
         void r.queue?.enqueue(message.payload.chunk_base64);
       } else if (message.type === "error") {
         setError(`${message.payload.code}: ${message.payload.message}`);
@@ -127,6 +131,7 @@ export function useVoiceSession() {
     r.queue = new AudioQueue(r.audioContext, () => {
       // Agent finished speaking through the speakers — now it's safe to open the mic.
       r.playing = false;
+      setPlayingUi(false);
       r.detector.reset();
       startRecorder();
     });
@@ -170,5 +175,9 @@ export function useVoiceSession() {
     setState("idle");
   }, []);
 
-  return { state, transcript, error, active, micLevel, start, end };
+  // What the user should see: while agent audio is audible, we are "speaking",
+  // no matter that the server already flipped to "listening".
+  const uiState: SessionState = playingUi ? "speaking" : state;
+
+  return { state: uiState, transcript, error, active, micLevel, start, end };
 }

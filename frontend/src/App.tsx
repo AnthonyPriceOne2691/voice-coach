@@ -10,11 +10,11 @@ export default function App() {
     <main className="app">
       <header>
         <h1>Voice Interview Coach</h1>
-        <p className="subtitle">Mock technical interview · ~15 min · English</p>
+        <p className="subtitle">Mock technical interview with Henry · ~15 min · English</p>
       </header>
 
       <SessionStateRing state={state} />
-      {active && <MicLevelMeter level={micLevel} />}
+      {active && state === "listening" && <MicLevelMeter level={micLevel} />}
 
       {error && <div className="error-banner">{error}</div>}
 
