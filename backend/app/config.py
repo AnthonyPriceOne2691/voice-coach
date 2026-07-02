@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Henry's voice: hfc_male-medium — самый естественный из быстрых (~0.12 s/предложение);
     # максимум качества: en_US-ryan-high (~0.81 s/предложение) через PIPER_VOICE_PATH в .env
     piper_voice_path: Path = REPO_ROOT / "data" / "models" / "piper" / "en_US-hfc_male-medium.onnx"
+    piper_length_scale: float = 1.15  # темп речи: 1.0 = нативный, больше = медленнее
 
     prompts_dir: Path = REPO_ROOT / "data" / "prompts"
     knowledge_dir: Path = REPO_ROOT / "data" / "knowledge"
