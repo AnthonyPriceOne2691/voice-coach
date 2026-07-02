@@ -20,7 +20,7 @@
 | [10-vocabulary-bank.md](10-vocabulary-bank.md) | ✅ v0.1 | Вкладка полезных слов, авто + перевод RU |
 | [11-two-modes-review-dialogue.md](11-two-modes-review-dialogue.md) | ✅ v0.1 | Mode 1 Interview + Mode 2 Review Together |
 | [12-session-storage.md](12-session-storage.md) | ✅ v0.2 | Хранение (канон схемы); turn + question_id |
-| [13-behavioral-contracts.md](13-behavioral-contracts.md) | ✅ v0.1 | ABC-lite: hard/soft rules, runtime enforcer |
+| [13-behavioral-contracts.md](13-behavioral-contracts.md) | ✅ v0.2 | ABC-lite: sentence-gated enforcer, contract YAMLs в `data/contracts/` |
 | [15-api-websocket-spec.md](15-api-websocket-spec.md) | ✅ v0.2 | REST + WebSocket contracts |
 | [16-prompts-library.md](16-prompts-library.md) | ✅ v0.2 | Prompt files + **канон LLM params** |
 | [17-ui-screens.md](17-ui-screens.md) | ✅ v0.1 | Screens, flows, components |

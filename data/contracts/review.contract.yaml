@@ -1,0 +1,55 @@
+# Mode 2 — Review Together behavioral contract (ABC-lite)
+# Spec: docs/13-behavioral-contracts.md
+mode: review
+version: "1.0"
+enforcement: per_sentence
+
+preconditions:
+  - id: P2-1_source_interview
+    check: interview_exists_with_transcript
+  - id: P2-2_transcript_nonempty
+    check: interview_transcript_nonempty
+
+invariants:
+  hard:
+    - id: I2-H1_en_only
+      check: no_cyrillic
+    - id: I2-H2_grounded
+      check: quoted_question_in_transcript   # question refs (Q1..Qn) must exist in interview turns (question_id, doc 12)
+    - id: I2-H3_no_new_interview
+      check: forbid_patterns
+      patterns_file: interview_forbidden.txt
+      scope: interview_question_without_review_framing
+    - id: I2-H5_nonempty_after_strip
+      check: nonempty_after_strip_thinking   # R1 thinking may eat num_predict (doc 19/20)
+      recovery: regenerate_larger_budget     # retry with num_predict x2, then fallback
+  soft:
+    - id: I2-S3_rephrase_after_critique
+      check: orchestrator_nudge              # deterministic instruction insert, not text check
+    # I2-S1 (strength before improvement), I2-S2 (warm tone) — prompt-level only in MVP (doc 13)
+
+governance:
+  hard:
+    - id: G2-H1_max_sentences
+      check: max_sentences
+      max: 5
+    - id: G2-H2_max_chars
+      check: max_chars_cumulative
+      max: 700
+    # G2-H3 (cover each core question) enforced by review orchestrator (questions_reviewed[])
+
+recovery:
+  max_retries: 1
+  regenerate_prompt: strict_regenerate
+  fallback: orchestrator_template
+
+drift:
+  window: session
+  thresholds:
+    hard_violations_tighten: 3
+    same_soft_violation_remind: 5
+    recovery_success_min: 0.5
+
+logging:
+  pre_recovery: true
+  sink: session_metadata

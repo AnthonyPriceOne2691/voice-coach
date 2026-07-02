@@ -34,6 +34,7 @@ silence threshold (1.2 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) 
 
 Без sentence-streaming (ждать полный ответ, как мерил Phase 0): 1.2 + 3.05 ≈ **4.2 s** — на границе NFR-1.1. Выводы:
 - **Sentence-streaming TTS — обязателен в Phase 1**, не оптимизация «потом»
+- Contract Enforcer совместим со streaming: валидация **per-sentence** (sentence-gated, [13-behavioral-contracts.md](13-behavioral-contracts.md)) — полный regenerate платится только при нарушении в первом предложении
 - Silence threshold — настройка 0.8–2.0 s (см. doc 17 Settings); default 1.2 s, при жалобе на «тормозит» первым крутить его
 
 ## STT — Speech-to-Text

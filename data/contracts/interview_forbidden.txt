@@ -1,0 +1,36 @@
+# Forbidden patterns — Mode 1 hard invariants I1-H2/H3/H4 (case-insensitive substring/regex)
+# One pattern per line; lines starting with # are comments.
+
+# Coaching / advice (I1-H2)
+you should
+try saying
+here's a better
+here is a better
+i'd recommend
+i would recommend
+let me coach
+a tip for you
+tip for you
+next time, say
+you could improve
+to sound more
+
+# Praise as coach (I1-H4)
+great answer
+well done
+perfect answer
+good job
+excellent answer
+that was a strong answer
+
+# Scoring / debrief leakage (I1-H3)
+your score
+rating
+out of 5
+out of five
+your weakness
+improve your
+vocabulary to learn
+rephrase your
+let's review your performance
+feedback on your answer

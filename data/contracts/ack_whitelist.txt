@@ -1,0 +1,12 @@
+# Allowed short acknowledgments — Mode 1 G1-H4 (ack-only turn, max 12 words, no "?")
+got it
+okay
+ok
+that makes sense
+understood
+right
+i see
+thanks
+thank you
+clear
+alright

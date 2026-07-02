@@ -81,7 +81,7 @@
 
 **Назначение:** озвучивание реплик агента.
 
-**MVP:** локальный TTS (Piper / Kokoro / MLX-TTS). Получает только **validated** text от Contract Enforcer.
+**MVP:** локальный TTS (Piper / Kokoro / MLX-TTS). Получает только **validated предложения** от Contract Enforcer — валидация **per-sentence** (sentence-gated), чтобы не ломать streaming latency; см. [13-behavioral-contracts.md](13-behavioral-contracts.md) «Runtime pipeline».
 
 ### 6. Contract Enforcer (ABC-lite)
 
@@ -89,7 +89,7 @@
 
 **См.:** [13-behavioral-contracts.md](13-behavioral-contracts.md)
 
-**MVP:** EN-only, forbidden coaching patterns (Mode 1), max sentences, question-or-ack; recovery = 1 regenerate + template fallback.
+**MVP:** EN-only, forbidden coaching patterns (Mode 1), max sentences, question-or-ack; recovery = 1 regenerate + template fallback. Enforcement — **инкрементальный, по предложениям** (совместим с sentence-streaming TTS); контракты — реальные файлы в `data/contracts/*.yaml`.
 
 ### 7. Interview / Review Orchestrator
 

@@ -1,7 +1,20 @@
 # 13 — Behavioral Contracts (ABC-lite)
 
-> Voice Interview Coach · Design doc · v0.1 · 2026-06-26  
-> Inspired by: Agent Behavioral Contracts (ABC), arXiv:2602.22302 — formal P/I/G/R + runtime enforcement
+> Voice Interview Coach · Design doc · v0.2 · 2026-07-02  
+> Based on: Bhardwaj, «Agent Behavioral Contracts: Formal Specification and Runtime Enforcement for Reliable Autonomous AI Agents», arXiv:2602.22302 — контракт C = (P, I, G, R), hard/soft split, bounded recovery, runtime enforcement
+
+## Что берём из full ABC, что нет
+
+| Идея из paper | У нас | Почему |
+|---------------|-------|--------|
+| C = (P, I_hard, I_soft, G_hard, G_soft, R) | ✅ полностью | Ядро фреймворка, дешёвое в реализации |
+| Hard = никогда; soft = допустимо с recovery ≤ k шагов | ✅ k = 1 (regenerate) | Lemma 3.10 paper: без recovery комплаенс падает экспоненциально (q^T), с recovery — линейно (≥ 1 − T(1−q)(1−r)). Наша сессия T ≈ 15–20 turns: даже q=0.95 без recovery даёт ~0.36 на сессию — recovery обязателен |
+| Метрики считаются **до** recovery («transparency effect») | ✅ | Violation log фиксирует сырое поведение модели; иначе не видно, что промпт деградирует |
+| Drift score D(t) = compliance-gap + JSD | ⚠️ только compliance-компонента (счётчики violations на rolling window) | JSD по action distribution требует reference-калибровки — не окупается для соло-инструмента |
+| (p, δ, k)-satisfaction, SPRT-сертификация | ❌ неформально | Один пользователь; порогом служит «hard violations ≥ 3/session → tighten» |
+| ContractSpec DSL | ✅ упрощённый YAML (`data/contracts/`) | Декларативность нужна, полный DSL — нет |
+| Композиция контрактов (C1–C4) | ❌ | Один агент за раз; Mode 1 → Mode 2 handoff покрыт precondition P2-1 |
+| Overhead < 10 ms/action (Prop. 4.15) | ✅ ожидаемо | Наши проверки — regex + счётчики, O(k) |
 
 ## Зачем
 
@@ -65,11 +78,13 @@ Orchestrator (hard structure)  →  LLM (wording)  →  Contract Enforcer  →  
 
 ### Soft invariants (I_soft)
 
-| ID | Rule | Recovery |
-|----|------|----------|
-| I1-S1 | Tone: professional warm, not chatty | regenerate with stricter prompt |
-| I1-S2 | No filler monologue before question | truncate preamble → keep last sentence with `?` |
-| I1-S3 | Acknowledgment before follow-up | if missing, prepend template *Got it.* |
+> **Реализуемость в MVP** (колонка MVP): ✅ — механическая проверка (regex/счётчик), enforced в коде; 📝 — только prompt-level, runtime-проверки нет (детекция «тона» регэкспом невозможна, LLM-judge в voice-цикле — неприемлемая latency). Честно пометить нереализуемое — лучше, чем декларировать неисполняемое правило (paper §8.4: false sense of security).
+
+| ID | Rule | Recovery | MVP |
+|----|------|----------|-----|
+| I1-S1 | Tone: professional warm, not chatty | regenerate with stricter prompt | 📝 prompt-only |
+| I1-S2 | No filler monologue before question | truncate preamble → keep last sentence with `?` | ✅ |
+| I1-S3 | Acknowledgment before follow-up | if missing, prepend template *Got it.* | ✅ |
 
 ### Soft governance (G_soft)
 
@@ -119,9 +134,10 @@ thanks, thank you, clear, alright
 | ID | Rule | Enforcement |
 |----|------|-------------|
 | I2-H1 | **English only** (session language) | same as Mode 1 |
-| I2-H2 | **Ground in transcript** — не выдумывать Q&A которых не было | LLM gets transcript; post-check: quoted Q index ∈ transcript |
+| I2-H2 | **Ground in transcript** — не выдумывать Q&A которых не было | LLM gets transcript; post-check: quoted Q index ∈ transcript (`question_id` в turns, doc 12) |
 | I2-H3 | **No new mock interview** — не задавать interview questions как Mode 1 | reject turns matching interview-only patterns without review framing |
 | I2-H4 | **Role = recruiter friend / reviewer** — coaching **allowed** | mode flag |
+| I2-H5 | **Non-empty after `strip_thinking()`** — thinking-модель не съела весь num_predict | empty check до TTS → hard fail → regenerate с бóльшим num_predict → template (урок Phase 0, doc 19/20) |
 
 ### Hard governance (G_hard)
 
@@ -133,11 +149,11 @@ thanks, thank you, clear, alright
 
 ### Soft invariants (I_soft)
 
-| ID | Rule | Recovery |
-|----|------|----------|
-| I2-S1 | Start with strength before improvement | regenerate if only negative |
-| I2-S2 | Tone: warm, collaborative (*let's*, *together*) | regenerate once |
-| I2-S3 | Offer rephrase after critique | orchestrator nudge in prompt if missing |
+| ID | Rule | Recovery | MVP |
+|----|------|----------|-----|
+| I2-S1 | Start with strength before improvement | regenerate if only negative | 📝 prompt-only (надёжной механической проверки «only negative» нет) |
+| I2-S2 | Tone: warm, collaborative (*let's*, *together*) | regenerate once | 📝 prompt-only |
+| I2-S3 | Offer rephrase after critique | orchestrator nudge in prompt if missing | ✅ (nudge — детерминированная вставка в инструкцию) |
 
 ### Soft governance (G_soft)
 
@@ -161,36 +177,70 @@ Voice contract enforcer **не применяется** — schema validator ins
 
 ---
 
-## Runtime pipeline (MVP — Contract Enforcer)
+## Runtime pipeline (MVP — Contract Enforcer, sentence-gated)
+
+**Проблема, которую решает эта секция:** «enforcer валидирует реплику целиком перед TTS» (doc 02 v0.1) несовместим с sentence-streaming TTS (doc 03): нельзя проверить «max 3 предложения», когда первое уже надо озвучивать. Буферизация полного ответа добавляет ~1.2 s к perceived latency (LLM total 1.8 s против ~0.6 s до конца первого предложения) и выбивает нас за NFR-1.1.
+
+**Решение: инкрементальная валидация по предложениям.** Инвариант doc 02 переформулируется: **ни одно не-валидированное предложение не попадает в TTS** (гранулярность — предложение, не реплика).
 
 ```
-LLM generates candidate_text
-        │
-        ▼
-┌───────────────────┐
-│ 1. Hard checks    │  language, patterns, length, role, structure
-└─────────┬─────────┘
-          │ fail
-          ▼
-┌───────────────────┐     success
-│ 2. Recovery R     │──────────────────────────────┐
-│  retry ≤ 1 with   │                              │
-│  violation hint   │                              ▼
-└─────────┬─────────┘                    ┌───────────────────┐
-          │ fail again                   │ 3. Soft checks    │
-          ▼                              └─────────┬─────────┘
-┌───────────────────┐                              │ fail
-│ 4. Template       │                              ▼
-│    fallback       │                    truncate / prepend ack
-└─────────┬─────────┘                              │
-          │                                        │
-          └────────────────┬───────────────────────┘
-                           ▼
-                      TTS speak
-                           │
-                           ▼
-                   log violation event (debug)
+LLM streams tokens ──▶ buffer до границы предложения (. ? !)
+                              │
+                    предложение s_i готово
+                              ▼
+              ┌────────────────────────────────┐
+              │ Per-sentence hard checks:       │
+              │  · Cyrillic / EN-only           │
+              │  · forbidden patterns           │
+              │  · cumulative chars ≤ 400       │
+              │  · sentence count i ≤ 3         │
+              └───────┬───────────────┬────────┘
+                 pass │               │ fail
+                      ▼               ▼
+              s_i → TTS queue   ┌──────────────────────────────┐
+              (playback идёт)   │ i == 1 (ничего не озвучено): │
+                      │         │  abort stream → regenerate ≤1 │
+                      │         │  → template fallback          │
+                      │         │ i > 1 (s_1..s_{i-1} звучат): │
+                      │         │  abort stream, truncate —     │
+                      │         │  s_i и далее НЕ озвучиваются  │
+                      │         └──────────────┬───────────────┘
+                      ▼                        │
+        stream done → turn-level checks        │
+        (question_or_ack G1-H4)                │
+                      │ fail: append seed      │
+                      │ question (additive fix,│
+                      │ ничего не «отзываем»)  │
+                      └──────────┬─────────────┘
+                                 ▼
+                    log violation events (pre-recovery)
 ```
+
+**Почему это корректно:**
+- Per-sentence проверки (язык, паттерны, длина) — **монотонные**: валидность s_1..s_{i-1} не зависит от s_i. Озвученный префикс всегда compliant, что бы ни сгенерировалось дальше.
+- Единственная turn-level проверка G1-H4 (question-or-ack) — **аддитивно-восстановимая**: если к концу стрима вопроса нет, дозвучиваем seed question из банка. Ничего произнесённого исправлять не нужно.
+- Полный regenerate (стоит latency) случается только при нарушении в **первом** предложении — до начала озвучки; статистически это редкий случай (нарушения — обычно coaching-хвосты в конце реплики).
+- Mode 2: та же схема, лимиты 5 предложений / 700 chars; плюс hard-проверка «пусто после `strip_thinking()`» **до** первого предложения (см. [20-context-token-budget.md](20-context-token-budget.md)).
+
+### Violation event schema (logging)
+
+Каждое срабатывание проверки — событие в session metadata (structlog + `metadata_json` сессии). **Фиксируется до recovery** (принцип paper §7.1: compliance отражает сырое поведение модели; recovery-исход пишется отдельным полем):
+
+```json
+{
+  "turn_index": 7,
+  "state": "FOLLOW_UP",
+  "constraint_id": "I1-H2",
+  "severity": "hard",
+  "sentence_index": 3,
+  "matched": "you should try saying",
+  "recovery": "truncate",
+  "recovered": true,
+  "ts": "2026-07-02T..."
+}
+```
+
+Per-session агрегаты (аналог метрик paper, без Θ-композита): `hard_violations`, `soft_violations`, `recovery_success_rate`, `fallback_count`. Показываются в Settings → Diagnostics; используются drift-детекцией ниже.
 
 ### Recovery strategies
 
@@ -216,14 +266,20 @@ WRAP_UP:   "That's all from my side. Do you have any questions for us?"
 
 ## ContractSpec files (repo)
 
+**Статус: файлы существуют** в `data/contracts/` (созданы 2026-07-02):
+
 ```
 voice-interview-coach/
 └── data/
     └── contracts/
-        ├── interview.contract.yaml
-        ├── review.contract.yaml
-        └── summary.contract.yaml
+        ├── interview.contract.yaml     # Mode 1 — полный контракт
+        ├── review.contract.yaml        # Mode 2 — полный контракт
+        ├── summary.contract.yaml       # JSON-passes (schema validation)
+        ├── interview_forbidden.txt     # coaching/debrief паттерны
+        └── ack_whitelist.txt           # допустимые короткие acks
 ```
+
+Как и в ContractSpec из paper, YAML — декларативный и **не** Turing-complete: только именованные проверки, реализованные в `contracts/rules/`; enforcer отклоняет контракт с неизвестным `check` при загрузке (schema validation до runtime).
 
 ### `interview.contract.yaml` (excerpt)
 
@@ -287,13 +343,16 @@ backend/app/
 
 ## Drift detection (Phase 2 — lightweight)
 
-Session-level metric без full ABC drift score:
+Paper (Def. 3.12) определяет D(t) = w_c·(compliance gap) + w_d·JSD(action distribution). Мы берём **только compliance-компоненту** (lagging indicator): наш «action vocabulary» — это текст реплик, JSD-компонента требует reference-распределение с калибровочных сессий и даёт шумный сигнал на малом словаре действий (paper Remark 3.15) — не окупается.
 
-| Signal | Action |
+Rationale из paper, который применим напрямую: LLM **дрейфует со временем сессии** (E2: drift растёт во второй половине 12-turn сессий даже у frontier-моделей) — значит, пороги ниже должны срабатывать *внутри* сессии, не post-hoc:
+
+| Signal (rolling window, из violation events) | Action |
 |--------|--------|
-| Hard violations ≥ 3 in one session | Log warning; tighten temperature 0.7→0.5 |
+| Hard violations ≥ 3 in one session | Log warning; tighten temperature 0.75→0.5 |
 | Same soft violation ≥ 5 | Inject system reminder in next LLM call |
-| Avg sentences creeping up | Enforce stricter truncate |
+| Avg sentences per turn creeping up | Enforce stricter truncate |
+| Recovery success < 50% за сессию | Fallback-only режим до конца сессии (canned lines) + warning в UI |
 
 Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 
@@ -346,3 +405,4 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 |------|-----------|
 | 2026-06-26 | Initial ABC-lite spec |
 | 2026-06-26 | Linked to two-model LLM split (doc 14) |
+| 2026-07-02 | v0.2 (сверка с полным paper): sentence-gated enforcement — конфликт со streaming TTS закрыт; таблица «что берём из full ABC»; I2-H5 (empty after strip_thinking); soft-rules помечены ✅/📝 по реализуемости; violation event schema (pre-recovery); drift-детекция дополнена recovery-success порогом; contract YAML файлы созданы в data/contracts/ |
