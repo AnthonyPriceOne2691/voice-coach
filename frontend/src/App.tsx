@@ -1,9 +1,10 @@
+import { MicLevelMeter } from "./components/MicLevelMeter";
 import { SessionStateRing } from "./components/SessionStateRing";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useVoiceSession } from "./hooks/useVoiceSession";
 
 export default function App() {
-  const { state, transcript, error, active, start, end } = useVoiceSession();
+  const { state, transcript, error, active, micLevel, start, end } = useVoiceSession();
 
   return (
     <main className="app">
@@ -13,6 +14,7 @@ export default function App() {
       </header>
 
       <SessionStateRing state={state} />
+      {active && <MicLevelMeter level={micLevel} />}
 
       {error && <div className="error-banner">{error}</div>}
 

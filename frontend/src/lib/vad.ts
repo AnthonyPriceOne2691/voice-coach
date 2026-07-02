@@ -1,16 +1,15 @@
 // Client-side VAD: RMS level + end-of-utterance state machine (doc 03 MVP parameters).
 
-export const SILENCE_THRESHOLD_DBFS = -45;
+export const SILENCE_THRESHOLD_DBFS = -50; // re-tuned after live test: -45 missed quiet speech
 export const DEFAULT_SILENCE_MS = 1200;
 export const MIN_UTTERANCE_MS = 700;
 
-/** RMS level in dBFS from AnalyserNode byte time-domain data (128 = zero signal). */
-export function rmsDbfs(samples: Uint8Array): number {
+/** RMS level in dBFS from AnalyserNode float time-domain data (range -1..1). */
+export function rmsDbfs(samples: Float32Array): number {
   if (samples.length === 0) return -Infinity;
   let sumSquares = 0;
   for (const sample of samples) {
-    const normalized = (sample - 128) / 128;
-    sumSquares += normalized * normalized;
+    sumSquares += sample * sample;
   }
   const rms = Math.sqrt(sumSquares / samples.length);
   return rms === 0 ? -Infinity : 20 * Math.log10(rms);

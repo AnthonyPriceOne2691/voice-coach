@@ -24,6 +24,26 @@ header { text-align: center; margin-bottom: 1.5rem; }
   50% { box-shadow: 0 0 0 14px rgba(63, 182, 139, 0); }
 }
 
+.mic-meter {
+  display: flex; align-items: center; gap: 0.6rem;
+  max-width: 360px; margin: 0 auto 0.75rem;
+  font-size: 0.85rem; color: #8a90a4;
+}
+.mic-meter-track {
+  position: relative; flex: 1; height: 10px;
+  background: #2a2f3e; border-radius: 5px; overflow: hidden;
+}
+.mic-meter-fill {
+  height: 100%; background: #5a6178; border-radius: 5px;
+  transition: width 60ms linear;
+}
+.mic-meter-fill.mic-heard { background: #3fb68b; }
+.mic-meter-threshold {
+  position: absolute; top: -2px; bottom: -2px; width: 2px; background: #d9a441;
+}
+.mic-meter-status { min-width: 78px; }
+.mic-meter-status.mic-heard { color: #3fb68b; }
+
 .controls { text-align: center; margin: 1.25rem 0; }
 .btn {
   padding: 0.75rem 2rem; font-size: 1rem; font-weight: 600;

@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { SilenceDetector, rmsDbfs } from "./vad";
+import { SILENCE_THRESHOLD_DBFS, SilenceDetector, rmsDbfs } from "./vad";
 
-function samplesAt(level: number): Uint8Array {
-  // Constant deviation from the 128 midpoint => deterministic RMS
-  return new Uint8Array(64).fill(128 + level);
+function samplesAt(amplitude: number): Float32Array {
+  // Constant amplitude => deterministic RMS (float domain, -1..1)
+  return new Float32Array(64).fill(amplitude);
 }
 
 describe("rmsDbfs", () => {
-  it("returns -Infinity for silence at midpoint", () => {
+  it("returns -Infinity for pure silence", () => {
     expect(rmsDbfs(samplesAt(0))).toBe(-Infinity);
   });
 
   it("returns 0 dBFS for full-scale signal", () => {
-    expect(rmsDbfs(samplesAt(-128))).toBeCloseTo(0, 5);
+    expect(rmsDbfs(samplesAt(1))).toBeCloseTo(0, 5);
   });
 
-  it("quiet signal is below the -45 dBFS threshold, speech is above", () => {
-    expect(rmsDbfs(samplesAt(1))).toBeLessThan(-40);
-    expect(rmsDbfs(samplesAt(20))).toBeGreaterThan(-45);
+  it("quiet noise is below the threshold, quiet speech is above", () => {
+    expect(rmsDbfs(samplesAt(0.001))).toBeLessThan(SILENCE_THRESHOLD_DBFS); // -60 dBFS
+    expect(rmsDbfs(samplesAt(0.01))).toBeGreaterThan(SILENCE_THRESHOLD_DBFS); // -40 dBFS
   });
 });
 

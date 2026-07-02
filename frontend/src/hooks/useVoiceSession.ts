@@ -36,6 +36,7 @@ export function useVoiceSession() {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(false);
+  const [micLevel, setMicLevel] = useState(-Infinity); // dBFS, for the level meter
   const refs = useRef<SessionRefs>({
     ws: null,
     stream: null,
@@ -72,11 +73,13 @@ export function useVoiceSession() {
     const analyser = r.audioContext.createAnalyser();
     analyser.fftSize = 2048;
     r.audioContext.createMediaStreamSource(r.stream).connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
+    const samples = new Float32Array(analyser.fftSize);
     r.vadTimer = window.setInterval(() => {
+      analyser.getFloatTimeDomainData(samples);
+      const dbfs = rmsDbfs(samples);
+      setMicLevel(dbfs);
       if (r.serverState !== "listening" || r.playing) return; // mic paused while agent speaks
-      analyser.getByteTimeDomainData(samples);
-      const event = r.detector.update(rmsDbfs(samples), performance.now());
+      const event = r.detector.update(dbfs, performance.now());
       if (event === "utterance_end" && r.recorder?.state === "recording") {
         r.recorder.stop();
         r.recorder = null;
@@ -167,5 +170,5 @@ export function useVoiceSession() {
     setState("idle");
   }, []);
 
-  return { state, transcript, error, active, start, end };
+  return { state, transcript, error, active, micLevel, start, end };
 }
