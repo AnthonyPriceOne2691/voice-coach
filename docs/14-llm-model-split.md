@@ -1,16 +1,19 @@
 # 14 — LLM Model Split
 
-> Voice Interview Coach · Design doc · v0.2 · 2026-07-02
+> Voice Interview Coach · Design doc · v0.3 · 2026-07-03
 
-## Decision
+## Decision ✅ (D-8 закрыт 2026-07-03)
 
-Две модели под две задачи — не one-size-fits-all.
+Split по **латентности взаимодействия**, не по режиму: всё голосовое — instruct, всё офлайновое — reasoning.
 
 ```
-Mode 1 Live Interview     ──▶  qwen2.5:14b-instruct   ✅ закрыто (Phase 0)
-Mode 2 Review (voice)     ──▶  ⚠️ D-8 OPEN — см. ниже
-Summary + Vocabulary JSON ──▶  deepseek-r1:14b        ✅ (latency некритична)
+Mode 1 Live Interview     ──▶  qwen2.5:14b-instruct   ✅ (Phase 0)
+Mode 2 Review (voice)     ──▶  qwen2.5:14b-instruct   ✅ D-8 → вариант B (Phase 1 benchmark)
+Summary JSON (offline)    ──▶  deepseek-r1:14b        ✅ (latency некритична)
+Minimal summary (offline) ──▶  qwen2.5:14b-instruct   ✅ (без model swap при Skip)
 ```
+
+**Бонус варианта B:** model swap при входе в Mode 2 исчезает полностью — R1 грузится один раз, в фоне, только для summary-pass.
 
 ## Rationale
 
@@ -23,24 +26,18 @@ DeepSeek R1 **не оптимальна для live interview** — thinking-cha
 
 Qwen2.5 14B Instruct **оптимальна для live** на 32 GB M5: follow-ups, EN dialog, instruction-following для behavioral contracts.
 
-## D-8 (OPEN): модель для Mode 2 voice review
+## D-8 (CLOSED → вариант B): модель для Mode 2 voice review
 
-**Что показал Phase 0** ([19-phase0-benchmark-results.md](19-phase0-benchmark-results.md)):
+**Phase 0 показал** ([19](19-phase0-benchmark-results.md)): R1 ~18–21 s/ход и пустой output при малом `num_predict`.
 
-1. R1 warm — **~18–21 s на каждый ход**, не только первый. В голосовом диалоге это означает: пользователь спросил «What about my queue answer?» → 20 секунд тишины. «Review tolerates longer pauses» — не проверенное допущение при такой величине паузы.
-2. Оба прогона R1 вернули **пустой ответ** (`num_predict: 220` съеден thinking-цепочкой) → запланированный quality check «depth of critique» **не выполнен**. Правило num_predict для R1 — [20-context-token-budget.md](20-context-token-budget.md).
+**Phase 1 re-benchmark (2026-07-03, реальный review-промпт ~1.8K токенов, raw: `scripts/spike/results_phase1.json`):**
 
-**Варианты:**
+| Модель | TTFT | Total/ход | Output |
+|--------|------|-----------|--------|
+| R1, `num_predict: 2048`, strip_thinking | **24.5–39.1 s** | **31.4–52.0 s** | непустой, качество разбора нормальное |
+| Qwen, `num_predict: 300` | **0.19 s** warm | 12–16 s (полная генерация; первое предложение ~2 s) | внятный review: конкретика, rephrase, positioning-фиксы |
 
-| # | Вариант | Плюсы | Минусы |
-|---|---------|-------|--------|
-| A | R1 для Mode 2 voice (как задумано) + UI «thinking…» + `num_predict: 2048` | Глубина разбора | ~20+ s пауза на каждый ход; качество ещё не подтверждено |
-| B | **Qwen для Mode 2 voice**, R1 только для offline summary+vocabulary JSON | Живой диалог (~2 s/ход); ноль model swap до конца review | Разбор чуть менее глубокий; смягчается тем, что structured summary всё равно делает R1 |
-| C | Гибрид: Qwen ведёт диалог, R1 асинхронно готовит «notes» перед стартом review | Скорость + глубина | Сложность (2 модели в RAM или предрасчёт) — против minimal moving parts |
-
-**Рекомендация:** **B** — для conversational review инструкционной 14B достаточно, а вся глубина R1 сохраняется в summary pass, где latency не важна. Плюс исчезает model swap (~18 s) на входе в Mode 2.
-
-**Как закрыть:** Phase 1 re-benchmark ([20-context-token-budget.md](20-context-token-budget.md)) — R1 c `num_predict: 2048` на реальном review-промпте: замерить паузу и оценить качество против Qwen на том же промпте. Решение зафиксировать здесь и в docs 07/16 до начала Phase 2 (Review orchestrator).
+**Вердикт:** 30–50 секунд тишины на каждую реплику — голосовой диалог с R1 невозможен, никакой UI-индикатор это не спасает. Qwen отвечает через ~2 s и качества для conversational review достаточно (вся глубина R1 сохраняется в offline summary). **Принят вариант B.** Отражено в docs 07/16.
 
 ## Ollama commands
 
@@ -88,3 +85,4 @@ Before Mode 2: ensure interview model unloaded (Ollama auto-evicts on new model 
 |------|-----------|
 | 2026-06-26 | Initial: Qwen instruct + DeepSeek R1 split |
 | 2026-07-02 | v0.2: D-8 open — Mode 2 voice model под вопросом (R1 ~18–21 s/ход, quality не проверен); fallback `llama3.3:8b` → `llama3.1:8b` (3.3 существует только в 70B) |
+| 2026-07-03 | v0.3: **D-8 закрыт — вариант B** по Phase 1 benchmark (R1 31–52 s/ход vs Qwen TTFT 0.2 s); Qwen для всего голосового, R1 только offline summary |

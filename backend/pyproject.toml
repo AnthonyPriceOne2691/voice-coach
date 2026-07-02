@@ -20,6 +20,7 @@ dependencies = [
   "structlog>=24.0",
   "jinja2>=3.1",
   "soundfile>=0.12",
+  "piper-tts>=1.2",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +94,10 @@ disallow_any_generics = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "piper.*"
+ignore_missing_imports = true
 
 [tool.uv]
 dev-dependencies = [

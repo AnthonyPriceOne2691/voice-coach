@@ -1,0 +1,46 @@
+* { box-sizing: border-box; margin: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #0f1117;
+  color: #e6e8ee;
+}
+
+.app { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+header { text-align: center; margin-bottom: 1.5rem; }
+.subtitle { color: #8a90a4; margin-top: 0.25rem; }
+
+.state-ring {
+  width: 140px; height: 140px; border-radius: 50%;
+  margin: 1rem auto; display: flex; align-items: center; justify-content: center;
+  border: 4px solid #2a2f3e; font-weight: 600; transition: border-color 0.3s;
+}
+.state-listening { border-color: #3fb68b; animation: pulse 1.6s infinite; }
+.state-processing { border-color: #d9a441; }
+.state-speaking { border-color: #4f8ff7; }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 182, 139, 0.4); }
+  50% { box-shadow: 0 0 0 14px rgba(63, 182, 139, 0); }
+}
+
+.controls { text-align: center; margin: 1.25rem 0; }
+.btn {
+  padding: 0.75rem 2rem; font-size: 1rem; font-weight: 600;
+  border: none; border-radius: 8px; cursor: pointer;
+}
+.btn-start { background: #3fb68b; color: #08110d; }
+.btn-end { background: #b64a3f; color: #fff; }
+
+.error-banner {
+  background: #3d1f1c; border: 1px solid #b64a3f; color: #f0b9b2;
+  padding: 0.6rem 1rem; border-radius: 8px; text-align: center; margin: 0.5rem 0;
+}
+
+.transcript {
+  background: #161923; border: 1px solid #2a2f3e; border-radius: 10px;
+  padding: 1rem; min-height: 200px; max-height: 45vh; overflow-y: auto;
+}
+.turn { margin-bottom: 0.6rem; line-height: 1.45; }
+.turn-agent strong { color: #4f8ff7; }
+.turn-user strong { color: #3fb68b; }

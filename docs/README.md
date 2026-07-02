@@ -33,7 +33,7 @@
 | Phase | Status |
 |-------|--------|
 | Phase 0 Benchmark | ✅ **Complete** (2026-06-26) |
-| Phase 1 Voice loop | 🔲 Next |
+| Phase 1 Voice loop | 🟡 **Code + gates done** (2026-07-03) — остался ручной exit-критерий: 5 живых turns с микрофоном |
 | Phase 2 Full MVP | 🔲 |
 | Phase 3 Enhancements | 🔲 |
 
@@ -66,4 +66,4 @@
 | D-5 | Live transcript | ✅ yes |
 | D-6 | Skip review | ✅ minimal summary |
 | D-7 | Voice debrief | ✅ text MVP |
-| **D-8** | **LLM Mode 2 voice review** — R1 (~18–21 s/ход, quality не проверен) vs Qwen | 🔲 **OPEN** — закрыть в Phase 1 re-benchmark ([doc 14](14-llm-model-split.md)); рекомендация: Qwen |
+| **D-8** | **LLM Mode 2 voice review** | ✅ **CLOSED 2026-07-03**: Qwen (R1 31–52 s/ход по Phase 1 benchmark — [doc 14](14-llm-model-split.md)) |

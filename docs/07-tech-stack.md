@@ -30,11 +30,11 @@ Behavioral contracts          Сильная модель
 
 | Mode | Model | Status |
 |------|-------|--------|
-| **Mode 1 — Live Interview** | **`qwen2.5:14b-instruct`** | ✅ закрыто Phase 0 |
-| **Mode 2 — Review (voice dialog)** | R1 **или** Qwen — **D-8 open** | Phase 0: R1 ~18–21 s/ход → решается re-benchmark'ом Phase 1 ([14-llm-model-split.md](14-llm-model-split.md)) |
-| **Summary + Vocabulary (JSON, не voice)** | **`deepseek-r1:14b`** | ✅ latency некритична |
+| **Mode 1 — Live Interview** | **`qwen2.5:14b-instruct`** | ✅ Phase 0 |
+| **Mode 2 — Review (voice dialog)** | **`qwen2.5:14b-instruct`** | ✅ **D-8 закрыт** Phase 1: R1 31–52 s/ход vs Qwen 0.2 s TTFT ([14-llm-model-split.md](14-llm-model-split.md)) |
+| **Summary + Vocabulary (JSON, offline)** | **`deepseek-r1:14b`** | ✅ latency некритична |
 
-Instruct для live (latency, короткие реплики). R1 для reasoning-пассов (JSON summary, vocabulary). Для голосового review R1 показал ~18–21 s на ход — рекомендация D-8: Qwen и в Mode 2, R1 только offline.
+Правило простое: **всё голосовое — instruct, всё офлайновое — reasoning.** Бонус: model swap на входе в Mode 2 исчез — R1 нужен только summary-pass'у.
 
 ---
 
@@ -121,13 +121,12 @@ interview:   # Mode 1 → qwen2.5:14b-instruct
   max_tokens: 220
   stream: true
 
-review:      # Mode 2 → модель = D-8 (doc 14)
-  model: deepseek-r1:14b   # или qwen2.5:14b-instruct по итогам D-8
+review:      # Mode 2 → qwen2.5:14b-instruct (D-8 закрыт, вариант B)
+  model: qwen2.5:14b-instruct
   num_ctx: 8192
   temperature: 0.6
-  max_tokens: 2048         # R1: num_predict включает thinking! 350–450 даёт ПУСТОЙ ответ (Phase 0)
+  max_tokens: 300
   stream: true
-  strip_thinking: true     # TTS only final answer; empty after strip → hard fail → recovery
 
 summary:     # post-review → deepseek-r1:14b (включая vocabulary — один pass)
   model: deepseek-r1:14b
@@ -418,3 +417,4 @@ cd frontend && npm run dev   # :5173 → proxy :8000
 | 2026-06-26 | v0.6 Phase 0 benchmark results — all decisions confirmed |
 | 2026-07-02 | v0.7 settings согласованы с doc 16 (канон); R1 max_tokens 450→2048 (пустой output Phase 0); summary num_ctx 16384; vocabulary merged в summary pass; Mode 2 voice → D-8 open; fallback `llama3.1:8b` |
 | 2026-07-02 | v0.8 minimal_summary → Qwen (без model swap при Skip, ~40 s → мгновенно) |
+| 2026-07-03 | v0.9 **D-8 закрыт**: review → qwen2.5:14b-instruct (Phase 1 benchmark); R1 остаётся только в summary |

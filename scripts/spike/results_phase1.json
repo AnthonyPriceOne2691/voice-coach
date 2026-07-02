@@ -1,0 +1,94 @@
+{
+  "mode1_prod_prompt": {
+    "prompt_tokens_approx": 2000,
+    "runs": [
+      {
+        "ttft_s": 0.16,
+        "first_sentence_s": 1.84,
+        "total_s": 1.84,
+        "output_chars": 106,
+        "output_head": "Help me understand, how do you ensure reliability when dealing with unpredictable latency in OpenAI calls?"
+      },
+      {
+        "ttft_s": 0.18,
+        "first_sentence_s": 1.74,
+        "total_s": 2.94,
+        "output_chars": 184,
+        "output_head": "Help me understand how splitting queues specifically helped in reducing the team size from five to one? Can you give an example of a scenario where this archite"
+      },
+      {
+        "ttft_s": 0.17,
+        "first_sentence_s": 1.65,
+        "total_s": 2.86,
+        "output_chars": 190,
+        "output_head": "Help me understand, how did you measure the impact of these changes on system performance? Could you provide any specific metrics or improvements observed after"
+      },
+      {
+        "ttft_s": 0.17,
+        "first_sentence_s": 1.69,
+        "total_s": 3.59,
+        "output_chars": 216,
+        "output_head": "Help me understand - what specific metrics did you use to determine the success of this architecture? Were there any particular KPIs that were crucial in decidi"
+      },
+      {
+        "ttft_s": 0.17,
+        "first_sentence_s": 2.47,
+        "total_s": 3.23,
+        "output_chars": 160,
+        "output_head": "Help me understand, why did you choose to implement Human-in-the-Loop (HITL) for certain tasks over full automation? What were the key factors in that decision?"
+      }
+    ],
+    "llm_total_p95_s": 3.52,
+    "projected_full_turn_p95_s": 4.8,
+    "projected_perceived_s": 3.02,
+    "gate_lt_4s": false
+  },
+  "d8_review": {
+    "r1": [
+      {
+        "ttft_s": 34.69,
+        "first_sentence_s": 36.38,
+        "total_s": 40.67,
+        "output_chars": 380,
+        "output_head": "Q2 was strong — you clearly laid out the reasoning behind splitting queues for isolation and scalability. However, it could have been even sharper by explicitly"
+      },
+      {
+        "ttft_s": 24.52,
+        "first_sentence_s": 25.7,
+        "total_s": 31.39,
+        "output_chars": 402,
+        "output_head": "Q2: Your answer was solid but repetitive from Q1. Let's make it unique by highlighting team collaboration:\n\nYou could say: We split the queues not just for infr"
+      },
+      {
+        "ttft_s": 39.08,
+        "first_sentence_s": 40.79,
+        "total_s": 52.04,
+        "output_chars": 775,
+        "output_head": "Q2 was strong — you clearly understand the rationale behind queue separation for scalability and reliability. However, repeating the same answer across Q1-Q5 mi"
+      }
+    ],
+    "qwen": [
+      {
+        "ttft_s": 10.69,
+        "first_sentence_s": 11.93,
+        "total_s": 16.58,
+        "output_chars": 302,
+        "output_head": "Your answer in Q2 was solid, but let's sharpen it. Start by leading with a specific metric or impact, like reducing the team from five to one, then explain how "
+      },
+      {
+        "ttft_s": 0.19,
+        "first_sentence_s": 3.47,
+        "total_s": 12.0,
+        "output_chars": 668,
+        "output_head": "Your answer in Q2 was consistent with your previous responses, but let's refine it to highlight your role as an automation engineer rather than leaning into the"
+      },
+      {
+        "ttft_s": 0.19,
+        "first_sentence_s": 1.69,
+        "total_s": 13.01,
+        "output_chars": 667,
+        "output_head": "Your answer in Q2 was solid, but let's refine it slightly. You explained why the queues were split for isolation well, mentioning the spike risk and latency iss"
+      }
+    ]
+  }
+}

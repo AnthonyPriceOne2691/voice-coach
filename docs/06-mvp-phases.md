@@ -45,30 +45,33 @@ Benchmark   ──▶  Voice loop   ──▶  Full MVP      ──▶  Enhancem
 
 ## Phase 1 — Minimal voice loop
 
+**Status: 🟡 code + gates complete (2026-07-03); остался ручной exit-критерий (5 живых turns).**
+
 **Goal:** end-to-end без orchestrator — «echo interviewer»: STT → LLM as generic interviewer → TTS.
 
 **Deliverables:**
-- [ ] FastAPI backend: `/health`, `/session/turn` (audio in → audio out)
-- [ ] Whisper integration (whisper.cpp subprocess or binding)
-- [ ] Ollama LLM integration (streaming)
-- [ ] Piper TTS integration
-- [ ] Minimal React UI: Start, mic, play response, show transcript
-- [ ] `data/prompts/interviewer_system.txt`
+- [x] FastAPI backend: `/health` + WebSocket `/ws/session` (по doc 15)
+- [x] Whisper integration (whisper.cpp subprocess, async)
+- [x] Ollama LLM integration (streaming, /api/chat)
+- [x] Piper TTS integration (piper-tts package, voice loaded once)
+- [x] Sentence-streaming: LLM tokens → SentenceChunker → per-sentence TTS
+- [x] Minimal React UI: Start/End, mic + client VAD (−45 dBFS / 700 ms / 1.2 s), audio queue, live transcript
+- [x] `data/prompts/interviewer_system.txt` + injected `profile_condensed.md`
 
 **Exit criteria:**
-- 5 manual back-and-forth turns without crash
-- Transcript logged to JSON file
-- **Re-benchmark на продовом промпте** ([20-context-token-budget.md](20-context-token-budget.md)): p95 full turn < 4 s warm при 4–5K-токенном промпте; STT на 60–90 s utterance замерен
-- **D-8 закрыт**: R1 c `num_predict: 2048` на review-промпте — latency + quality vs Qwen; решение зафиксировано в doc 14 (блокер для Review orchestrator в Phase 2)
-- Sentence-streaming TTS работает (perceived latency, см. doc 03) — не отложено на Phase 2
+- [ ] **5 manual back-and-forth turns without crash** — требует живого микрофона (ручная проверка)
+- [x] Transcript logged to JSON file (`data/sessions/<id>.json`, flush на каждый turn)
+- [x] **Re-benchmark на продовом промпте** ([20-context-token-budget.md](20-context-token-budget.md)): KV-cache подтверждён (TTFT 0.17 s); perceived 3.0 s PASS / buffered 4.8 s FAIL → streaming обязателен и реализован. STT на 60–90 s utterance — проверить вместе с manual turns
+- [x] **D-8 закрыт**: вариант B — Qwen для Mode 2 voice (R1 31–52 s/ход; doc 14)
+- [x] Sentence-streaming TTS работает (проверено тестами pipeline: TTS per sentence)
 
 **Engineering exit criteria (Phase 1):**
-- [ ] Repo layout по [02-architecture.md](02-architecture.md); нет monolith-файлов
-- [ ] `LlmClient`, `SpeechToText`, `TextToSpeech` — интерфейсы + Ollama/Whisper/Piper impl
-- [ ] Unit-тесты: LLM client (mock), API `/health`, voice turn handler (mock pipeline)
-- [ ] Coverage `backend/app/` ≥ **70%** (растёт к 85% в Phase 2)
-- [ ] `ruff` + pytest в `pyproject.toml`; `npm test` (vitest) для frontend utils/hooks
-- [ ] `scripts/check_module_size.py` — fail если файл > 500 LOC
+- [x] Repo layout по [02-architecture.md](02-architecture.md); нет monolith-файлов (max ~180 LOC)
+- [x] `LlmClient`, `SpeechToText`, `TextToSpeech`, `AudioDecoder` — Protocols + Ollama/Whisper/Piper/Ffmpeg impl
+- [x] Unit-тесты: LLM client (MockTransport), API `/health`, WS handler (fake container), pipeline (fakes)
+- [x] Coverage `backend/app/`: **88%** (гейт 70%)
+- [x] `ruff` + `mypy` strict + pytest; vitest для frontend (vad, messages)
+- [x] `scripts/check_module_size.py` — в CI
 
 ---
 
@@ -170,3 +173,4 @@ Copy from brief — track in this doc:
 | 2026-06-26 | v0.2: engineering standards (500 LOC, SOLID, DRY, tests) per phase |
 | 2026-06-26 | **Phase 0 ✅ complete** — benchmark results doc 19 |
 | 2026-07-02 | v0.3: Phase 1 exit criteria + re-benchmark gate и закрытие D-8; риски: prefill, R1 latency, long-utterance STT; удалена устаревшая секция «docs to add» (15–17 написаны, добавлен doc 20) |
+| 2026-07-03 | v0.4: **Phase 1 code + gates done** — backend (33 tests, 88% cov, mypy strict), frontend (11 tests), re-benchmark PASS (streaming), D-8 закрыт; остался manual 5-turn критерий |

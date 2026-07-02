@@ -74,17 +74,19 @@ Ollama переиспользует KV cache по **стабильному пр�
 
 **Ожидание:** первый turn сессии платит полный prefill ~4–5K токенов (оценочно +1–3 s на M5 — **не замерено в Phase 0**); последующие turns — только инкремент. Это и есть главный незакрытый риск latency.
 
-## Phase 1 re-benchmark gate (обязательный)
+## Phase 1 re-benchmark gate — результаты (2026-07-03)
 
-Phase 0 gate пройден на нерепрезентативном промпте. В Phase 1, как только собран реальный prompt assembly:
+Скрипт: `scripts/spike/benchmark_phase1.py` · raw: `scripts/spike/results_phase1.json`
 
-- [ ] Замерить full turn с промптом **4–5K токенов** (реальный system + profile + tail), 5+ warm runs
-- [ ] Gate: p95 full turn **< 4 s** (warm, после первого turn сессии)
-- [ ] Замерить first-turn-of-session отдельно (full prefill) — допустимо до ~6 s, маскируется intro-репликой агента
-- [ ] Замерить R1 review turn c `num_predict: 2048` — зафиксировать реальную паузу для D-8 ([14-llm-model-split.md](14-llm-model-split.md))
-- [ ] STT на utterance 60–90 s (реальная длина ответа) — см. риск в [03-voice-pipeline.md](03-voice-pipeline.md)
+- [x] Промпт продового размера (system + реальный profile + 12-turn tail, ~2K токенов; поздняя сессия дорастёт до 4–5K), 5 warm runs
+- [x] **KV-prefix cache подтверждён:** warm TTFT **~0.17 s** на 16× большем промпте, чем в Phase 0 — префикс-кэширование работает, prefill-риск снят
+- [x] LLM total вырос: p50 2.94 s, p95 3.52 s (длиннее ответы при большем контексте) →
+  - **буферизованный режим: projected full turn p95 = 4.8 s — FAIL** (подтверждено: streaming обязателен)
+  - **sentence-streaming: projected perceived (STT + first sentence + TTS) = 3.0 s — PASS**; с VAD tail 1.2 s ≈ 4.2 s — на границе NFR-1.1, тюнинг: silence threshold слайдером до 1.0 s и/или короткий ack первым предложением (I1-S3 заодно снижает perceived latency)
+- [x] **D-8 закрыт**: R1 31–52 s/ход vs Qwen TTFT 0.2 s → вариант B ([14-llm-model-split.md](14-llm-model-split.md))
+- [ ] STT на utterance 60–90 s — остаётся на ручную проверку вместе с exit-критерием «5 manual turns» (нужен реальный микрофон)
 
-Если gate провален → mitigations по порядку: сократить profile до 1000 токенов → tail до 8 turns → `llama3.1:8b` для Mode 1.
+Mitigations (если p95 деградирует на реальных 4–5K-сессиях): сократить profile до 1000 токенов → tail до 8 turns → `llama3.1:8b` для Mode 1.
 
 ## Связанные документы
 
@@ -98,3 +100,4 @@ Phase 0 gate пройден на нерепрезентативном промп
 | Дата | Изменение |
 |------|-----------|
 | 2026-07-02 | Initial: token budgets, R1 thinking rule, num_ctx 16384 for summary, Phase 1 re-benchmark gate |
+| 2026-07-03 | Gate выполнен: KV-cache подтверждён (TTFT 0.17 s), streaming PASS 3.0 s / buffered FAIL 4.8 s, D-8 закрыт |

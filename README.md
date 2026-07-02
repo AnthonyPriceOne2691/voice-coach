@@ -2,9 +2,21 @@
 
 Голосовой AI-агент для mock technical interviews на английском.
 
-**Статус:** Phase 0 ✅ · Phase 1 next  
+**Статус:** Phase 0 ✅ · Phase 1 🟡 code+gates done (остался manual 5-turn тест) · **D-8 закрыт: Qwen для всего голосового**  
 **Автор:** Anton Aspidov  
 **Планирование:** см. [`docs/`](docs/)
+
+## Запуск (Phase 1 voice loop)
+
+```bash
+# T1: ollama serve          (модели: qwen2.5:14b-instruct, deepseek-r1:14b)
+# T2: cd backend && .venv/bin/uvicorn app.main:app --port 8000
+# T3: cd frontend && ./node_modules/.bin/vite     # http://localhost:5173
+
+# Первый раз: cd backend && uv sync --all-extras; cd frontend && npm install
+```
+
+> ⚠️ Из-за `:` в пути (`Other:Another`) **`uv run` и npm-скрипты не работают** — вызывай бинарники напрямую: `backend/.venv/bin/<tool>`, `frontend/node_modules/.bin/<tool>`. Лечится переносом репозитория в путь без `:`.
 
 ## Phase 0 results (2026-06-26)
 

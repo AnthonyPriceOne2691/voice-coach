@@ -98,7 +98,7 @@ Original intent: {question_seed}
 | Prompt file | Model | num_ctx | max_tokens | temp |
 |-------------|-------|---------|------------|------|
 | interviewer_system | qwen2.5:14b-instruct | 8192 | 220 | 0.75 |
-| review_system | **D-8** (doc 14): deepseek-r1:14b или qwen2.5:14b-instruct | 8192 | 2048 (R1) / 300 (Qwen) | 0.6 |
+| review_system | **qwen2.5:14b-instruct** (D-8 закрыт, doc 14) | 8192 | 300 | 0.6 |
 | summary_system | deepseek-r1:14b | **16384** | 4096 | 0.3 |
 | minimal_summary | **qwen2.5:14b-instruct** (уже загружен при Skip — без model swap) | 8192 | 800 | 0.3 |
 
