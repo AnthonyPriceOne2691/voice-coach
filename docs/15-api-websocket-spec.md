@@ -8,7 +8,7 @@
 |---------|-----|
 | REST | `http://127.0.0.1:8000` |
 | WebSocket (voice) | `ws://127.0.0.1:8000/ws/session` |
-| Frontend dev | `http://127.0.0.1:5173` → proxy `/api`, `/ws` |
+| Frontend dev | `http://127.0.0.1:5273` → proxy `/api`, `/ws` (5173 занят другим проектом) |
 
 ## Auth
 

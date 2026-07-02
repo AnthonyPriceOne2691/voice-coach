@@ -11,7 +11,7 @@
 ```bash
 # T1: ollama serve          (модели: qwen2.5:14b-instruct, deepseek-r1:14b)
 # T2: cd backend && .venv/bin/uvicorn app.main:app --port 8000
-# T3: cd frontend && ./node_modules/.bin/vite     # http://localhost:5173
+# T3: cd frontend && ./node_modules/.bin/vite     # http://localhost:5273
 
 # Первый раз: cd backend && uv sync --all-extras; cd frontend && npm install
 ```

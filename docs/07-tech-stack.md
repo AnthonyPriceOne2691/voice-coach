@@ -400,7 +400,7 @@ ollama serve
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 
 # T3
-cd frontend && npm run dev   # :5173 → proxy :8000
+cd frontend && ./node_modules/.bin/vite   # :5273 → proxy :8000 (5173 занят линкбилдинг-проектом; npm run dev не работает из-за ':' в пути)
 ```
 
 ---
