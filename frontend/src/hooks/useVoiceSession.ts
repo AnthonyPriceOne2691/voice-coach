@@ -19,6 +19,7 @@ interface SessionRefs {
   detector: SilenceDetector;
   queue: AudioQueue | null;
   serverState: SessionState;
+  playing: boolean; // agent audio still coming out of the speakers
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -44,11 +45,15 @@ export function useVoiceSession() {
     detector: new SilenceDetector(),
     queue: null,
     serverState: "idle",
+    playing: false,
   });
 
   const startRecorder = useCallback(() => {
     const r = refs.current;
-    if (!r.stream || r.recorder?.state === "recording") return;
+    // Mic only when the server listens AND agent audio finished playing —
+    // otherwise VAD picks up the agent's own voice from the speakers.
+    if (!r.stream || r.playing || r.serverState !== "listening") return;
+    if (r.recorder?.state === "recording") return;
     const recorder = new MediaRecorder(r.stream, { mimeType: "audio/webm;codecs=opus" });
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => chunks.push(event.data);
@@ -69,7 +74,7 @@ export function useVoiceSession() {
     r.audioContext.createMediaStreamSource(r.stream).connect(analyser);
     const samples = new Uint8Array(analyser.fftSize);
     r.vadTimer = window.setInterval(() => {
-      if (r.serverState !== "listening") return; // mic paused while agent speaks (doc 15)
+      if (r.serverState !== "listening" || r.playing) return; // mic paused while agent speaks
       analyser.getByteTimeDomainData(samples);
       const event = r.detector.update(rmsDbfs(samples), performance.now());
       if (event === "utterance_end" && r.recorder?.state === "recording") {
@@ -97,6 +102,7 @@ export function useVoiceSession() {
       } else if (message.type === "transcript") {
         setTranscript((prev) => [...prev, message.payload]);
       } else if (message.type === "audio") {
+        if (message.payload.chunk_base64) r.playing = true;
         void r.queue?.enqueue(message.payload.chunk_base64);
       } else if (message.type === "error") {
         setError(`${message.payload.code}: ${message.payload.message}`);
@@ -115,7 +121,12 @@ export function useVoiceSession() {
     const r = refs.current;
     r.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     r.audioContext = new AudioContext();
-    r.queue = new AudioQueue(r.audioContext, () => {});
+    r.queue = new AudioQueue(r.audioContext, () => {
+      // Agent finished speaking through the speakers — now it's safe to open the mic.
+      r.playing = false;
+      r.detector.reset();
+      startRecorder();
+    });
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocol}://${location.host}/ws/session`);
     r.ws = ws;
@@ -125,9 +136,14 @@ export function useVoiceSession() {
       ws.send(clientMessage("start_interview"));
     };
     ws.onerror = () => setError("WebSocket connection failed — is the backend running?");
+    ws.onclose = (event) => {
+      if (!event.wasClean) setError("Connection lost — restart the backend and try again.");
+      setActive(false);
+      setState("idle");
+    };
     setActive(true);
     startVadLoop();
-  }, [handleMessage, startVadLoop]);
+  }, [handleMessage, startVadLoop, startRecorder]);
 
   const end = useCallback(() => {
     const r = refs.current;
@@ -145,6 +161,7 @@ export function useVoiceSession() {
       vadTimer: null,
       queue: null,
       serverState: "idle",
+      playing: false,
     });
     setActive(false);
     setState("idle");

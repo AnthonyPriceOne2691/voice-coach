@@ -1,0 +1,32 @@
+[
+  {
+    "role": "agent",
+    "text": "Hi — I'll run a mock technical interview with you, about fifteen minutes. Think of this as practice with a colleague. Ready when you are.\n\nWalk me through an internal tool you built end-to-end.",
+    "timestamp_ms": 663,
+    "turn_index": 0
+  },
+  {
+    "role": "user",
+    "text": "I built an internal outreach automation platform with separate queues for inbound mail and open AI calls.",
+    "timestamp_ms": 6263,
+    "turn_index": 1
+  },
+  {
+    "role": "agent",
+    "text": "Help me understand — why did you choose to have separate queues for inbound mail and OpenAI calls? What was the trade-off there? Also, could you walk through how you handled human-in-the-loop (HITL) scenarios in your tool?",
+    "timestamp_ms": 10412,
+    "turn_index": 2
+  },
+  {
+    "role": "user",
+    "text": "I built an internal outreach automation platform with separate queues for inbound mail and open AI calls.",
+    "timestamp_ms": 10880,
+    "turn_index": 3
+  },
+  {
+    "role": "agent",
+    "text": "Could you explain why separate queues were necessary for inbound mail and OpenAI calls? Also, what specific mechanisms did you implement to handle human-in-the-loop (HITL) scenarios within your tool?",
+    "timestamp_ms": 14510,
+    "turn_index": 4
+  }
+]

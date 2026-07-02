@@ -1,10 +1,14 @@
 """WebSocket voice session handler — message contract per docs/15-api-websocket-spec.md."""
 
+import asyncio
 import base64
 import binascii
+import io
+import logging
 import tempfile
 import time
 import uuid
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +27,18 @@ from app.voice.pipeline import (
     VoiceTurnPipeline,
 )
 from app.voice.session import VoiceSession
+
+logger = logging.getLogger(__name__)
+
+
+def _silent_wav(duration_s: float = 1.0, rate: int = 16000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(rate)
+        wav_file.writeframes(b"\x00\x00" * int(duration_s * rate))
+    return buffer.getvalue()
 
 
 async def ws_session(websocket: WebSocket) -> None:
@@ -43,6 +59,7 @@ class _SessionHandler:
         self._c = container
         self._session: VoiceSession | None = None
         self._started_at = 0.0
+        self._warmup_task: asyncio.Task[None] | None = None
         self._pipeline = VoiceTurnPipeline(
             container.stt,
             container.llm,
@@ -79,7 +96,30 @@ class _SessionHandler:
         intro = self._c.prompts.template("interview_intro")
         await self._state("speaking")
         await self._send_audio(await self._c.tts.synthesize(intro), final=False)
+        # Pre-warm STT + LLM in the background (doc 19 note 1: cold whisper load must
+        # not land on the first real turn) while the intro is playing on the client.
+        self._warmup_task = asyncio.create_task(self._warmup())
         await self._finish_agent_turn(intro)
+
+    async def _warmup(self) -> None:
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                wav_path = Path(tmp) / "warmup.wav"
+                wav_path.write_bytes(_silent_wav())
+                await self._c.stt.transcribe(wav_path)
+        except Exception:
+            logger.warning("STT warmup failed", exc_info=True)
+        try:
+            settings = self._c.settings
+            async for _ in self._c.llm.stream_chat(
+                [{"role": "user", "content": "hi"}],
+                model=settings.ollama_model_interview,
+                temperature=0.0,
+                max_tokens=1,
+            ):
+                break
+        except Exception:
+            logger.warning("LLM warmup failed", exc_info=True)
 
     async def _on_utterance_end(self, payload: dict[str, Any]) -> None:
         session = self._session
@@ -100,6 +140,10 @@ class _SessionHandler:
         except OllamaError:
             await self._error("PIPELINE_FAILURE", "LLM unavailable", recoverable=False)
             await self._on_end_session(reason="pipeline_failure")
+        except Exception:
+            logger.exception("voice turn failed")
+            await self._error("INTERNAL", "turn failed — please repeat", recoverable=True)
+            await self._state("listening")
 
     async def _run_turn(self, session: VoiceSession, audio: bytes) -> None:
         settings = self._c.settings

@@ -1,0 +1,8 @@
+[
+  {
+    "role": "agent",
+    "text": "Hi — I'll run a mock technical interview with you, about fifteen minutes. Think of this as practice with a colleague. Ready when you are.\n\nWalk me through an internal tool you built end-to-end.",
+    "timestamp_ms": 3802,
+    "turn_index": 0
+  }
+]

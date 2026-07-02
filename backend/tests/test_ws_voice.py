@@ -137,3 +137,32 @@ def test_ping_pong(ws: tuple[WebSocketTestSession, Container]) -> None:
     websocket, _ = ws
     websocket.send_json({"type": "ping", "payload": {}})
     assert websocket.receive_json()["type"] == "pong"
+
+
+class _ExplodingDecoder:
+    async def to_wav(self, data: bytes, out_path: Path) -> None:
+        raise RuntimeError("ffmpeg blew up")
+
+
+def test_decode_failure_is_recoverable(tmp_path: Path) -> None:
+    """Uncaught turn exceptions must not kill the WS loop (mid-session failure policy)."""
+    container = _make_container(tmp_path, FakeLlm(["Ok. "]), FakeStt())
+    container.decoder = _ExplodingDecoder()
+    client = TestClient(create_app(container))
+    with client.websocket_connect("/ws/session") as websocket:
+        websocket.send_json({"type": "start_interview", "payload": {}})
+        _collect_until(websocket, "state")
+        _collect_until(websocket, "state")
+        websocket.send_json(
+            {
+                "type": "utterance_end",
+                "payload": {"audio_base64": base64.b64encode(b"x").decode()},
+            }
+        )
+        messages = _collect_until(websocket, "error")
+        assert messages[-1]["payload"]["code"] == "INTERNAL"
+        assert messages[-1]["payload"]["recoverable"] is True
+        assert websocket.receive_json()["payload"]["value"] == "listening"
+        # session still alive after the failure
+        websocket.send_json({"type": "ping", "payload": {}})
+        assert websocket.receive_json()["type"] == "pong"
