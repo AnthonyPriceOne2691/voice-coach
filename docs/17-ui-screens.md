@@ -1,0 +1,221 @@
+# 17 — UI Screens & UX Specification
+
+> Voice Interview Coach · Design doc · v0.1 · 2026-06-26
+
+## Navigation (global)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Voice Interview Coach          [Interview][History][Words]│
+│                                              [Settings ⚙]  │
+└────────────────────────────────────────────────────────────┘
+```
+
+| Tab | Route | Phase |
+|-----|-------|-------|
+| Interview | `/` | 1 |
+| History | `/history` | 2 |
+| Useful Words | `/vocabulary` | 2 |
+| Settings | `/settings` | 1 |
+
+---
+
+## Screen 1: Home / Interview (`/`)
+
+**Purpose:** start Mode 1 or resume flow.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Mock Technical Interview                                   │
+│  AI Automation Engineer · ~15 min · English                │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  🎙  Ready to practice?                              │   │
+│  │                                                      │   │
+│  │  [ Start Mock Interview ]                            │   │
+│  │                                                      │   │
+│  │  Last session: Jun 24 · Review pending → [Review]   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Tips: speak clearly · project details · metrics             │
+└────────────────────────────────────────────────────────────┘
+```
+
+**States:**
+- `idle` — Start button enabled if Ollama ok (`GET /health` + ollama probe)
+- `ollama_down` — banner + setup link
+- `last_review_pending` — CTA to History
+
+---
+
+## Screen 2: Active Session (`/session`)
+
+**Purpose:** voice loop UI (Mode 1 or Mode 2).
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  ◀ End session          Technical Interview    ⏱ 12:34    │
+├────────────────────────────────────────────────────────────┤
+│                                                             │
+│              ┌─────────────────┐                            │
+│              │   LISTENING     │  ← pulsing ring            │
+│              │   (or SPEAKING) │                            │
+│              └─────────────────┘                            │
+│                                                             │
+│  Live transcript (toggle in Settings)                       │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Agent: Walk me through an internal tool you built.  │   │
+│  │ You:  I built an inbound pipeline for our team...   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  [ End session ]                                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+**State indicator values:** `loading_model` | `listening` | `processing` | `speaking`
+
+**Mode 2 differences:**
+- Header: «Review Together»
+- Subtitle: linked interview date
+- Same voice UI
+
+**Loading model overlay** (Qwen ↔ R1):
+```
+Loading review model… (~10s)
+```
+
+---
+
+## Screen 3: Interview Complete → Review prompt
+
+**Route:** modal / `/session/complete`
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Interview complete · 14 min saved                          │
+│                                                             │
+│  Review together with your recruiter friend?                │
+│  Walk through what worked and what to sharpen.              │
+│                                                             │
+│  [ Start Review Together ]    [ Skip for now ]              │
+└────────────────────────────────────────────────────────────┘
+```
+
+| Action | Result |
+|--------|--------|
+| Start Review | WebSocket `start_review` → Screen 2 (Mode 2) |
+| Skip | `POST minimal-summary` → Screen 5 (minimal) |
+
+---
+
+## Screen 4: History (`/history`)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  History                                                    │
+├────────────────────────────────────────────────────────────┤
+│  Jun 26, 2026 · Technical walkthrough · 14 min             │
+│  Interview ✓   Review ✓   Scores available                  │
+│  [View] [Review again] [Delete]                             │
+├────────────────────────────────────────────────────────────┤
+│  Jun 24, 2026 · Technical walkthrough · 15 min             │
+│  Interview ✓   Review — not started                         │
+│  [Start review] [View interview]                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Detail view (`/history/:interviewId`):**
+- Tabs: Summary | Interview transcript | Review transcript
+- Delete, export (P2)
+
+---
+
+## Screen 5: Summary (`/history/:id/summary`)
+
+**Full debrief** (after Mode 2) or **minimal** (skip review).
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Session summary                                            │
+├────────────────────────────────────────────────────────────┤
+│  Scores (1–5)                                               │
+│  Clarity ████░  Structure ███░░  Depth ████░               │
+│  English ███░░  Positioning ██░░░                            │
+├────────────────────────────────────────────────────────────┤
+│  Strengths                                                  │
+│  · Strong queue explanation at Q4…                           │
+├────────────────────────────────────────────────────────────┤
+│  Improve                                                    │
+│  · Q5: opened with SEO not automation → fix: …             │
+├────────────────────────────────────────────────────────────┤
+│  Vocabulary added (6) → [Open Useful Words]                 │
+│  · human-in-the-loop · trade-off · idempotent                │
+├────────────────────────────────────────────────────────────┤
+│  Next focus: metrics in opening · positioning as builder     │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Minimal summary banner** (skip review):
+> Full rubric available after Review Together. [Start review]
+
+---
+
+## Screen 6: Useful Words (`/vocabulary`)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Useful Words                    [Search…] [Category ▼]      │
+├────────────────────────────────────────────────────────────┤
+│  human-in-the-loop                                          │
+│  RU: контроль человеком в цикле                             │
+│  e.g. "We keep a human-in-the-loop step before auto-send."  │
+│  · architecture · from Jun 26 session                       │
+├────────────────────────────────────────────────────────────┤
+│  trade-off                                                  │
+│  RU: компромисс                                              │
+│  e.g. "The trade-off was latency vs safety."                │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Screen 7: Settings (`/settings`)
+
+| Setting | Type | Default |
+|---------|------|---------|
+| Show live transcript | toggle | **ON** |
+| Interview duration | 15 / 30 / 45 min | 15 |
+| Silence before end-of-turn | slider 0.8–2.0 s | 1.2 s |
+| Microphone device | dropdown | system default |
+
+Diagnostics section (read-only):
+- Ollama status
+- Models installed
+- Last benchmark p95 (optional)
+
+---
+
+## Component map (frontend)
+
+| Component | LOC budget | Responsibility |
+|-----------|------------|----------------|
+| `SessionStateRing` | < 120 | listening/speaking visual |
+| `TranscriptPanel` | < 150 | scrollable turns |
+| `ReviewPromptModal` | < 100 | post-interview CTA |
+| `SummaryCard` | < 200 | scores + lists |
+| `VocabularyList` | < 200 | search/filter |
+| `useVoiceSession` hook | < 200 | WebSocket + MediaRecorder |
+
+---
+
+## Responsive
+
+MVP: **desktop-first** (interview at desk). Min width 1024px. Mobile — post-MVP.
+
+---
+
+## Changelog
+
+| Дата | Изменение |
+|------|-----------|
+| 2026-06-26 | Initial UI screens; D-4/D-5/skip-review decisions applied |

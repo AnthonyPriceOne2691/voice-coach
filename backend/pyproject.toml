@@ -1,0 +1,104 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voice-interview-coach"
+version = "0.1.0"
+description = "Local voice mock technical interview coach"
+readme = "../README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "httpx>=0.28",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.6",
+  "sqlalchemy[asyncio]>=2.0",
+  "aiosqlite>=0.20",
+  "pyyaml>=6.0",
+  "structlog>=24.0",
+  "jinja2>=3.1",
+  "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+vad = ["onnxruntime>=1.20"]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "httpx>=0.28",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+  "--strict-markers",
+  "--cov=app",
+  "--cov-report=term-missing",
+  "--cov-fail-under=70",
+]
+markers = [
+  "integration: hits multiple layers (still mocked external AI)",
+  "slow: manual or e2e; not run in default CI",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+  "app/main.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "I", "UP", "B", "SIM", "RUF",
+]
+ignore = [
+  "B008",  # Depends() in FastAPI routes
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["app"]
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.uv]
+dev-dependencies = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]

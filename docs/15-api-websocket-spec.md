@@ -1,0 +1,400 @@
+# 15 — API & WebSocket Specification
+
+> Voice Interview Coach · Design doc · v0.2 · 2026-07-02
+
+## Base URLs
+
+| Service | URL |
+|---------|-----|
+| REST | `http://127.0.0.1:8000` |
+| WebSocket (voice) | `ws://127.0.0.1:8000/ws/session` |
+| Frontend dev | `http://127.0.0.1:5173` → proxy `/api`, `/ws` |
+
+## Auth
+
+MVP: **none** (localhost single-user). CORS: `127.0.0.1`, `localhost` only.
+
+---
+
+## REST API
+
+### `GET /health`
+
+```json
+{ "status": "ok", "version": "0.1.0" }
+```
+
+### `GET /sessions/interviews`
+
+List interviews, newest first.
+
+**Query:** `limit` (default 50), `offset` (default 0)
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "started_at": "2026-06-26T10:00:00Z",
+      "ended_at": "2026-06-26T10:14:00Z",
+      "interview_mode": "technical_project_walkthrough",
+      "duration_sec": 840,
+      "has_review": true,
+      "review_session_id": "uuid",
+      "has_debrief": true
+    }
+  ],
+  "total": 12
+}
+```
+
+### `GET /sessions/interviews/{id}`
+
+```json
+{
+  "id": "uuid",
+  "transcript": [{ "role": "agent", "text": "...", "timestamp_ms": 0, "turn_index": 0 }],
+  "metadata": { "duration_sec": 840, "question_count": 6 },
+  "debrief": null,
+  "review_session_id": null,
+  "status": "completed"
+}
+```
+
+`status`: `in_progress` | `completed` | `failed`
+
+### `GET /sessions/reviews/{id}`
+
+Review transcript + link to source interview.
+
+### `POST /sessions/interviews/{id}/review`
+
+Start Mode 2 for a completed interview. Returns `{ "review_session_id": "uuid" }` — client opens WebSocket with that id.
+
+### `POST /sessions/interviews/{id}/minimal-summary`
+
+Generate **minimal summary** when user skipped Mode 2 (LLM pass on interview only).
+
+### `DELETE /sessions/interviews/{id}`
+
+Cascade delete linked review + debrief. Returns `204`.
+
+### `GET /vocabulary`
+
+**Query:** `q`, `category`, `sort` (`recent` | `alpha`), `limit`, `offset`
+
+### `GET /vocabulary/{id}`
+
+Single entry.
+
+### `DELETE /vocabulary/{id}`
+
+Soft delete — `status='deleted'`, запись остаётся для dedup-правила «don't re-add» ([12-session-storage.md](12-session-storage.md)). (P1 user edit.)
+
+### `GET /settings` / `PATCH /settings`
+
+```json
+{
+  "show_live_transcript": true,
+  "interview_duration_min": 15,
+  "silence_threshold_ms": 1200
+}
+```
+
+---
+
+## WebSocket: `/ws/session`
+
+One connection per active voice session (Mode 1 or Mode 2).
+
+### Connection
+
+```
+ws://127.0.0.1:8000/ws/session
+```
+
+Client sends `hello` immediately after open.
+
+### Message envelope
+
+All messages JSON:
+
+```json
+{ "type": "<message_type>", "payload": { } }
+```
+
+Optional top-level `request_id` for correlating errors.
+
+---
+
+### Client → Server
+
+#### `hello`
+
+```json
+{
+  "type": "hello",
+  "payload": {
+    "client_version": "0.1.0",
+    "capabilities": ["webm_opus"]
+  }
+}
+```
+
+Server responds `ready`.
+
+#### `start_interview`
+
+```json
+{
+  "type": "start_interview",
+  "payload": {
+    "mode": "technical_project_walkthrough",
+    "duration_min": 15
+  }
+}
+```
+
+Server: pre-warm Qwen model → `state: processing` → first agent turn → `audio` chunks.
+
+#### `start_review`
+
+```json
+{
+  "type": "start_review",
+  "payload": {
+    "interview_id": "uuid"
+  }
+}
+```
+
+Server: evict Qwen → load R1 → begin review intro.
+
+#### `utterance_end`
+
+User finished speaking (client VAD).
+
+```json
+{
+  "type": "utterance_end",
+  "payload": {
+    "audio_base64": "<webm opus or wav>",
+    "mime": "audio/webm",
+    "duration_ms": 8200
+  }
+}
+```
+
+#### `barge_in` (P1)
+
+```json
+{ "type": "barge_in", "payload": {} }
+```
+
+**MVP (без barge-in):** в состоянии `speaking` клиент **не захватывает микрофон**; `utterance_end`, пришедший в `speaking`/`processing`, сервер отвергает без side effects (state event перешлётся клиенту).
+
+#### `end_session`
+
+```json
+{
+  "type": "end_session",
+  "payload": {
+    "reason": "user"
+  }
+}
+```
+
+#### `ping`
+
+```json
+{ "type": "ping", "payload": {} }
+```
+
+---
+
+### Server → Client
+
+#### `ready`
+
+```json
+{
+  "type": "ready",
+  "payload": {
+    "server_version": "0.1.0",
+    "ollama_ok": true
+  }
+}
+```
+
+#### `state`
+
+```json
+{
+  "type": "state",
+  "payload": {
+    "value": "idle|listening|processing|speaking|loading_model",
+    "session_kind": "interview|review|null",
+    "session_id": "uuid|null"
+  }
+}
+```
+
+#### `model_loading`
+
+Shown during Qwen ↔ R1 swap (~5–15 s).
+
+```json
+{
+  "type": "model_loading",
+  "payload": {
+    "model": "deepseek-r1:14b",
+    "message": "Loading review model..."
+  }
+}
+```
+
+#### `transcript`
+
+```json
+{
+  "type": "transcript",
+  "payload": {
+    "role": "user|agent",
+    "text": "Walk me through an internal tool you built.",
+    "turn_index": 1,
+    "final": true
+  }
+}
+```
+
+`final: false` — optional partial STT (P2 streaming).
+
+#### `audio`
+
+```json
+{
+  "type": "audio",
+  "payload": {
+    "chunk_base64": "<wav>",
+    "mime": "audio/wav",
+    "final": false
+  }
+}
+```
+
+`final: true` on last chunk of agent turn.
+
+#### `session_started`
+
+```json
+{
+  "type": "session_started",
+  "payload": {
+    "session_kind": "interview",
+    "session_id": "uuid"
+  }
+}
+```
+
+#### `session_ended`
+
+```json
+{
+  "type": "session_ended",
+  "payload": {
+    "session_kind": "interview",
+    "session_id": "uuid",
+    "duration_sec": 842,
+    "next_action": "offer_review"
+  }
+}
+```
+
+`next_action`: `offer_review` | `generate_summary` | `none`
+
+#### `summary_ready`
+
+After Mode 2 or minimal-summary REST job.
+
+```json
+{
+  "type": "summary_ready",
+  "payload": {
+    "interview_id": "uuid",
+    "debrief_id": "uuid"
+  }
+}
+```
+
+#### `error`
+
+```json
+{
+  "type": "error",
+  "payload": {
+    "code": "STT_EMPTY|OLLAMA_DOWN|CONTRACT_FAIL|MIC_DENIED|INTERNAL",
+    "message": "Human-readable",
+    "recoverable": true
+  }
+}
+```
+
+#### `pong`
+
+Response to `ping`.
+
+---
+
+## Error codes
+
+| Code | When | Client action |
+|------|------|---------------|
+| `STT_EMPTY` | No speech / too short | Show hint, return to listening |
+| `OLLAMA_DOWN` | Cannot reach Ollama | Block start, link to setup |
+| `CONTRACT_FAIL` | Enforcer exhausted retries | Agent uses template line |
+| `MODEL_LOAD_FAIL` | R1/Qwen load timeout | Retry or abort |
+| `SESSION_NOT_FOUND` | Bad interview_id for review | Toast + History |
+| `MIC_DENIED` | Client-side | Settings instructions |
+
+---
+
+## Session state machine (transport layer)
+
+```
+idle ──start_interview──▶ loading_model ──▶ speaking (intro)
+                              │
+listening ◀── utterance_end ──┤
+     │                        │
+     └──▶ processing ──▶ speaking ──▶ listening
+                              │
+                    end_session / timer
+                              ▼
+                         session_ended
+```
+
+---
+
+## Checkpointing
+
+Every **3 turns or 30 s** (что раньше — как в [12-session-storage.md](12-session-storage.md)) server persists transcript (`status: in_progress`).  
+On disconnect: interview remains resumable from History (P1); в MVP partial transcript виден в History как `in_progress`.
+
+---
+
+## Phase mapping
+
+| Endpoint / message | Phase |
+|--------------------|-------|
+| `/health`, `hello`, `start_interview`, `utterance_end`, `transcript`, `audio` | 1 |
+| `start_review`, model swap, REST History | 2 |
+| `minimal-summary`, vocabulary REST | 2 |
+| `barge_in`, resume session | P1 |
+
+---
+
+## Changelog
+
+| Дата | Изменение |
+|------|-----------|
+| 2026-06-26 | Initial API + WebSocket spec |
+| 2026-07-02 | v0.2: MVP-поведение mic при `speaking` (no barge-in); checkpoint «3 turns or 30 s» согласован с doc 12; DELETE /vocabulary — soft delete |

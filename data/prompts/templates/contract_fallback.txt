@@ -1,0 +1,1 @@
+Help me understand the architecture — how are the main services separated?

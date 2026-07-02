@@ -1,0 +1,6 @@
+httpx>=0.28
+soundfile>=0.12
+numpy>=1.26
+faster-whisper>=1.1
+piper-tts>=1.4
+onnxruntime>=1.20

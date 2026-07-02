@@ -1,0 +1,3 @@
+Hi — I'll run a mock technical interview with you, about fifteen minutes. Think of this as practice with a colleague. Ready when you are.
+
+Walk me through an internal tool you built end-to-end.
