@@ -114,7 +114,7 @@ def test_utterance_without_session_errors(ws: tuple[WebSocketTestSession, Contai
 
 
 def test_stt_empty_recoverable(tmp_path: Path) -> None:
-    container = _make_container(tmp_path, FakeLlm(["x"]), FakeStt("uh"))
+    container = _make_container(tmp_path, FakeLlm(["x"]), FakeStt("[BLANK_AUDIO]"))
     client = TestClient(create_app(container))
     with client.websocket_connect("/ws/session") as websocket:
         websocket.send_json({"type": "start_interview", "payload": {}})

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     knowledge_dir: Path = REPO_ROOT / "data" / "knowledge"
     sessions_dir: Path = REPO_ROOT / "data" / "sessions"
 
-    min_transcript_words: int = 2
+    min_transcript_words: int = 1  # после junk-фильтра; «Hello» — валидная реплика
 
 
 @lru_cache

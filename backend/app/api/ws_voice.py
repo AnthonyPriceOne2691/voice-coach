@@ -134,8 +134,14 @@ class _SessionHandler:
         await self._state("processing")
         try:
             await self._run_turn(session, audio)
-        except SttEmptyError:
-            await self._error("STT_EMPTY", "no speech detected", recoverable=True)
+        except SttEmptyError as exc:
+            logger.info("STT_EMPTY, raw transcript: %r", exc.raw_transcript)
+            heard = f" (heard: “{exc.raw_transcript}”)" if exc.raw_transcript.strip() else ""
+            await self._error(
+                "STT_EMPTY",
+                f"no speech detected{heard} — session is English-only",
+                recoverable=True,
+            )
             await self._state("listening")
         except OllamaError:
             await self._error("PIPELINE_FAILURE", "LLM unavailable", recoverable=False)
@@ -158,6 +164,7 @@ class _SessionHandler:
             speaking = False
             async for event in self._pipeline.run_turn(wav_path, session.messages, params):
                 if isinstance(event, UserTranscribed):
+                    logger.info("user said: %r", event.text)
                     session.add_user(event.text)
                     await self._transcript("user", event.text)
                 elif isinstance(event, AgentSentence):

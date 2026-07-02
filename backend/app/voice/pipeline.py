@@ -1,5 +1,6 @@
 """Voice turn pipeline: STT -> LLM (streaming) -> per-sentence TTS (docs 03, 13)."""
 
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,9 +8,24 @@ from pathlib import Path
 from app.common.interfaces import ChatMessage, LlmClient, SpeechToText, TextToSpeech
 from app.common.sentences import SentenceChunker
 
+# whisper hallucination artifacts on silence/noise: [BLANK_AUDIO], (wind blowing), *music* ...
+_JUNK_SEGMENTS = re.compile(r"\[[^\]]*\]|\([^)]*\)|\*[^*]*\*")
+_HAS_WORD = re.compile(r"[A-Za-z]")
+
+
+def clean_transcript(raw: str) -> str:
+    """Strip non-speech artifacts; empty result means nothing usable was said."""
+    text = _JUNK_SEGMENTS.sub(" ", raw)
+    words = [w for w in text.split() if _HAS_WORD.search(w)]
+    return " ".join(words)
+
 
 class SttEmptyError(RuntimeError):
     """User utterance produced no usable transcript (doc 15: STT_EMPTY)."""
+
+    def __init__(self, raw_transcript: str) -> None:
+        super().__init__(f"no usable speech (heard: {raw_transcript!r})")
+        self.raw_transcript = raw_transcript
 
 
 @dataclass(frozen=True)
@@ -48,7 +64,7 @@ class VoiceTurnPipeline:
         llm: LlmClient,
         tts: TextToSpeech,
         *,
-        min_transcript_words: int = 2,
+        min_transcript_words: int = 1,
     ) -> None:
         self._stt = stt
         self._llm = llm
@@ -61,9 +77,10 @@ class VoiceTurnPipeline:
         messages: list[ChatMessage],
         params: LlmParams,
     ) -> AsyncIterator[TurnEvent]:
-        user_text = await self._stt.transcribe(wav_path)
+        raw = await self._stt.transcribe(wav_path)
+        user_text = clean_transcript(raw)
         if len(user_text.split()) < self._min_words:
-            raise SttEmptyError(f"transcript too short: {user_text!r}")
+            raise SttEmptyError(raw)
         yield UserTranscribed(text=user_text)
 
         chat = [*messages, {"role": "user", "content": user_text}]

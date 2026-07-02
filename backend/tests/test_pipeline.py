@@ -9,7 +9,17 @@ from app.voice.pipeline import (
     SttEmptyError,
     UserTranscribed,
     VoiceTurnPipeline,
+    clean_transcript,
 )
+
+
+def test_clean_transcript_strips_whisper_artifacts() -> None:
+    assert clean_transcript("[BLANK_AUDIO]") == ""
+    assert clean_transcript("(wind blowing) Hello there [MUSIC]") == "Hello there"
+    assert clean_transcript(" . , ") == ""
+    assert clean_transcript("Hello.") == "Hello."
+
+
 from tests.fakes import FakeLlm, FakeStt, FakeTts
 
 PARAMS = LlmParams(model="m", temperature=0.7, max_tokens=100)
@@ -51,10 +61,20 @@ async def test_user_message_appended_to_history() -> None:
     assert llm.last_messages[0]["role"] == "system"
 
 
-async def test_short_transcript_raises_stt_empty() -> None:
-    pipeline = VoiceTurnPipeline(FakeStt("uh"), FakeLlm(["x"]), FakeTts())
-    with pytest.raises(SttEmptyError):
+async def test_junk_only_transcript_raises_stt_empty() -> None:
+    pipeline = VoiceTurnPipeline(FakeStt("[BLANK_AUDIO]"), FakeLlm(["x"]), FakeTts())
+    with pytest.raises(SttEmptyError) as excinfo:
         await _run(pipeline)
+    assert excinfo.value.raw_transcript == "[BLANK_AUDIO]"
+
+
+async def test_single_word_is_a_valid_turn() -> None:
+    # "Hello" must not be rejected — live-session lesson
+    llm = FakeLlm(["Hi. "])
+    pipeline = VoiceTurnPipeline(FakeStt("Hello."), llm, FakeTts())
+    events = await _run(pipeline)
+    assert isinstance(events[0], UserTranscribed)
+    assert events[0].text == "Hello."
 
 
 async def test_trailing_partial_sentence_is_flushed() -> None:
