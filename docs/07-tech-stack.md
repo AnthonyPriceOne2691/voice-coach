@@ -138,13 +138,12 @@ summary:     # post-review → deepseek-r1:14b (включая vocabulary — о
   format: json
   strip_thinking: true
 
-minimal_summary:  # skip-review fallback → deepseek-r1:14b
-  model: deepseek-r1:14b
+minimal_summary:  # skip-review fallback → Qwen (уже загружен в момент Skip!)
+  model: qwen2.5:14b-instruct   # swap на R1 ради «минимальной» сводки = ~40 s ожидания, абсурд
   num_ctx: 8192
   temperature: 0.3
-  max_tokens: 2500
+  max_tokens: 800
   format: json
-  strip_thinking: true
 ```
 
 **Vocabulary** — не отдельный вызов в MVP: входит в summary pass (поле `vocabulary[]` в схеме, doc 08). Отдельный `vocabulary_extract` — P1, если качество извлечения в общем pass'е окажется слабым.
@@ -418,3 +417,4 @@ cd frontend && npm run dev   # :5173 → proxy :8000
 | 2026-06-26 | v0.5 **two-model split**: Qwen instruct (Mode 1) + R1 (Mode 2/summary) |
 | 2026-06-26 | v0.6 Phase 0 benchmark results — all decisions confirmed |
 | 2026-07-02 | v0.7 settings согласованы с doc 16 (канон); R1 max_tokens 450→2048 (пустой output Phase 0); summary num_ctx 16384; vocabulary merged в summary pass; Mode 2 voice → D-8 open; fallback `llama3.1:8b` |
+| 2026-07-02 | v0.8 minimal_summary → Qwen (без model swap при Skip, ~40 s → мгновенно) |

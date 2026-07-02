@@ -70,6 +70,10 @@
 
 **Удаление — soft delete:** `status = 'deleted'` вместо физического DELETE. Иначе правило dedup «user deleted entry → don't re-add same term» (doc 10) нереализуемо — экстрактору не с чем сверяться.
 
+### `settings`
+
+Key-value: `key TEXT PRIMARY KEY, value_json TEXT, updated_at ISO8601`. Все пользовательские настройки (doc 17) — в том же `app.db`: один файл-источник, бэкап = копия файла, без отдельного config-формата.
+
 ## API (conceptual)
 
 | Endpoint | Action |
@@ -97,3 +101,4 @@ On crash → resume or show partial in History.
 |------|-----------|
 | 2026-06-26 | Initial storage spec for interview + review |
 | 2026-07-02 | v0.2: turn format + `state`/`question_id` (grounding Mode 2, evidence в summary); колонки `summary_kind`, `status`; vocabulary soft delete; объявлен каноном схемы |
+| 2026-07-02 | v0.3: таблица `settings` (kv в app.db) |

@@ -56,13 +56,23 @@
 - Не более **5–7 core questions** за 15 min
 
 ### FOLLOW_UP
-- Триггеры:
-  - Ответ короткий (< N words) → «Can you elaborate on…?»
+
+**Кто решает:** решение «follow-up vs next_question» принимает **только оркестратор**, детерминированной политикой (ноль дополнительных LLM-вызовов, тестируется unit-тестами как чистая функция). LLM решает лишь, *о чём* спросить, — не *задавать ли вопрос*. Это следствие I1-H6 / FR-7.3.
+
+**Политика (deterministic):**
+
+| # | Правило |
+|---|---------|
+| 1 | **Первый follow-up — всегда** (если время позволяет, см. таймер): в тренажёре follow-up почти всегда ценен — это и есть практика давления |
+| 2 | **Второй follow-up** — только если ответ **< 40 слов** ИЛИ не содержит ни одной цифры/метрики (эвристика «нет measurable impact») |
+| 3 | **Max 2 follow-ups** на core question → `next_question` |
+| 4 | Осталось < 20% времени сессии → follow-ups отключаются, добираем core questions |
+
+**Семантические триггеры** (не решают «задавать ли», а подсказывают LLM формулировку — уходят в prompt-инструкцию):
   - Упомянута технология без trade-off → «Why X over Y?»
   - Противоречие с CV → «You mentioned SEO — how does that relate to automation?»
   - Vague claim → «What was the measurable impact?»
-- **Max 2 follow-ups** на один core question (иначе застревание)
-- После 2 → `next_question`
+  - Иначе generic → «Can you elaborate on…?» / «Help me understand…»
 
 ### WRAP_UP (~1 min)
 - «That’s all from my side. Any questions for us?»
@@ -168,3 +178,4 @@ LLM возвращает **только текст реплики interviewer** 
 |------|-----------|
 | 2026-06-26 | Initial orchestrator design |
 | 2026-06-26 | Persona updated: supportive senior colleague |
+| 2026-07-02 | FOLLOW_UP: детерминированная политика оркестратора (1-й всегда, 2-й при <40 слов/нет метрик); семантические триггеры → prompt-подсказки для LLM |

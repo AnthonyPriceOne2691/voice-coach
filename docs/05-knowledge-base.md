@@ -14,7 +14,7 @@
 | `PORTFOLIO_LINKBUILDER_CASE.md` | Architecture, metrics, HITL | Technical & system design questions |
 | `FOREIGN_MARKET_OUTREACH_PLAN.md` | Target roles, keywords | Question framing, debrief consistency |
 
-**MVP:** копии или symlinks в `data/knowledge/` внутри проекта.
+**Статус (2026-07-02):** копии CV и case study **закоммичены** в `data/knowledge/` вместе с готовым `profile_condensed.md`. Решение: хранить в git (репозиторий приватный) — версионирование нужно для воспроизводимости debrief; gitignore здесь вредит.
 
 ## Knowledge injection (MVP — no RAG)
 
@@ -110,3 +110,4 @@ When to add:
 |------|-----------|
 | 2026-06-26 | Initial knowledge base design |
 | 2026-06-26 | Debrief section moved to 08-post-session-debrief.md |
+| 2026-07-02 | data/knowledge/ создан: копии CV + case study + profile_condensed.md; решение — коммитить в git (приватный репо, воспроизводимость debrief) |

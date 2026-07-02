@@ -73,6 +73,15 @@ silence threshold (1.2 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) 
 
 **Рекомендация:** клиент шлёт «utterance complete» по silence; сервер дублирует VAD для надёжности.
 
+### Параметры MVP (числа, не TBD)
+
+| Параметр | Значение | Зачем |
+|----------|----------|-------|
+| Silence threshold | **1.2 s** default (слайдер 0.8–2.0 s в Settings) | Конец реплики |
+| Порог тишины | **−45 dBFS** (RMS) | Отличать паузу от тихой речи |
+| Min utterance duration | **700 ms** | Короче — отброс как шум; заодно режет whisper-галлюцинации на тишине |
+| Min transcript | **2 слова** | Меньше → `STT_EMPTY`, вернуться в listening |
+
 ## LLM — Dialog engine
 
 ### Правила ≠ intelligence
@@ -204,3 +213,4 @@ Summary pass: тот же **R1 14B** (~9 GB), но с `num_ctx: 16384` → +2–
 | 2026-06-26 | Partial LLM benchmark results (Qwen warm TTFT ~180ms) |
 | 2026-06-26 | v0.2: Phase 0 complete — full results in doc 19 |
 | 2026-07-02 | v0.3: perceived latency (VAD tail); убран 32B-остаток (summary = R1 14B @ 16K ctx); disk budget исправлен (~20–22 GB); failure modes: long utterance, prefill, R1 empty output, mic-during-speaking; fallback `llama3.1:8b` |
+| 2026-07-02 | v0.4: VAD-параметры зафиксированы числами (−45 dBFS, 700 ms min utterance, 2 слова min transcript); per-sentence enforcer в perceived-latency выводах |

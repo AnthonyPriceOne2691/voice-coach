@@ -93,6 +93,8 @@ Soft delete — `status='deleted'`, запись остаётся для dedup-�
 
 ### `GET /settings` / `PATCH /settings`
 
+Хранение: key-value таблица `settings` в том же `app.db` (один файл-источник, бэкап копированием — см. [12-session-storage.md](12-session-storage.md)).
+
 ```json
 {
   "show_live_transcript": true,
@@ -349,12 +351,25 @@ Response to `ping`.
 
 | Code | When | Client action |
 |------|------|---------------|
-| `STT_EMPTY` | No speech / too short | Show hint, return to listening |
+| `STT_EMPTY` | No speech / too short (< 700 ms или < 2 слов) | Show hint, return to listening |
 | `OLLAMA_DOWN` | Cannot reach Ollama | Block start, link to setup |
 | `CONTRACT_FAIL` | Enforcer exhausted retries | Agent uses template line |
 | `MODEL_LOAD_FAIL` | R1/Qwen load timeout | Retry or abort |
 | `SESSION_NOT_FOUND` | Bad interview_id for review | Toast + History |
 | `MIC_DENIED` | Client-side | Settings instructions |
+| `TTS_FALLBACK` | Piper упал → перешли на macOS `say` | Warning toast; сессия продолжается |
+| `PIPELINE_FAILURE` | Ollama/STT умерли mid-session после retry | Сессия завершена, transcript сохранён |
+
+## Mid-session failure policy
+
+Принцип: **transcript — единственный невосполнимый артефакт**. При любом отказе — немедленный flush в SQLite, затем деградация по матрице:
+
+| Отказ mid-session | Реакция сервера |
+|-------------------|-----------------|
+| Ollama не отвечает | 1 retry (backoff 2 s) → fail: flush transcript → `session_ended {reason: "pipeline_failure"}` → сессия в History со `status: failed`, partial transcript виден, доступна кнопка minimal summary |
+| STT ошибка / пусто | Агент говорит **template-строку** (не LLM): «Sorry, I didn't catch that — could you repeat?»; **2 подряд** отказа → завершение как при pipeline_failure |
+| Piper упал | Fallback на macOS `say` до конца сессии + `TTS_FALLBACK` event — сессия **не прерывается** (голос важнее тембра, NFR-4.1) |
+| WS disconnect | Checkpoint уже на диске (3 turns / 30 s); сессия `in_progress` в History; resume — P1 |
 
 ---
 
@@ -398,3 +413,4 @@ On disconnect: interview remains resumable from History (P1); в MVP partial tra
 |------|-----------|
 | 2026-06-26 | Initial API + WebSocket spec |
 | 2026-07-02 | v0.2: MVP-поведение mic при `speaking` (no barge-in); checkpoint «3 turns or 30 s» согласован с doc 12; DELETE /vocabulary — soft delete |
+| 2026-07-02 | v0.3: mid-session failure policy (матрица деградации, flush-first); коды TTS_FALLBACK, PIPELINE_FAILURE; settings — kv-таблица в app.db |

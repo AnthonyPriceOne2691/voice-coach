@@ -1,0 +1,40 @@
+# Mirrors scripts/run_checks.sh — engineering gates from docs/18-engineering-standards.md
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Module size gate (<= 500 LOC)
+        run: python3 scripts/check_module_size.py
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync dependencies
+        working-directory: backend
+        run: uv sync --all-extras
+
+      - name: Ruff lint
+        working-directory: backend
+        run: |
+          uv run ruff check app tests
+          uv run ruff format --check app tests
+
+      - name: Mypy
+        working-directory: backend
+        run: uv run mypy app
+
+      - name: Pytest + coverage gate
+        working-directory: backend
+        run: uv run pytest
