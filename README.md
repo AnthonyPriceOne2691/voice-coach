@@ -6,15 +6,22 @@
 **Автор:** Anton Aspidov  
 **Планирование:** см. [`docs/`](docs/)
 
-## Запуск (Phase 1 voice loop)
+## Запуск (Phase 1 voice loop) — одна команда
 
 ```bash
-# T1: ollama serve          (модели: qwen2.5:14b-instruct, deepseek-r1:14b)
-# T2: cd backend && .venv/bin/uvicorn app.main:app --port 8000
-# T3: cd frontend && ./node_modules/.bin/vite     # http://localhost:5273
-
-# Первый раз: cd backend && uv sync --all-extras; cd frontend && npm install
+./scripts/dev.sh        # → http://localhost:5273 · Ctrl+C гасит всё
 ```
+
+Скрипт сам: поднимет Ollama (если не запущен), поставит зависимости (если нет), запустит backend c **auto-reload** (правки в `backend/app/` применяются сами) и frontend с **HMR** (правки в `frontend/src/` применяются сами, без перезагрузки страницы). Промпты в `data/prompts/` перечитываются на каждой новой сессии — тоже без рестарта.
+
+<details><summary>Запуск по частям (если нужно)</summary>
+
+```bash
+# T1: ollama serve
+# T2: cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
+# T3: cd frontend && ./node_modules/.bin/vite     # http://localhost:5273
+```
+</details>
 
 > ⚠️ Из-за `:` в пути (`Other:Another`) **`uv run` и npm-скрипты не работают** — вызывай бинарники напрямую: `backend/.venv/bin/<tool>`, `frontend/node_modules/.bin/<tool>`. Лечится переносом репозитория в путь без `:`.
 
