@@ -34,7 +34,7 @@
 |-------|--------|
 | Phase 0 Benchmark | ✅ **Complete** (2026-06-26) |
 | Phase 1 Voice loop | ✅ **Complete** (2026-07-03) — live-проверено с микрофоном |
-| Phase 2 Full MVP | 🔲 **Next**: оркестраторы, Contract Enforcer, Mode 2, SQLite, History, Vocabulary Bank |
+| Phase 2 Full MVP | 🟡 **Code complete** (2026-07-05); live e2e-smoke пройден — остался ручной UI-прогон |
 | Phase 3 Enhancements | 🔲 |
 
 ## Conventions

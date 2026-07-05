@@ -77,21 +77,23 @@ Benchmark   ──▶  Voice loop   ──▶  Full MVP      ──▶  Enhancem
 
 ## Phase 2 — MVP (interview simulator)
 
+**Status: 🟡 CODE COMPLETE (2026-07-05).** Весь backend+frontend реализован; live e2e-smoke пройден скриптом (interview → review → R1 summary → vocabulary в банке). Остался ручной прогон через UI (микрофон) — аналог 5-turn критерия Phase 1.
+
 **Goal:** полный MVP из brief — structured session + debrief.
 
 **Deliverables:**
-- [ ] Interview orchestrator (state machine)
-- [ ] Mode: `technical_project_walkthrough`, 15 min
-- [ ] Question bank + follow-up logic
-- [ ] Knowledge loader + `profile_condensed.md`
-- [ ] SQLite session store
-- [ ] Contract Enforcer (ABC-lite) — interview + review contracts
-- [ ] Review orchestrator (Mode 2) + recruiter friend persona
-- [ ] Session storage: interview + review tables
-- [ ] History UI
-- [ ] Summary generator + rubric UI
-- [ ] Vocabulary Bank: tab UI + auto-extract
-- [ ] Session list / history (minimal)
+- [x] Interview orchestrator (state machine, doc 04 + детерминированная follow-up политика)
+- [x] Mode: `technical_project_walkthrough`, 15 min (duration из Settings)
+- [x] Question bank (`data/questions/*.yaml`) + follow-up logic
+- [x] Knowledge loader + `profile_condensed.md`
+- [x] SQLite session store (checkpoint каждый turn, state/question_id в turns)
+- [x] Contract Enforcer (ABC-lite) — sentence-gated, recovery ladder, violation events
+- [x] Review orchestrator (Mode 2) + recruiter friend persona (Qwen, D-8)
+- [x] Session storage: interview + review tables (+vocabulary, settings)
+- [x] History UI (list, detail: Summary/Interview/Review, delete cascade)
+- [x] Summary generator (R1 @16K ctx фоном; minimal на Qwen при Skip) + rubric UI
+- [x] Vocabulary Bank: tab UI + auto-extract + dedup/soft-delete
+- [x] Session list / history (minimal)
 
 **Exit criteria (MVP definition of done):**
 1. ✅ Mode 1: 15 min voice mock interview
@@ -103,11 +105,11 @@ Benchmark   ──▶  Voice loop   ──▶  Full MVP      ──▶  Enhancem
 7. ✅ Contract Enforcer: hard rules Mode 1 before TTS
 
 **Engineering exit criteria (Phase 2):**
-- [ ] Все критерии из [18-engineering-standards.md](18-engineering-standards.md) §6 Definition of Done
-- [ ] Coverage: contracts ≥ 95%, orchestrator ≥ 90%, backend `app/` ≥ **85%**
-- [ ] Contract enforcer + оба orchestrator — unit-тесты на все hard rules
-- [ ] Integration: interview → review → summary (mocked LLM fixtures)
-- [ ] Нет файлов > 500 LOC; CI/local `pytest --cov-fail-under=85`
+- [x] Все критерии из [18-engineering-standards.md](18-engineering-standards.md) §6 Definition of Done
+- [x] Coverage: contracts **100%**, orchestrator **98–100%**, backend `app/` **93.5%** (гейт 85 в pyproject/CI)
+- [x] Contract enforcer + оба orchestrator — unit-тесты на все hard rules (91 backend-тест)
+- [x] Integration: interview → review → summary (mocked fixtures) + live e2e-smoke с реальными моделями
+- [x] Нет файлов > 500 LOC; CI `pytest --cov-fail-under=85`
 
 ---
 

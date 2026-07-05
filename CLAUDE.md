@@ -20,7 +20,7 @@
 python3 scripts/check_module_size.py                       # ≤ 500 LOC на файл
 cd backend && .venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests
 cd backend && .venv/bin/mypy app                           # strict
-cd backend && .venv/bin/pytest                             # coverage gate 70% (сейчас ~88%)
+cd backend && .venv/bin/pytest                             # coverage gate 85% (сейчас ~93%)
 cd frontend && ./node_modules/.bin/tsc -b && ./node_modules/.bin/vitest run
 ```
 
@@ -44,10 +44,11 @@ cd frontend && ./node_modules/.bin/tsc -b && ./node_modules/.bin/vitest run
 
 ≤ 500 LOC на файл · SOLID, всё AI за Protocols (`SpeechToText`, `TextToSpeech`, `LlmClient`) · mypy strict · тесты в том же PR, реальные AI всегда мокаются · промпты/контракты в `data/`, не в коде.
 
-## Состояние (2026-07-03)
+## Состояние (2026-07-05)
 
-- **Phase 0** ✅ · **Phase 1** ✅ — voice loop live-проверен (5 ходов, без падений). Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
-- **Phase 2** (next): interview/review оркестраторы, Contract Enforcer, Mode 2, SQLite (doc 12), History UI, summary generator, Vocabulary Bank
-- Наблюдать в использовании: STT на длинных ответах (60–90 s), качество follow-up'ов Генри
+- **Phase 0** ✅ · **Phase 1** ✅ · **Phase 2 🟡 code complete (2026-07-05)** — оркестраторы, sentence-gated Contract Enforcer, Mode 2, SQLite, History/Words UI, R1-summary + Vocabulary Bank; live e2e-smoke пройден (interview→review→summary→bank). Остался ручной UI-прогон
+- Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
+- Backend: 91 тест / 93.5% coverage (гейт 85), contracts 100%, mypy strict; frontend: 14 тестов
+- Наблюдать в использовании: качество R1-summary (замечен артефакт в translation_ru), markdown-списки в wrap-up review
 - GitHub: приватный `AnthonyPriceOne2691/voice-coach`, CI зелёный; gh CLI авторизован
 - Коммиты: identity задана локально (noreply-алиас аккаунта); пушить после каждого логического блока

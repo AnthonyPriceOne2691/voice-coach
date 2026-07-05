@@ -2,7 +2,7 @@
 
 Голосовой AI-агент для mock technical interviews на английском.
 
-**Статус:** Phase 0 ✅ · **Phase 1 ✅** (live-проверено) · Phase 2 next · Интервьюера зовут **Генри**  
+**Статус:** Phase 0 ✅ · Phase 1 ✅ · **Phase 2 🟡 code complete** (e2e-smoke пройден; остался UI-прогон) · Интервьюера зовут **Генри**  
 **Автор:** Anton Aspidov  
 **Планирование:** см. [`docs/`](docs/)
 

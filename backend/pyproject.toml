@@ -47,7 +47,7 @@ addopts = [
   "--strict-markers",
   "--cov=app",
   "--cov-report=term-missing",
-  "--cov-fail-under=70",
+  "--cov-fail-under=85",  # Phase 2 gate (doc 18)
 ]
 markers = [
   "integration: hits multiple layers (still mocked external AI)",
