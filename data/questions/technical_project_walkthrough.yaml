@@ -1,0 +1,29 @@
+# Question bank — mode technical_project_walkthrough (doc 04).
+# Seeds are speakable as-is (used verbatim as contract fallback lines); LLM adapts wording.
+mode: technical_project_walkthrough
+questions:
+  - id: project_overview
+    theme: Project overview
+    seed: "Walk me through an internal tool you built end-to-end."
+    first: true   # asked in the intro
+  - id: architecture
+    theme: Architecture
+    seed: "How is the system modularized? What are the main services?"
+  - id: llm_pipeline
+    theme: LLM / AI pipeline
+    seed: "Describe your inbound reply handling and where the LLM sits."
+  - id: hitl_safety
+    theme: HITL & safety
+    seed: "How do you decide what gets auto-sent versus human review?"
+  - id: queues_async
+    theme: Queues / async
+    seed: "Why separate queues for inbound and OpenAI calls?"
+  - id: impact
+    theme: Impact
+    seed: "What changed in team size or cycle time? How did you measure it?"
+  - id: tradeoffs
+    theme: Trade-offs
+    seed: "What would you rebuild if you started today?"
+  - id: failure
+    theme: Failure
+    seed: "Tell me about a production issue and how you debugged it."
