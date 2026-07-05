@@ -17,9 +17,11 @@ def create_app(container: Container | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await resolved.db.create_all()
         yield
         if resolved.ollama is not None:
             await resolved.ollama.aclose()
+        await resolved.db.dispose()
 
     application = FastAPI(
         title="Voice Interview Coach",

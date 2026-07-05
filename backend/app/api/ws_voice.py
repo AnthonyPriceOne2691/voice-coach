@@ -5,6 +5,7 @@ import base64
 import binascii
 import io
 import logging
+import random
 import tempfile
 import time
 import uuid
@@ -16,19 +17,17 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from app import __version__
 from app.container import Container
+from app.contracts.enforcer import TurnContext
 from app.llm.ollama_client import OllamaError
-from app.storage.transcript_log import TranscriptLog
-from app.voice.pipeline import (
-    AgentCompleted,
-    AgentSentence,
-    LlmParams,
-    SttEmptyError,
-    UserTranscribed,
-    VoiceTurnPipeline,
-)
-from app.voice.session import VoiceSession
+from app.orchestrator.interview import InterviewOrchestrator, Phase
+from app.orchestrator.question_bank import pick_session_pool
+from app.voice.interview_flow import InterviewFlow
+from app.voice.transcribe import SttEmptyError, transcribe_utterance
+from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
 
 logger = logging.getLogger(__name__)
+
+QUESTIONS_PER_SESSION = 6
 
 
 def _silent_wav(duration_s: float = 1.0, rate: int = 16000) -> bytes:
@@ -50,22 +49,17 @@ async def ws_session(websocket: WebSocket) -> None:
             message = await websocket.receive_json()
             await handler.dispatch(message)
     except WebSocketDisconnect:
-        return
+        await handler.on_disconnect()
 
 
 class _SessionHandler:
     def __init__(self, websocket: WebSocket, container: Container) -> None:
         self._ws = websocket
         self._c = container
-        self._session: VoiceSession | None = None
+        self._flow: InterviewFlow | None = None
         self._started_at = 0.0
         self._warmup_task: asyncio.Task[None] | None = None
-        self._pipeline = VoiceTurnPipeline(
-            container.stt,
-            container.llm,
-            container.tts,
-            min_transcript_words=container.settings.min_transcript_words,
-        )
+        self._runner = TurnRunner(container.llm, container.tts)
 
     async def dispatch(self, message: dict[str, Any]) -> None:
         msg_type = message.get("type", "")
@@ -83,23 +77,42 @@ class _SessionHandler:
         else:
             await self._error("INTERNAL", f"unknown message type: {msg_type}", recoverable=True)
 
+    async def on_disconnect(self) -> None:
+        if self._flow is not None:
+            await self._flow.finish(status="in_progress")  # checkpoint already on disk
+
     async def _on_hello(self) -> None:
         ollama_ok = await self._c.ollama.is_up() if self._c.ollama else True
         await self._send("ready", {"server_version": __version__, "ollama_ok": ollama_ok})
 
     async def _on_start_interview(self) -> None:
-        session_id = str(uuid.uuid4())
-        log = TranscriptLog(self._c.settings.sessions_dir, session_id)
-        self._session = VoiceSession(session_id, self._c.prompts.interviewer_system(), log)
+        user_settings = await self._c.user_settings.get_all()
+        duration = int(user_settings.get("interview_duration_min", 15))
+        pool = pick_session_pool(
+            self._c.question_bank, count=QUESTIONS_PER_SESSION, rng=random.Random()
+        )
+        wrap_seed = self._c.prompts.template("interview_wrap_up")
+        orchestrator = InterviewOrchestrator(pool, duration_min=duration, wrap_up_seed=wrap_seed)
+        flow = InterviewFlow(
+            str(uuid.uuid4()),
+            orchestrator,
+            self._c.prompts.interviewer_system(),
+            self._c.interviews,
+            interview_mode="technical_project_walkthrough",
+        )
+        self._flow = flow
         self._started_at = time.monotonic()
-        await self._send("session_started", {"session_kind": "interview", "session_id": session_id})
+        await self._send(
+            "session_started", {"session_kind": "interview", "session_id": flow.session_id}
+        )
         intro = self._c.prompts.template("interview_intro")
         await self._state("speaking")
         await self._send_audio(await self._c.tts.synthesize(intro), final=False)
-        # Pre-warm STT + LLM in the background (doc 19 note 1: cold whisper load must
-        # not land on the first real turn) while the intro is playing on the client.
+        await flow.start(intro)
         self._warmup_task = asyncio.create_task(self._warmup())
-        await self._finish_agent_turn(intro)
+        await self._transcript("agent", intro)
+        await self._send_audio(b"", final=True)
+        await self._state("listening")
 
     async def _warmup(self) -> None:
         try:
@@ -122,8 +135,8 @@ class _SessionHandler:
             logger.warning("LLM warmup failed", exc_info=True)
 
     async def _on_utterance_end(self, payload: dict[str, Any]) -> None:
-        session = self._session
-        if session is None:
+        flow = self._flow
+        if flow is None:
             await self._error("SESSION_NOT_FOUND", "no active session", recoverable=True)
             return
         try:
@@ -133,7 +146,7 @@ class _SessionHandler:
             return
         await self._state("processing")
         try:
-            await self._run_turn(session, audio)
+            await self._run_turn(flow, audio)
         except SttEmptyError as exc:
             logger.info("STT_EMPTY, raw transcript: %r", exc.raw_transcript)
             heard = f" (heard: “{exc.raw_transcript}”)" if exc.raw_transcript.strip() else ""
@@ -151,65 +164,90 @@ class _SessionHandler:
             await self._error("INTERNAL", "turn failed — please repeat", recoverable=True)
             await self._state("listening")
 
-    async def _run_turn(self, session: VoiceSession, audio: bytes) -> None:
+    async def _run_turn(self, flow: InterviewFlow, audio: bytes) -> None:
+        text = await transcribe_utterance(
+            self._c.decoder, self._c.stt, audio, min_words=self._c.settings.min_transcript_words
+        )
+        logger.info("user said: %r", text)
+        plan = await flow.on_user(text)
+        await self._transcript("user", text)
+
+        if plan.state == Phase.DEBRIEF:
+            await self._speak_line(plan.seed)
+            await flow.on_agent(plan.seed, violations=[], fallback_used=False)
+            await self._transcript("agent", plan.seed)
+            await self._send_audio(b"", final=True)
+            await flow.finish(status="completed")
+            await self._session_ended(flow, reason="finished", next_action="offer_review")
+            self._flow = None
+            return
+
         settings = self._c.settings
         params = LlmParams(
             model=settings.ollama_model_interview,
             temperature=settings.interview_temperature,
             max_tokens=settings.interview_max_tokens,
         )
-        with tempfile.TemporaryDirectory() as tmp:
-            wav_path = Path(tmp) / "utterance.wav"
-            await self._c.decoder.to_wav(audio, wav_path)
-            speaking = False
-            async for event in self._pipeline.run_turn(wav_path, session.messages, params):
-                if isinstance(event, UserTranscribed):
-                    logger.info("user said: %r", event.text)
-                    session.add_user(event.text)
-                    await self._transcript("user", event.text)
-                elif isinstance(event, AgentSentence):
-                    if not speaking:
-                        await self._state("speaking")
-                        speaking = True
-                    await self._send_audio(event.wav, final=False)
-                elif isinstance(event, AgentCompleted):
-                    await self._finish_agent_turn(event.text)
+        speaking = False
+        async for event in self._runner.run(
+            flow.messages,
+            params,
+            enforcer=self._c.interview_enforcer,
+            ctx=TurnContext(state=plan.state.value),
+            seed=plan.seed,
+            intent=plan.instruction,
+            turn_index=len(flow.buffer.turns),
+        ):
+            if isinstance(event, AgentSentence):
+                if not speaking:
+                    await self._state("speaking")
+                    speaking = True
+                await self._send_audio(event.wav, final=False)
+            elif isinstance(event, AgentCompleted):
+                await flow.on_agent(
+                    event.text, violations=event.violations, fallback_used=event.fallback_used
+                )
+                await self._transcript("agent", event.text)
+                await self._send_audio(b"", final=True)
+                await self._state("listening")
 
-    async def _finish_agent_turn(self, text: str) -> None:
-        if self._session is not None:
-            self._session.add_agent(text)
-        await self._transcript("agent", text)
-        await self._send_audio(b"", final=True)  # empty sentinel = end of agent audio
-        await self._state("listening")
+    async def _speak_line(self, text: str) -> None:
+        await self._state("speaking")
+        await self._send_audio(await self._c.tts.synthesize(text), final=False)
 
     async def _on_end_session(self, *, reason: str) -> None:
-        session = self._session
-        if session is None:
+        flow = self._flow
+        if flow is None:
             return
-        self._session = None
+        self._flow = None
+        status = "completed" if reason == "user" else "failed"
+        await flow.finish(status=status)
+        await self._session_ended(flow, reason=reason, next_action="none")
+        await self._state("idle")
+
+    async def _session_ended(self, flow: InterviewFlow, *, reason: str, next_action: str) -> None:
         await self._send(
             "session_ended",
             {
                 "session_kind": "interview",
-                "session_id": session.session_id,
+                "session_id": flow.session_id,
                 "duration_sec": int(time.monotonic() - self._started_at),
                 "reason": reason,
-                "next_action": "none",  # Phase 2: offer_review
+                "next_action": next_action,
             },
         )
-        await self._state("idle")
 
     async def _send(self, msg_type: str, payload: dict[str, Any]) -> None:
         await self._ws.send_json({"type": msg_type, "payload": payload})
 
     async def _state(self, value: str) -> None:
-        session = self._session
+        flow = self._flow
         await self._send(
             "state",
             {
                 "value": value,
-                "session_kind": "interview" if session else None,
-                "session_id": session.session_id if session else None,
+                "session_kind": "interview" if flow else None,
+                "session_id": flow.session_id if flow else None,
             },
         )
 

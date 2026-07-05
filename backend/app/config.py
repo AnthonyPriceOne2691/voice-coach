@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     prompts_dir: Path = REPO_ROOT / "data" / "prompts"
     knowledge_dir: Path = REPO_ROOT / "data" / "knowledge"
     sessions_dir: Path = REPO_ROOT / "data" / "sessions"
+    contracts_dir: Path = REPO_ROOT / "data" / "contracts"
+    questions_dir: Path = REPO_ROOT / "data" / "questions"
 
     min_transcript_words: int = 1  # после junk-фильтра; «Hello» — валидная реплика
 
