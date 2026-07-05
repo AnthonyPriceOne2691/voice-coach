@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     piper_voice_path: Path = REPO_ROOT / "data" / "models" / "piper" / "en_US-hfc_male-medium.onnx"
     piper_length_scale: float = 1.15  # темп речи: 1.0 = нативный, больше = медленнее
 
+    database_url: str = f"sqlite+aiosqlite:///{REPO_ROOT / 'data' / 'sessions' / 'app.db'}"
+
     prompts_dir: Path = REPO_ROOT / "data" / "prompts"
     knowledge_dir: Path = REPO_ROOT / "data" / "knowledge"
     sessions_dir: Path = REPO_ROOT / "data" / "sessions"
