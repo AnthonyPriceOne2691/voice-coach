@@ -5,6 +5,12 @@ import { AudioQueue } from "../lib/audioQueue";
 import { SilenceDetector, rmsDbfs } from "../lib/vad";
 import { clientMessage, parseServerMessage, type SessionState } from "../types/messages";
 
+export interface SessionEnded {
+  session_kind: "interview" | "review";
+  session_id: string;
+  next_action: "offer_review" | "generate_summary" | "none";
+}
+
 export interface TranscriptEntry {
   role: "user" | "agent";
   text: string;
@@ -38,6 +44,7 @@ export function useVoiceSession() {
   const [active, setActive] = useState(false);
   const [micLevel, setMicLevel] = useState(-Infinity); // dBFS, for the level meter
   const [playingUi, setPlayingUi] = useState(false); // agent audio audible right now
+  const [ended, setEnded] = useState<SessionEnded | null>(null);
   const refs = useRef<SessionRefs>({
     ws: null,
     stream: null,
@@ -117,14 +124,16 @@ export function useVoiceSession() {
       } else if (message.type === "session_ended") {
         setActive(false);
         setState("idle");
+        setEnded(message.payload as SessionEnded);
       }
     },
     [startRecorder],
   );
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (review?: { interviewId: string }) => {
     setError(null);
     setTranscript([]);
+    setEnded(null);
     const r = refs.current;
     r.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     r.audioContext = new AudioContext();
@@ -141,7 +150,11 @@ export function useVoiceSession() {
     ws.onmessage = (event) => handleMessage(String(event.data));
     ws.onopen = () => {
       ws.send(clientMessage("hello"));
-      ws.send(clientMessage("start_interview"));
+      if (review) {
+        ws.send(clientMessage("start_review", { interview_id: review.interviewId }));
+      } else {
+        ws.send(clientMessage("start_interview"));
+      }
     };
     ws.onerror = () => setError("WebSocket connection failed — is the backend running?");
     ws.onclose = (event) => {
@@ -179,5 +192,5 @@ export function useVoiceSession() {
   // no matter that the server already flipped to "listening".
   const uiState: SessionState = playingUi ? "speaking" : state;
 
-  return { state: uiState, transcript, error, active, micLevel, start, end };
+  return { state: uiState, transcript, error, active, micLevel, ended, start, end };
 }

@@ -8,7 +8,10 @@ export type ServerMessage =
   | { type: "transcript"; payload: { role: "user" | "agent"; text: string; final: boolean } }
   | { type: "audio"; payload: { chunk_base64: string; mime: string; final: boolean } }
   | { type: "session_started"; payload: { session_kind: string; session_id: string } }
-  | { type: "session_ended"; payload: { session_id: string; duration_sec: number } }
+  | {
+      type: "session_ended";
+      payload: { session_kind: string; session_id: string; duration_sec: number; next_action: string };
+    }
   | { type: "error"; payload: { code: string; message: string; recoverable: boolean } }
   | { type: "pong"; payload: Record<string, never> };
 
@@ -38,7 +41,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 }
 
 export function clientMessage(
-  type: "hello" | "start_interview" | "utterance_end" | "end_session" | "ping",
+  type: "hello" | "start_interview" | "start_review" | "utterance_end" | "end_session" | "ping",
   payload: Record<string, unknown> = {},
 ): string {
   return JSON.stringify({ type, payload });

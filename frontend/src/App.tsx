@@ -1,36 +1,50 @@
-import { MicLevelMeter } from "./components/MicLevelMeter";
-import { SessionStateRing } from "./components/SessionStateRing";
-import { TranscriptPanel } from "./components/TranscriptPanel";
-import { useVoiceSession } from "./hooks/useVoiceSession";
+import { useState } from "react";
+import { HistoryPage } from "./pages/HistoryPage";
+import { InterviewPage } from "./pages/InterviewPage";
+import { WordsPage } from "./pages/WordsPage";
+
+type Tab = "interview" | "history" | "words";
 
 export default function App() {
-  const { state, transcript, error, active, micLevel, start, end } = useVoiceSession();
+  const [tab, setTab] = useState<Tab>("interview");
+  const [reviewTarget, setReviewTarget] = useState<string | null>(null);
+
+  const startReviewFor = (interviewId: string) => {
+    setReviewTarget(interviewId);
+    setTab("interview");
+  };
 
   return (
     <main className="app">
       <header>
         <h1>Voice Interview Coach</h1>
-        <p className="subtitle">Mock technical interview with Henry · ~15 min · English</p>
+        <nav className="tabs">
+          {(
+            [
+              ["interview", "Interview"],
+              ["history", "History"],
+              ["words", "Useful Words"],
+            ] as [Tab, string][]
+          ).map(([name, label]) => (
+            <button
+              key={name}
+              className={`tab ${tab === name ? "active" : ""}`}
+              onClick={() => setTab(name)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <SessionStateRing state={state} />
-      {active && state === "listening" && <MicLevelMeter level={micLevel} />}
-
-      {error && <div className="error-banner">{error}</div>}
-
-      <div className="controls">
-        {active ? (
-          <button className="btn btn-end" onClick={end}>
-            End session
-          </button>
-        ) : (
-          <button className="btn btn-start" onClick={() => void start()}>
-            Start Mock Interview
-          </button>
-        )}
-      </div>
-
-      <TranscriptPanel entries={transcript} />
+      {tab === "interview" && (
+        <InterviewPage
+          reviewTarget={reviewTarget}
+          onReviewStarted={() => setReviewTarget(null)}
+        />
+      )}
+      {tab === "history" && <HistoryPage onStartReview={startReviewFor} />}
+      {tab === "words" && <WordsPage />}
     </main>
   );
 }
