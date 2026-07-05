@@ -25,6 +25,7 @@ class LlmClient(Protocol):
         model: str,
         temperature: float,
         max_tokens: int,
+        num_ctx: int | None = None,
     ) -> AsyncIterator[str]:
         """Yield response tokens as they arrive."""
         ...

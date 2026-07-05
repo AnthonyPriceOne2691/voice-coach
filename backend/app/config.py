@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = 8192
     interview_temperature: float = 0.75
     interview_max_tokens: int = 220
+    review_temperature: float = 0.6
+    review_max_tokens: int = 300
+    summary_temperature: float = 0.3
+    summary_max_tokens: int = 4096  # R1: thinking included (doc 20)
+    summary_num_ctx: int = 16384  # two full transcripts don't fit 8192 (doc 20)
+    minimal_summary_max_tokens: int = 800
 
     whisper_cpp_bin: Path = Path("/opt/homebrew/bin/whisper-cli")
     whisper_model_path: Path = REPO_ROOT / "data" / "models" / "whisper" / "ggml-small.en.bin"

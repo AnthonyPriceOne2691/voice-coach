@@ -1,0 +1,171 @@
+"""Shared test container wiring (real contracts/questions/DB, fake AI)."""
+
+import asyncio
+import json
+from pathlib import Path
+from typing import Any
+
+from app.config import Settings
+from app.container import Container
+from app.contracts.enforcer import ContractEnforcer
+from app.contracts.spec import load_contract
+from app.knowledge.prompts import PromptLibrary
+from app.orchestrator.question_bank import load_bank
+from app.storage.db import Database
+from app.storage.models import InterviewSession, ReviewSession
+from app.storage.repositories.interviews import InterviewRepository
+from app.storage.repositories.reviews import ReviewRepository
+from app.storage.repositories.settings_repo import SettingsRepository
+from app.storage.repositories.vocabulary import VocabularyRepository
+from app.summary.service import SummaryService
+from tests.fakes import FakeDecoder, FakeStt, FakeTts
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+MINIMAL_SUMMARY = {
+    "overall_summary": "Short but focused session.",
+    "scores": {
+        "clarity": 3,
+        "structure": 3,
+        "technical_depth": 3,
+        "english_fluency": 3,
+        "positioning": 3,
+    },
+    "strengths": [],
+    "improvements": [],
+    "weak_answers": [],
+    "vocabulary": [],
+    "consistency_flags": [],
+    "next_session_focus": [],
+}
+
+
+def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
+    prompts = tmp_path / "prompts"
+    (prompts / "templates").mkdir(parents=True)
+    (prompts / "interviewer_system.txt").write_text("system {{profile_condensed}}")
+    (prompts / "review_system.txt").write_text(
+        "review system\n{{interview_qa_segments}}\n{{profile_condensed}}"
+    )
+    (prompts / "summary_system.txt").write_text("summary system")
+    (prompts / "minimal_summary_system.txt").write_text("minimal system")
+    (prompts / "templates" / "interview_intro.txt").write_text(
+        "Hi, I'm Henry. Walk me through an internal tool you built end-to-end."
+    )
+    (prompts / "templates" / "interview_wrap_up.txt").write_text(
+        "That's all from my side. Do you have any questions for us?"
+    )
+    knowledge = tmp_path / "knowledge"
+    knowledge.mkdir()
+    (knowledge / "profile_condensed.md").write_text("profile")
+    settings = Settings(
+        prompts_dir=prompts,
+        knowledge_dir=knowledge,
+        sessions_dir=tmp_path / "sessions",
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.db'}",
+    )
+    db = Database(settings.database_url)
+    prompt_library = PromptLibrary(prompts, knowledge)
+    return Container(
+        settings=settings,
+        stt=stt,
+        tts=FakeTts(),
+        llm=llm,
+        decoder=FakeDecoder(),
+        prompts=prompt_library,
+        db=db,
+        interviews=InterviewRepository(db),
+        reviews=ReviewRepository(db),
+        vocabulary=VocabularyRepository(db),
+        user_settings=SettingsRepository(db),
+        interview_enforcer=ContractEnforcer(
+            load_contract(REPO_ROOT / "data" / "contracts" / "interview.contract.yaml")
+        ),
+        review_enforcer=ContractEnforcer(
+            load_contract(REPO_ROOT / "data" / "contracts" / "review.contract.yaml")
+        ),
+        question_bank=load_bank(
+            REPO_ROOT / "data" / "questions" / "technical_project_walkthrough.yaml"
+        ),
+        summaries=SummaryService(
+            llm,
+            prompt_library,
+            InterviewRepository(db),
+            ReviewRepository(db),
+            VocabularyRepository(db),
+            settings,
+        ),
+        ollama=None,
+    )
+
+
+def fetch_interview(database_url: str, session_id: str) -> InterviewSession | None:
+    async def go() -> InterviewSession | None:
+        db = Database(database_url)
+        row = await InterviewRepository(db).get(session_id)
+        await db.dispose()
+        return row
+
+    return asyncio.run(go())
+
+
+def fetch_review(database_url: str, review_id: str) -> ReviewSession | None:
+    async def go() -> ReviewSession | None:
+        db = Database(database_url)
+        row = await ReviewRepository(db).get(review_id)
+        await db.dispose()
+        return row
+
+    return asyncio.run(go())
+
+
+def seed_finished_interview(database_url: str, interview_id: str = "int-1") -> None:
+    turns = [
+        {
+            "role": "agent",
+            "text": "Walk me through a tool.",
+            "timestamp_ms": 0,
+            "turn_index": 0,
+            "state": "INTRO",
+            "question_id": "project_overview",
+        },
+        {
+            "role": "user",
+            "text": "I built a CRM that cut the team from 5 to 1.",
+            "timestamp_ms": 5000,
+            "turn_index": 1,
+            "state": "INTRO",
+            "question_id": "project_overview",
+        },
+        {
+            "role": "agent",
+            "text": "What was the impact?",
+            "timestamp_ms": 9000,
+            "turn_index": 2,
+            "state": "CORE_QUEST",
+            "question_id": "impact",
+        },
+        {
+            "role": "user",
+            "text": "About 120 hours saved monthly.",
+            "timestamp_ms": 15000,
+            "turn_index": 3,
+            "state": "CORE_QUEST",
+            "question_id": "impact",
+        },
+    ]
+
+    async def go() -> None:
+        db = Database(database_url)
+        await db.create_all()
+        repo = InterviewRepository(db)
+        await repo.create(interview_id, interview_mode="m", persona="senior_colleague")
+        await repo.checkpoint(interview_id, turns, {"duration_sec": 120})
+        await repo.finish(interview_id, status="completed")
+        await db.dispose()
+
+    asyncio.run(go())
+
+
+def minimal_summary_tokens() -> list[str]:
+    return [json.dumps(MINIMAL_SUMMARY)]

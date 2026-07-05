@@ -76,7 +76,7 @@ class VocabularyRepository:
     async def soft_delete(self, entry_id: str) -> bool:
         async with self._db.session() as s:
             row = await s.get(VocabularyEntry, entry_id)
-            if row is None:
+            if row is None or row.status == "deleted":
                 return False
             row.status = "deleted"
             await s.commit()

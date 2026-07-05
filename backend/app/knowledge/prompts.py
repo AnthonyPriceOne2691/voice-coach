@@ -3,6 +3,7 @@
 from pathlib import Path
 
 PROFILE_PLACEHOLDER = "{{profile_condensed}}"
+SEGMENTS_PLACEHOLDER = "{{interview_qa_segments}}"
 
 
 class PromptLibrary:
@@ -14,14 +15,26 @@ class PromptLibrary:
 
     def interviewer_system(self) -> str:
         system = (self._prompts_dir / "interviewer_system.txt").read_text(encoding="utf-8")
-        profile_path = self._knowledge_dir / "profile_condensed.md"
-        profile = (
-            profile_path.read_text(encoding="utf-8")
-            if profile_path.exists()
-            else "(no candidate profile available)"
+        return system.replace(PROFILE_PLACEHOLDER, self._profile())
+
+    def review_system(self, qa_segments: str) -> str:
+        system = (self._prompts_dir / "review_system.txt").read_text(encoding="utf-8")
+        return system.replace(SEGMENTS_PLACEHOLDER, qa_segments).replace(
+            PROFILE_PLACEHOLDER, self._profile()
         )
-        return system.replace(PROFILE_PLACEHOLDER, profile)
+
+    def system(self, name: str) -> str:
+        """Raw system prompt file (summary passes inject their own context)."""
+        return (self._prompts_dir / f"{name}.txt").read_text(encoding="utf-8")
 
     def template(self, name: str) -> str:
         path = self._prompts_dir / "templates" / f"{name}.txt"
         return path.read_text(encoding="utf-8").strip()
+
+    def _profile(self) -> str:
+        profile_path = self._knowledge_dir / "profile_condensed.md"
+        return (
+            profile_path.read_text(encoding="utf-8")
+            if profile_path.exists()
+            else "(no candidate profile available)"
+        )

@@ -1,6 +1,5 @@
 """WebSocket contract tests (doc 15) — orchestrated Mode 1 with mocked AI."""
 
-import asyncio
 import base64
 import json
 from pathlib import Path
@@ -8,78 +7,11 @@ from typing import Any
 
 from starlette.testclient import TestClient, WebSocketTestSession
 
-from app.config import Settings
-from app.container import Container
-from app.contracts.enforcer import ContractEnforcer
-from app.contracts.spec import load_contract
-from app.knowledge.prompts import PromptLibrary
 from app.main import create_app
-from app.orchestrator.question_bank import load_bank
-from app.storage.db import Database
-from app.storage.models import InterviewSession
-from app.storage.repositories.interviews import InterviewRepository
-from app.storage.repositories.reviews import ReviewRepository
-from app.storage.repositories.settings_repo import SettingsRepository
-from app.storage.repositories.vocabulary import VocabularyRepository
-from tests.fakes import FakeDecoder, FakeLlm, FakeStt, FakeTts
+from tests.fakes import FakeLlm, FakeStt
+from tests.helpers import fetch_interview, fetch_review, make_container, seed_finished_interview
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 LONG_ANSWER = "I built an internal CRM tool with separate queues and cut the team from 5 to 1"
-
-
-def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
-    prompts = tmp_path / "prompts"
-    (prompts / "templates").mkdir(parents=True)
-    (prompts / "interviewer_system.txt").write_text("system {{profile_condensed}}")
-    (prompts / "templates" / "interview_intro.txt").write_text(
-        "Hi, I'm Henry. Walk me through an internal tool you built end-to-end."
-    )
-    (prompts / "templates" / "interview_wrap_up.txt").write_text(
-        "That's all from my side. Do you have any questions for us?"
-    )
-    knowledge = tmp_path / "knowledge"
-    knowledge.mkdir()
-    (knowledge / "profile_condensed.md").write_text("profile")
-    settings = Settings(
-        prompts_dir=prompts,
-        knowledge_dir=knowledge,
-        sessions_dir=tmp_path / "sessions",
-        database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.db'}",
-    )
-    db = Database(settings.database_url)
-    return Container(
-        settings=settings,
-        stt=stt,
-        tts=FakeTts(),
-        llm=llm,
-        decoder=FakeDecoder(),
-        prompts=PromptLibrary(prompts, knowledge),
-        db=db,
-        interviews=InterviewRepository(db),
-        reviews=ReviewRepository(db),
-        vocabulary=VocabularyRepository(db),
-        user_settings=SettingsRepository(db),
-        interview_enforcer=ContractEnforcer(
-            load_contract(REPO_ROOT / "data" / "contracts" / "interview.contract.yaml")
-        ),
-        review_enforcer=ContractEnforcer(
-            load_contract(REPO_ROOT / "data" / "contracts" / "review.contract.yaml")
-        ),
-        question_bank=load_bank(
-            REPO_ROOT / "data" / "questions" / "technical_project_walkthrough.yaml"
-        ),
-        ollama=None,
-    )
-
-
-def fetch_interview(database_url: str, session_id: str) -> InterviewSession | None:
-    async def go() -> InterviewSession | None:
-        db = Database(database_url)
-        row = await InterviewRepository(db).get(session_id)
-        await db.dispose()
-        return row
-
-    return asyncio.run(go())
 
 
 def _collect_until(ws: WebSocketTestSession, msg_type: str) -> list[dict[str, Any]]:
@@ -213,3 +145,57 @@ def test_utterance_without_session_errors(tmp_path: Path) -> None:
     with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
         ws.send_json({"type": "utterance_end", "payload": {"audio_base64": ""}})
         assert ws.receive_json()["payload"]["code"] == "SESSION_NOT_FOUND"
+
+
+def test_review_session_over_ws(tmp_path: Path) -> None:
+    """Mode 2: start_review on a finished interview -> grounded walk -> summary scheduled."""
+    llm = FakeLlm(["Q1 was strong. ", "You led with the metric. "])
+    container = make_container(tmp_path, llm, FakeStt("okay makes sense"))
+    seed_finished_interview(container.settings.database_url, "int-1")
+
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": "start_review", "payload": {"interview_id": "int-1"}})
+        started = ws.receive_json()
+        assert started["type"] == "session_started"
+        assert started["payload"]["session_kind"] == "review"
+        review_id = started["payload"]["session_id"]
+
+        # LLM-driven intro turn
+        intro = _collect_until(ws, "state")
+        while intro[-1]["payload"]["value"] != "listening":
+            intro += _collect_until(ws, "state")
+        agent = [m for m in intro if m["type"] == "transcript"]
+        assert agent[0]["payload"]["text"] == "Q1 was strong. You led with the metric."
+        # review system prompt is grounded in segmented Q&A
+        assert llm.last_messages is not None
+        assert "Q1: Walk me through a tool." in llm.last_messages[0]["content"]
+
+        # user ack -> advance to Q2; statement again -> WRAP_UP; reply -> END
+        _send_utterance(ws)
+        _collect_until(ws, "audio")
+        turn = _collect_until(ws, "state")
+        while turn[-1]["payload"]["value"] != "listening":
+            turn += _collect_until(ws, "state")
+        _send_utterance(ws)
+        turn = _collect_until(ws, "state")
+        while turn[-1]["payload"]["value"] != "listening":
+            turn += _collect_until(ws, "state")
+        _send_utterance(ws)
+        ended = _collect_until(ws, "session_ended")[-1]
+        assert ended["payload"]["session_kind"] == "review"
+        assert ended["payload"]["next_action"] == "generate_summary"
+
+    row = fetch_review(container.settings.database_url, review_id)
+    assert row is not None and row.status == "completed"
+    turns = json.loads(row.transcript_json)
+    assert turns[0]["role"] == "agent" and turns[0]["state"] == "INTRO"
+    interview = fetch_interview(container.settings.database_url, "int-1")
+    assert interview is not None and interview.review_session_id == review_id
+
+
+def test_start_review_unknown_interview_errors(tmp_path: Path) -> None:
+    container = make_container(tmp_path, FakeLlm(["x. "]), FakeStt())
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": "start_review", "payload": {"interview_id": "missing"}})
+        reply = ws.receive_json()
+        assert reply["payload"]["code"] == "SESSION_NOT_FOUND"

@@ -40,6 +40,7 @@ class OllamaClient:
         model: str,
         temperature: float,
         max_tokens: int,
+        num_ctx: int | None = None,
     ) -> AsyncIterator[str]:
         payload = {
             "model": model,
@@ -48,7 +49,7 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
-                "num_ctx": self._num_ctx,
+                "num_ctx": num_ctx or self._num_ctx,
             },
         }
         try:

@@ -7,7 +7,7 @@ import pytest
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
-from tests.fakes import FakeLlm, FakeTts
+from tests.fakes import FakeLlm, FakeTts, ScriptedLlm
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "data" / "contracts"
 PARAMS = LlmParams(model="m", temperature=0.7, max_tokens=100)
@@ -17,20 +17,6 @@ SEED = "Help me understand the trade-off you considered there."
 @pytest.fixture(scope="module")
 def enforcer() -> ContractEnforcer:
     return ContractEnforcer(load_contract(CONTRACTS_DIR / "interview.contract.yaml"))
-
-
-class SequenceLlm:
-    """Returns a different token script per call (attempt 1, attempt 2, ...)."""
-
-    def __init__(self, scripts: list[list[str]]) -> None:
-        self._scripts = scripts
-        self.calls: list[list[dict[str, str]]] = []
-
-    async def stream_chat(self, messages, *, model, temperature, max_tokens):  # type: ignore[no-untyped-def]
-        self.calls.append(list(messages))
-        script = self._scripts[min(len(self.calls) - 1, len(self._scripts) - 1)]
-        for token in script:
-            yield token
 
 
 async def _run(runner: TurnRunner, llm_messages=None, **kwargs):  # type: ignore[no-untyped-def]
@@ -77,7 +63,7 @@ async def test_violation_mid_turn_truncates_but_keeps_prefix(enforcer: ContractE
 
 
 async def test_violation_on_first_sentence_regenerates(enforcer: ContractEnforcer) -> None:
-    llm = SequenceLlm([["Отлично! Расскажите ещё? "], ["Understood. ", "What was the impact? "]])
+    llm = ScriptedLlm([["Отлично! Расскажите ещё? "], ["Understood. ", "What was the impact? "]])
     runner = TurnRunner(llm, FakeTts())
     events = await _run(
         runner,
@@ -97,7 +83,7 @@ async def test_violation_on_first_sentence_regenerates(enforcer: ContractEnforce
 
 
 async def test_double_failure_falls_back_to_seed(enforcer: ContractEnforcer) -> None:
-    llm = SequenceLlm([["Great answer! "], ["Well done! "]])
+    llm = ScriptedLlm([["Great answer! "], ["Well done! "]])
     tts = FakeTts()
     runner = TurnRunner(llm, tts)
     events = await _run(
@@ -112,7 +98,7 @@ async def test_double_failure_falls_back_to_seed(enforcer: ContractEnforcer) -> 
 
 
 async def test_empty_stream_falls_back(enforcer: ContractEnforcer) -> None:
-    runner = TurnRunner(SequenceLlm([[], []]), FakeTts())
+    runner = TurnRunner(ScriptedLlm([[], []]), FakeTts())
     events = await _run(
         runner, enforcer=enforcer, ctx=TurnContext(state="CORE_QUEST"), seed=SEED, intent="x"
     )

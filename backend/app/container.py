@@ -14,6 +14,7 @@ from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.settings_repo import SettingsRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
+from app.summary.service import SummaryService
 from app.voice.audio import FfmpegDecoder
 from app.voice.stt_whisper import WhisperCppStt
 from app.voice.tts_piper import PiperTts
@@ -35,6 +36,7 @@ class Container:
     interview_enforcer: ContractEnforcer
     review_enforcer: ContractEnforcer
     question_bank: list[Question]
+    summaries: SummaryService
     ollama: OllamaClient | None = None  # concrete handle for health probe / shutdown
 
 
@@ -60,5 +62,13 @@ def build_container(settings: Settings) -> Container:
             load_contract(settings.contracts_dir / "review.contract.yaml")
         ),
         question_bank=load_bank(settings.questions_dir / "technical_project_walkthrough.yaml"),
+        summaries=SummaryService(
+            ollama,
+            PromptLibrary(settings.prompts_dir, settings.knowledge_dir),
+            InterviewRepository(db),
+            ReviewRepository(db),
+            VocabularyRepository(db),
+            settings,
+        ),
         ollama=ollama,
     )
