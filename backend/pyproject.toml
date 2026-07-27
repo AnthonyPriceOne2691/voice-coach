@@ -48,6 +48,12 @@ addopts = [
   "--cov=app",
   "--cov-report=term-missing",
   "--cov-fail-under=85",  # Phase 2 gate (doc 18)
+  # Зависший тест обязан падать, а не молчать. WS-тесты на TestClient блокируются
+  # навсегда, если сервер не прислал ожидаемый кадр: прогоны main от 2026-07-05
+  # висели по 6 ч и отменялись по лимиту. Локально сьют идёт ~2 с, так что 60 с
+  # на тест — это только про «повис», а не про «медленно».
+  "--timeout=60",
+  "--timeout-method=thread",
 ]
 markers = [
   "integration: hits multiple layers (still mocked external AI)",
@@ -135,4 +141,5 @@ dev-dependencies = [
   "import-linter>=2.13",
   "pre-commit>=4.6.1",
   "detect-secrets>=1.5.0",
+  "pytest-timeout>=2.4.0",
 ]
