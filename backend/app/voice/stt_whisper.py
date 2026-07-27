@@ -35,9 +35,13 @@ class WhisperCppStt:
         if process.returncode != 0:
             raise SttError(f"whisper-cli exited {process.returncode}: {stderr[-300:]!r}")
         txt_path = Path(f"{out_prefix}.txt")
+        # ASYNC240: локальный однопользовательский инструмент; файл — транскрипт одной
+        # реплики (единицы КБ) на локальном SSD, читается сразу после await'а
+        # subprocess. Уводить это в to_thread — накладные расходы больше самой
+        # операции, а latency-бюджет хода замерян именно в такой форме (doc 19).
         try:
-            text = txt_path.read_text(encoding="utf-8")
+            text = txt_path.read_text(encoding="utf-8")  # noqa: ASYNC240
         except FileNotFoundError as exc:
             raise SttError("whisper-cli produced no transcript file") from exc
-        txt_path.unlink(missing_ok=True)
+        txt_path.unlink(missing_ok=True)  # noqa: ASYNC240
         return " ".join(text.split())

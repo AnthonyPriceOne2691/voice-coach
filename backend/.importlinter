@@ -1,0 +1,80 @@
+# Static dependency direction enforcement (import-linter).
+# Запуск: lint-imports (из backend/).
+# Стратегия канона: enforce то, что уже соблюдается; расширять по мере роста.
+# Легаси-нарушения выносить в ignore_imports с пометкой "TODO: <тикет>" — сейчас их нет.
+
+[importlinter]
+root_packages =
+    app
+# Требуется контрактом 3: fastapi/starlette — внешние пакеты.
+include_external_packages = True
+
+# --------------------------------------------------------------------
+# Контракт 1: направление слоёв (сверху вниз).
+#
+# `app.container` СОЗНАТЕЛЬНО вне списка: это composition root (DI), он по
+# определению видит все слои. exhaustive = False оставляет его без слоя, вместо
+# того чтобы городить под него исключения.
+#
+# Внутри слоя модули перечислены через `:` — значит они независимы и не имеют
+# права импортировать друг друга. Сейчас так и есть; контракт это фиксирует.
+# --------------------------------------------------------------------
+[importlinter:contract:app-layered]
+name = app: main -> api -> summary/voice -> orchestrator -> contracts/llm/knowledge -> storage -> common/config
+type = layers
+layers =
+    main
+    api
+    summary : voice
+    orchestrator
+    contracts : llm : knowledge
+    storage
+    common : config
+containers =
+    app
+exhaustive = False
+
+# --------------------------------------------------------------------
+# Контракт 2: нижние слои — листья. Дублирует часть контракта 1 намеренно:
+# layers молчит про модуль, если тот выпал из списка, а этот контракт держит
+# инвариант «данные и конфиг не тянут прикладные слои» независимо от раскладки.
+# --------------------------------------------------------------------
+[importlinter:contract:storage-and-config-are-leaves]
+name = storage / common / config не импортируют прикладные слои
+type = forbidden
+source_modules =
+    app.storage
+    app.common
+    app.config
+forbidden_modules =
+    app.api
+    app.orchestrator
+    app.voice
+    app.summary
+    app.contracts
+    app.llm
+    app.knowledge
+    app.container
+allow_indirect_imports = True
+
+# --------------------------------------------------------------------
+# Контракт 3: web живёт только в api. Статический дубль grep-гейта
+# service-no-web: тот смотрит на текст, этот — на реальный граф импортов
+# (в т.ч. транзитных).
+# --------------------------------------------------------------------
+[importlinter:contract:web-only-in-api]
+name = FastAPI/Starlette только в app.api (и в composition root)
+type = forbidden
+source_modules =
+    app.orchestrator
+    app.voice
+    app.summary
+    app.contracts
+    app.llm
+    app.knowledge
+    app.storage
+    app.common
+forbidden_modules =
+    fastapi
+    starlette
+allow_indirect_imports = False

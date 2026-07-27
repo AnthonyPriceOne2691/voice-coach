@@ -1,4 +1,4 @@
-"""Application settings — single config source (doc 18: no scattered os.getenv)."""
+"""Application settings — single config source (doc 18: no scattered env reads)."""
 
 from functools import lru_cache
 from pathlib import Path

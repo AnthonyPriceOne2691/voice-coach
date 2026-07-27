@@ -72,14 +72,38 @@ exclude_lines = [
 target-version = "py312"
 line-length = 100
 src = ["app", "tests"]
+extend-exclude = ["migrations", ".venv", "venv", "__pycache__"]
 
 [tool.ruff.lint]
-select = [
-  "E", "F", "I", "UP", "B", "SIM", "RUF",
-]
+select = ["E","W","F","I","N","UP","B","C4","C90","SIM","RUF","ASYNC","S","PT","RET","PIE","PL","TRY400","DTZ"]
 ignore = [
-  "B008",  # Depends() in FastAPI routes
+    "E501",                 # длину разрулит форматтер
+    "S101",                 # assert разрешён
+    "S104","S105","S106","S301","S311","S324","S603","S607",  # bandit-шум / осознанные кейсы
+    "PLR0913",              # too-many-args — web-фреймворк DI часто > 5
+    "PLR2004",              # magic-value — шумно
+    "B008",                 # DI-объект как default аргумента (напр. FastAPI Depends())
+    "RUF001","RUF002","RUF003",  # ambiguous unicode — не-ASCII в строках/логах
+    "PLC0415",              # import-outside-top-level — осознанный lazy-import паттерн
 ]
+# tests-код имеет свои послабления:
+# ASYNC добавлен к каноническому списку: тестовые фейки синхронно пишут файлы
+# в async-методах, имитируя контракт реального декодера — это не блокирующий I/O в проде.
+per-file-ignores = { "tests/**/*.py" = ["S","PLR2004","PLR0915","PLR0912","C901","PLC0415","B017","PT011","PT012","PT018","N806","N803","N802","E402","SIM117","PT006","E741","PLW0108","DTZ","ASYNC"] }
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 50
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
@@ -108,4 +132,7 @@ dev-dependencies = [
   "ruff>=0.8",
   "mypy>=1.13",
   "types-PyYAML>=6.0",
+  "import-linter>=2.13",
+  "pre-commit>=4.6.1",
+  "detect-secrets>=1.5.0",
 ]

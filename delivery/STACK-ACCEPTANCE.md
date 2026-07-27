@@ -1,0 +1,118 @@
+# Stack acceptance
+
+**Date:** 2026-07-28
+**Stack:** delivery@1.11 · cqg@1.7 · okf@1.5 (карта: stack-map@1.7)
+**Где лежат каноны:** вендоренная копия в `docs/canon/` (вариант **C**, AGENT_STACK §7.1).
+Upstream — `Prepare/` в корне репо, **не коммитится**. STATUS: `stack-selftest: ci (vendored)`.
+
+## Что развёрнуто
+
+| Слой | Состояние | Примечание |
+|---|---|---|
+| ① delivery/ | deployed | constitution + active (`phase-2-acceptance`, phase=specify) + evals/smoke (7 оракулов) + archive |
+| ② гейты | deployed | 18 pre-commit хуков; 9 скриптов в `scripts/lint/`; адаптация под Python+TS — стек совпал с каноническим |
+| ③ knowledge/ | deployed | OKF v0.2, 13 файлов, 6 concept'ов; из них с непустым `implementation:` — **5** |
+| ④ CI + гейт мержа | **tooling** | `quality.yml` + `main-guard.yml` + `canon-freshness.yml`; merge_guard: да; branch protection: **нет** (тариф) |
+
+## Preflight'ы
+
+- **OKF §0** (обязательный): upstream SPEC получен
+  (`raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/main/okf/SPEC.md`),
+  версия upstream **0.2** == pinned **0.2**. Расхождений нет, канон правки не потребовал.
+- **CQG §6 «Первый прогон»**: дефолт `LINT_PY_SRC=backend/features` этому проекту не
+  подходит — прод-Python лежит в `backend/app`. Env проставлен в каждом скрипт-хуке
+  `.pre-commit-config.yaml` и в `quality.yml`. Без этого гейты были бы **зелёными впустую**.
+
+## Карта ролей гейтов
+
+Инвариант — **роль**, а не имя файла (CQG «Применимость»).
+
+| Роль | Канонический скрипт | В этом проекте | Статус |
+|---|---|---|---|
+| Доступ к настройкам только типизированно | `check_grep_gate.sh --rule config-access` | он же | как есть |
+| DI вместо importlib-магии | `check_grep_gate.sh --rule di-indirection` | он же | как есть |
+| Сервис не знает про web | `check_grep_gate.sh --rule service-no-web` | он же + контракт 3 в `.importlinter` | как есть (усилен) |
+| Нет модулей-помоек | `check_grep_gate.sh --rule no-grab-bag-module` | он же | как есть |
+| Ошибки не молчат | `check_ast_gate.py --rule silent-except` | он же | как есть |
+| Длинные промпты — в файлы | `check_ast_gate.py --rule inline-prompt` | он же | как есть (промпты и так в `data/prompts/`) |
+| Длина файлов под контролем | `check_file_length.sh` | он же **+ уже существовавший** `scripts/check_module_size.py` | как есть (см. «Остатки» — сознательное перекрытие) |
+| Копипаст не растёт | `check_jscpd_gate.sh` | он же | как есть |
+| Warnings линтера не растут | `check_eslint_warnings.sh` | он же | как есть |
+| Направление зависимостей | `import-linter` | `backend/.importlinter`, 3 контракта | как есть |
+| Покрытие изменённого кода | `check_diff_coverage.sh` | он же | как есть (ручной + шаг CI) |
+| Снимки только вниз | `check_baseline_ratchet.sh` | он же | как есть |
+| **Все гейты подключены** | `check_gate_coverage.sh` | он же | как есть |
+| **Копия канонов не разошлась** | — (роли в каноне нет) | `check_canon_vendor.sh` | **добавлен** — следствие варианта C |
+
+## Полнота, не только зелёность
+
+- [x] `check_gate_coverage.sh` — OK: 9 гейтов, подключено 8, осознанно нет 1
+      (`check_diff_coverage.sh` — ручной DoD-шаг, в CI отдельным шагом; причина
+      печатается на каждом прогоне)
+- [x] `pre-commit run --all-files` — зелено, 18 хуков
+- [x] `stack_selftest.py docs/canon` — OK: 41 блок, 0 провалов, версии в шапках == таблица §1
+- [x] Каждый гейт **проверен воспроизведением** — см. ниже. Это сильнее, чем
+      «показал непустое число файлов»: гейты молчат при успехе, поэтому доказательством
+      служит поимка внесённого нарушения
+
+### Проверено воспроизведением (13/13)
+
+Внесённое нарушение → гейт красный → откат. Скрипт пробы одноразовый (scratch).
+
+| Гейт | Внесённое нарушение | Результат |
+|---|---|---|
+| config-access | `os.getenv` в `app/container.py` | caught |
+| service-no-web | `import fastapi` в `app/summary/service.py` | caught |
+| no-grab-bag | создан `app/utils.py` | caught |
+| di-indirection | `import_module("os")` | caught |
+| silent-except | `except Exception: pass` | caught |
+| inline-prompt | 9-строчный `"You are …"` литерал | caught |
+| file-length | новый `.py` на 600 строк | caught |
+| import-linter | `app.storage` → `app.api` | caught |
+| eslint (errors) | `1 === 1;` (no-unused-expressions) | caught |
+| eslint warnings ratchet | +2 warning сверх снимка 17 | caught |
+| detect-secrets | AWS-подобный ключ | caught |
+| canon-vendor | правка `docs/canon/AGENT_STACK.md` на месте | caught |
+| okf sync gate | правка `turn_runner.py` без правки concept'а | caught |
+
+## Остатки (не закрыто — и почему)
+
+| Инвариант | Почему не закрыт | Компенсация |
+|---|---|---|
+| **force-push в main / обход админом** | Серверная защита ветки платная: rulesets — Team+, protection приватного репо — Pro+. Репо приватный на бесплатном тарифе | Правило «мерж только через `scripts/merge_guard.sh`»; pre-push hook; `main-guard.yml` открывает issue на красный main; локальный `scripts/hooks/protect_main.sh` |
+| **Красное не уезжает в прод** (`needs:`) | **n/a**: деплоя не существует — инструмент локальный, запускается `./scripts/dev.sh`. Downstream-джобы, к которой цеплять `needs:`, нет | Когда деплой появится — `needs: [gates, delivery]` обязателен |
+| **Дрейф `Prepare/` → `docs/canon/`** | Вариант C: upstream не коммитится, в CI его физически нет | `check_canon_vendor.sh` шаг 3 работает локально (pre-commit) и печатает в CI, что шаг НЕ выполнен — вместо тихого пропуска. SHA256-манифест ловит правку копии на месте в обоих местах |
+| **Перекрытие `check_module_size.py` и `check_file_length.sh`** | Оба держат роль «длина файлов». Первый — родной гейт проекта (в `ci.yml` и `run_checks.sh`, лимит 500 без baseline), второй — канонический с ратчетом | Сознательно оставлены оба: разные наборы файлов (родной не видит `scripts/spike/`). Схлопнуть — при следующем касании темы |
+| **Перекрытие `ci.yml` и `quality.yml`** | `ci.yml` — поведенческие оракулы (pytest/mypy/ruff), `quality.yml` — форма + delivery + product. ruff/mypy гоняются дважды | Сознательно: `ci.yml` — исторический контракт проекта, документирован в README. Цена — минуты CI, не корректность |
+| **`implement_retries`, `max_session_minutes`** | Счётчика сессии harness не имеет (Delivery §9.1) | Остаются самонаблюдением агента; поля MANUAL в блоке метрик |
+
+## Разбор: где эта процедура подвела
+
+Записывать КАЖДЫЙ случай, когда приёмка показала зелено, а дыра была.
+Формат: симптом → корневая причина → что добавлено в harness → как проверено.
+
+### 2026-07-28 — «зелёный gate_coverage» до того, как скрипты были в git
+
+- **Симптом:** `check_gate_coverage.sh` при первом прогоне упал не с «гейт не подключён»,
+  а с «в `scripts/lint` нет отслеживаемых гейт-скриптов». Скрипты лежали на диске,
+  но были untracked.
+- **Причина:** гейт считает через `git ls-files` — сознательное решение канона (v1.7):
+  локальный черновик гейтом не является. Механизм отработал верно; ошибка была бы
+  в том, чтобы счесть «0 гейтов» пропуском. Канон это предусмотрел: ноль гейтов = ошибка.
+- **Усиление:** не потребовалось — гейт уже держит этот случай. Записано как
+  подтверждение, что «ноль = ошибка, а не skip» имеет практический смысл.
+- **Проверено воспроизведением:** да — сообщение получено на реальном прогоне до `git add`.
+
+### 2026-07-28 — две пробы «не пойманы» оказались дефектом проб, а не гейтов
+
+- **Симптом:** в первом прогоне таблицы «проверено воспроизведением» eslint и
+  okf_sync_gate показали `NOT CAUGHT`.
+- **Причина:** дефект проб, а не гейтов. (1) eslint-проба вносила `any`, который в
+  конфиге — **warning**, а проверялся exit-код per-file хука, блокирующего только
+  errors. (2) okf-проба правила `turn_runner.py`, но concept `sentence-streaming.md`
+  в тот момент **сам был в staged-диффе** (bootstrap-коммит), и гейт справедливо
+  счёл канон обновлённым.
+- **Усиление:** пробы переписаны (реальный error; прогон на чистом дереве **после**
+  bootstrap-коммита). Вывод шире: проба, которую не проверили на «падает ли она по
+  той причине, что заявлена», доказывает не больше, чем сам гейт.
+- **Проверено воспроизведением:** да — после исправления обе пробы `caught`.

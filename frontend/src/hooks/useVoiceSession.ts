@@ -130,47 +130,50 @@ export function useVoiceSession() {
     [startRecorder],
   );
 
-  const start = useCallback(async (review?: { interviewId: string }) => {
-    setError(null);
-    setTranscript([]);
-    setEnded(null);
-    const r = refs.current;
-    r.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    r.audioContext = new AudioContext();
-    r.queue = new AudioQueue(r.audioContext, () => {
-      // Agent finished speaking through the speakers — now it's safe to open the mic.
-      r.playing = false;
-      setPlayingUi(false);
-      r.detector.reset();
-      startRecorder();
-    });
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${protocol}://${location.host}/ws/session`);
-    r.ws = ws;
-    ws.onmessage = (event) => handleMessage(String(event.data));
-    ws.onopen = () => {
-      ws.send(clientMessage("hello"));
-      if (review) {
-        ws.send(clientMessage("start_review", { interview_id: review.interviewId }));
-      } else {
-        ws.send(clientMessage("start_interview"));
-      }
-    };
-    ws.onerror = () => setError("WebSocket connection failed — is the backend running?");
-    ws.onclose = (event) => {
-      if (!event.wasClean) setError("Connection lost — restart the backend and try again.");
-      setActive(false);
-      setState("idle");
-    };
-    setActive(true);
-    startVadLoop();
-  }, [handleMessage, startVadLoop, startRecorder]);
+  const start = useCallback(
+    async (review?: { interviewId: string }) => {
+      setError(null);
+      setTranscript([]);
+      setEnded(null);
+      const r = refs.current;
+      r.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      r.audioContext = new AudioContext();
+      r.queue = new AudioQueue(r.audioContext, () => {
+        // Agent finished speaking through the speakers — now it's safe to open the mic.
+        r.playing = false;
+        setPlayingUi(false);
+        r.detector.reset();
+        startRecorder();
+      });
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${protocol}://${location.host}/ws/session`);
+      r.ws = ws;
+      ws.onmessage = (event) => handleMessage(String(event.data));
+      ws.onopen = () => {
+        ws.send(clientMessage("hello"));
+        if (review) {
+          ws.send(clientMessage("start_review", { interview_id: review.interviewId }));
+        } else {
+          ws.send(clientMessage("start_interview"));
+        }
+      };
+      ws.onerror = () => setError("WebSocket connection failed — is the backend running?");
+      ws.onclose = (event) => {
+        if (!event.wasClean) setError("Connection lost — restart the backend and try again.");
+        setActive(false);
+        setState("idle");
+      };
+      setActive(true);
+      startVadLoop();
+    },
+    [handleMessage, startVadLoop, startRecorder],
+  );
 
   const end = useCallback(() => {
     const r = refs.current;
     r.ws?.send(clientMessage("end_session", { reason: "user" }));
     if (r.vadTimer !== null) window.clearInterval(r.vadTimer);
-    r.recorder?.state === "recording" && r.recorder.stop();
+    if (r.recorder?.state === "recording") r.recorder.stop();
     r.stream?.getTracks().forEach((track) => track.stop());
     void r.audioContext?.close();
     r.ws?.close();

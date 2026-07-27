@@ -10,7 +10,12 @@ export type ServerMessage =
   | { type: "session_started"; payload: { session_kind: string; session_id: string } }
   | {
       type: "session_ended";
-      payload: { session_kind: string; session_id: string; duration_sec: number; next_action: string };
+      payload: {
+        session_kind: string;
+        session_id: string;
+        duration_sec: number;
+        next_action: string;
+      };
     }
   | { type: "error"; payload: { code: string; message: string; recoverable: boolean } }
   | { type: "pong"; payload: Record<string, never> };

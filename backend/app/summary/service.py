@@ -17,7 +17,7 @@ from app.llm.strip_thinking import strip_thinking
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
-from app.summary.validate import SummaryInvalid, extract_json, validate_summary
+from app.summary.validate import SummaryInvalidError, extract_json, validate_summary
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class SummaryService:
                 num_ctx=self._settings.summary_num_ctx,
                 require_vocabulary=True,
             )
-        except SummaryInvalid:
+        except SummaryInvalidError:
             logger.warning("full summary invalid twice — degrading to minimal", exc_info=True)
             return await self.generate_minimal(interview_id)
         await self._interviews.set_debrief(interview_id, data, "full")
@@ -114,7 +114,7 @@ class SummaryService:
                 num_ctx=self._settings.ollama_num_ctx,
                 require_vocabulary=False,
             )
-        except SummaryInvalid:
+        except SummaryInvalidError:
             logger.error("minimal summary invalid twice — leaving debrief empty", exc_info=True)
             return None
         await self._interviews.set_debrief(interview_id, data, "minimal")
@@ -143,7 +143,7 @@ class SummaryService:
                 return validate_summary(
                     extract_json(strip_thinking(raw)), require_vocabulary=require_vocabulary
                 )
-            except SummaryInvalid as exc:
+            except SummaryInvalidError as exc:
                 last_error = str(exc)
                 messages = [
                     *messages,
@@ -154,7 +154,7 @@ class SummaryService:
                         "Return ONLY the corrected JSON object.",
                     },
                 ]
-        raise SummaryInvalid(last_error)
+        raise SummaryInvalidError(last_error)
 
     async def _complete(
         self, messages: list[ChatMessage], *, model: str, max_tokens: int, num_ctx: int

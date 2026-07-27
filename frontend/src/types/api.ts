@@ -26,8 +26,19 @@ export interface Debrief {
   overall_summary?: string;
   scores?: Record<string, number>;
   strengths?: { text: string; reference?: string }[];
-  improvements?: { category?: string; problem: string; evidence?: string; impact?: string; fix: string }[];
-  weak_answers?: { question: string; user_answer_summary?: string; suggested_rephrase: string; issue?: string }[];
+  improvements?: {
+    category?: string;
+    problem: string;
+    evidence?: string;
+    impact?: string;
+    fix: string;
+  }[];
+  weak_answers?: {
+    question: string;
+    user_answer_summary?: string;
+    suggested_rephrase: string;
+    issue?: string;
+  }[];
   vocabulary?: VocabularyItem[];
   consistency_flags?: string[];
   next_session_focus?: string[];

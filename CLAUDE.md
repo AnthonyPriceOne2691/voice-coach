@@ -2,6 +2,38 @@
 
 Голосовой AI-агент для mock technical interviews на английском. Локальный инструмент для одного пользователя (MacBook Air M5, 32 GB): whisper.cpp (STT) → Ollama qwen2.5:14b-instruct (LLM) → Piper (TTS), FastAPI + React. Всё офлайн, privacy-first.
 
+## Canon stack / Agent Delivery Harness
+
+- **Start here:** `docs/canon/AGENT_STACK.md` (order: Delivery → CQG → OKF).
+  Каноны вендорятся в `docs/canon/`; рабочая копия человека — `Prepare/` (не коммитится).
+- Process canon: `docs/canon/AGENT_DELIVERY_HARNESS.md`.
+- Active delivery: `delivery/active/STATUS.md` — **read before coding**.
+- **Order:** follow delivery phases. Do not oneshot large work.
+- **Done:** only when verify oracles pass **and CI is green**; never declare done on red.
+- Prefer git worktree for class M/L (Delivery §5.1).
+- Smoke/evals: `delivery/evals/smoke/` + `active/eval-smoke.md` (Delivery §6).
+- Metrics on handoff: `python3 scripts/delivery_metrics.py --base origin/main --write`.
+- Merge only via `bash scripts/merge_guard.sh <branch>` — серверной защиты ветки нет (§8.5).
+- Hooks: `scripts/hooks/` (Delivery §10).
+- Do **not** duplicate code-quality rules here — they live in `docs/canon/CODE_QUALITY_GATES.md`
+  и в `.pre-commit-config.yaml`.
+- Do **not** invent domain canon — use `knowledge/` (OKF) и `docs/00–20`.
+
+## OKF knowledge bundle
+
+- Bundle root: `knowledge/` (Open Knowledge Format v0.2).
+- **Before answering canonical questions** (инварианты voice-цикла, выбор модели,
+  политики данных): читай `knowledge/index.md` и иди по ссылкам. Не выдумывай по памяти.
+- **When changing invariants** in code: обнови соответствующий concept в том же
+  изменении; освежи родительский `index.md` и `log.md`. Это **enforced**, а не пожелание:
+  `scripts/okf_sync_gate.py` роняет CI, если путь из `implementation:` изменился, а
+  concept — нет. Осознанный дрейф (чистый рефакторинг): `ALLOW_CANON_DRIFT=1`, видимо в PR.
+- Новое устойчивое знание — concept'ом с frontmatter `type`, не новым orphan-файлом.
+- Полный дизайн остаётся в `docs/00–20`; карта соответствия —
+  `knowledge/references/design-docs.md`.
+- Upstream spec (сверять при deploy/migrate):
+  https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md
+
 ## Окружение
 
 Репозиторий живёт в `/Users/anthony/Documents/voice-interview-coach`. Обычные

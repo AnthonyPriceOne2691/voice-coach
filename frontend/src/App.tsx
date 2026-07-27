@@ -38,10 +38,7 @@ export default function App() {
       </header>
 
       {tab === "interview" && (
-        <InterviewPage
-          reviewTarget={reviewTarget}
-          onReviewStarted={() => setReviewTarget(null)}
-        />
+        <InterviewPage reviewTarget={reviewTarget} onReviewStarted={() => setReviewTarget(null)} />
       )}
       {tab === "history" && <HistoryPage onStartReview={startReviewFor} />}
       {tab === "words" && <WordsPage />}

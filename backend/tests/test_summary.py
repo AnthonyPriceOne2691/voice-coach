@@ -12,7 +12,7 @@ from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.summary.service import SummaryService
-from app.summary.validate import SummaryInvalid, extract_json, validate_summary
+from app.summary.validate import SummaryInvalidError, extract_json, validate_summary
 from tests.fakes import ScriptedLlm
 
 VALID = {
@@ -43,21 +43,21 @@ VALID = {
 def test_extract_json_from_prose_and_fences() -> None:
     raw = 'Here you go:\n```json\n{"a": 1}\n```\nDone.'
     assert extract_json(raw) == {"a": 1}
-    with pytest.raises(SummaryInvalid, match="no JSON"):
+    with pytest.raises(SummaryInvalidError, match="no JSON"):
         extract_json("no json here")
-    with pytest.raises(SummaryInvalid, match="invalid JSON"):
+    with pytest.raises(SummaryInvalidError, match="invalid JSON"):
         extract_json("{broken}")
 
 
 def test_validate_rejects_bad_scores_and_incomplete_vocabulary() -> None:
     bad_scores = json.loads(json.dumps(VALID))
     bad_scores["scores"]["clarity"] = 7
-    with pytest.raises(SummaryInvalid, match=r"scores\.clarity"):
+    with pytest.raises(SummaryInvalidError, match=r"scores\.clarity"):
         validate_summary(bad_scores, require_vocabulary=True)
 
     no_translation = json.loads(json.dumps(VALID))
     no_translation["vocabulary"][0]["translation_ru"] = ""  # FR-6.3 hard rule
-    with pytest.raises(SummaryInvalid, match="vocabulary"):
+    with pytest.raises(SummaryInvalidError, match="vocabulary"):
         validate_summary(no_translation, require_vocabulary=True)
 
     ok = validate_summary(json.loads(json.dumps(VALID)), require_vocabulary=True)
@@ -67,7 +67,7 @@ def test_validate_rejects_bad_scores_and_incomplete_vocabulary() -> None:
 def test_validate_rejects_cyrillic_body() -> None:
     data = json.loads(json.dumps(VALID))
     data["overall_summary"] = "Отличная сессия"
-    with pytest.raises(SummaryInvalid, match="English"):
+    with pytest.raises(SummaryInvalidError, match="English"):
         validate_summary(data, require_vocabulary=True)
 
 

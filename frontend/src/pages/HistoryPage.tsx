@@ -33,9 +33,7 @@ export function HistoryPage({ onStartReview }: Props) {
     const detail = await api.getInterview(id);
     setSelected(detail);
     setTab(detail.debrief ? "summary" : "interview");
-    setReview(
-      detail.review_session_id ? await api.getReview(detail.review_session_id) : null,
-    );
+    setReview(detail.review_session_id ? await api.getReview(detail.review_session_id) : null);
   };
 
   const remove = async (id: string) => {
@@ -98,7 +96,13 @@ export function HistoryPage({ onStartReview }: Props) {
             <div className="notice-banner">
               No summary yet.{" "}
               {selected.has_review ? (
-                <>It may still be generating — <button className="btn-link" onClick={() => void open(selected.id)}>refresh</button>.</>
+                <>
+                  It may still be generating —{" "}
+                  <button className="btn-link" onClick={() => void open(selected.id)}>
+                    refresh
+                  </button>
+                  .
+                </>
               ) : (
                 <>
                   <button className="btn-link" onClick={() => onStartReview(selected.id)}>
@@ -140,8 +144,8 @@ export function HistoryPage({ onStartReview }: Props) {
         items.map((item) => (
           <div key={item.id} className="history-item">
             <div>
-              <strong>{formatDate(item.started_at)}</strong> ·{" "}
-              {formatDuration(item.duration_sec)} · {item.status}
+              <strong>{formatDate(item.started_at)}</strong> · {formatDuration(item.duration_sec)} ·{" "}
+              {item.status}
               <div className="muted">
                 Interview ✓ · Review {item.has_review ? "✓" : "—"} · Summary{" "}
                 {item.summary_kind ?? "—"}

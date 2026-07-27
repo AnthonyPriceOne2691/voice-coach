@@ -7,7 +7,7 @@ from typing import Any
 SCORE_KEYS = ("clarity", "structure", "technical_depth", "english_fluency", "positioning")
 
 
-class SummaryInvalid(ValueError):
+class SummaryInvalidError(ValueError):
     """LLM output failed the summary contract; message is the retry hint."""
 
 
@@ -15,28 +15,28 @@ def extract_json(raw: str) -> dict[str, Any]:
     """Parse the first {...} block (models love to wrap JSON in prose/fences)."""
     start, end = raw.find("{"), raw.rfind("}")
     if start == -1 or end <= start:
-        raise SummaryInvalid("no JSON object found in output")
+        raise SummaryInvalidError("no JSON object found in output")
     try:
         data = json.loads(raw[start : end + 1])
     except json.JSONDecodeError as exc:
-        raise SummaryInvalid(f"invalid JSON: {exc}") from exc
+        raise SummaryInvalidError(f"invalid JSON: {exc}") from exc
     if not isinstance(data, dict):
-        raise SummaryInvalid("top-level JSON value must be an object")
+        raise SummaryInvalidError("top-level JSON value must be an object")
     return data
 
 
 def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[str, Any]:
     scores = data.get("scores")
     if not isinstance(scores, dict):
-        raise SummaryInvalid("missing scores object")
+        raise SummaryInvalidError("missing scores object")
     for key in SCORE_KEYS:
         value = scores.get(key)
         if not isinstance(value, int) or not 1 <= value <= 5:  # S-H3
-            raise SummaryInvalid(f"scores.{key} must be an integer 1-5, got {value!r}")
+            raise SummaryInvalidError(f"scores.{key} must be an integer 1-5, got {value!r}")
 
     vocabulary = data.get("vocabulary", [])
     if not isinstance(vocabulary, list):
-        raise SummaryInvalid("vocabulary must be a list")
+        raise SummaryInvalidError("vocabulary must be a list")
     complete = [
         item
         for item in vocabulary
@@ -46,10 +46,12 @@ def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[
         and str(item.get("example_en", "")).strip()
     ]
     if require_vocabulary and not complete:
-        raise SummaryInvalid("vocabulary must contain items with term_en/translation_ru/example_en")
+        raise SummaryInvalidError(
+            "vocabulary must contain items with term_en/translation_ru/example_en"
+        )
     data["vocabulary"] = complete
 
     for field in ("overall_summary",):
         if re.search(r"[Ѐ-ӿ]", str(data.get(field, ""))):  # S-H2: EN body fields
-            raise SummaryInvalid(f"{field} must be English")
+            raise SummaryInvalidError(f"{field} must be English")
     return data

@@ -36,9 +36,7 @@ export function WordsPage() {
       {items === null ? (
         <p className="muted">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="muted">
-          Nothing here yet — words are added automatically after each review.
-        </p>
+        <p className="muted">Nothing here yet — words are added automatically after each review.</p>
       ) : (
         <>
           {items.map((item) => (
@@ -46,7 +44,8 @@ export function WordsPage() {
               <div className="word-head">
                 <strong>{item.term_en}</strong>
                 <span className="muted">
-                  {item.category} {item.times_seen && item.times_seen > 1 ? `· seen ×${item.times_seen}` : ""}
+                  {item.category}{" "}
+                  {item.times_seen && item.times_seen > 1 ? `· seen ×${item.times_seen}` : ""}
                 </span>
                 <button className="btn-link btn-danger" onClick={() => void remove(item.id)}>
                   delete
