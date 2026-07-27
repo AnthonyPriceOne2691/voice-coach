@@ -25,7 +25,11 @@ DEFAULT_BREAKERS = {"max_files_touched": 25, "max_loc_diff": 800}
 
 # Процессные артефакты не считаются в breaker'ах: spec/plan/tasks и concept'ы —
 # это не blast radius кода, а его описание.
-BREAKER_EXCLUDE = ("delivery/", "knowledge/")
+# АДАПТАЦИЯ ПРОЕКТА: сюда же docs/canon/ — вендоренная копия самих канонов
+# (AGENT_STACK §7.1, вариант C). Это ~18k строк чужого markdown'а, которые по той же
+# логике не являются blast radius кода: они его не исполняют и не описывают поведение
+# продукта. Без исключения любой пере-снимок канонов рвал бы breaker'ы.
+BREAKER_EXCLUDE = ("delivery/", "knowledge/", "docs/canon/")
 
 
 def read(path: Path) -> str:

@@ -24,3 +24,7 @@ data/models/
 .idea/
 .vscode/
 frontend/tsconfig.tsbuildinfo
+
+# Canon stack upstream — рабочая копия человека.
+# Вариант C (AGENT_STACK §7.1): в репо коммитится СНИМОК docs/canon/, не upstream.
+Prepare/
