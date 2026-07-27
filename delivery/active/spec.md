@@ -17,18 +17,37 @@ Phase 2 объявлена code-complete 2026-07-05 (91 тест, 93.5% coverage
 
 ## In scope
 
-- **[БЛОКЕР, найден 2026-07-28] `test_decode_failure_is_recoverable` виснет на
-  ubuntu-runner.** Именно он держал CI красным с 2026-07-05: прогоны main висели
-  по 6 ч и отменялись по лимиту, из-за чего «CI зелёный» в CLAUDE.md было неверно.
-  Диагноз (трейсбек pytest-timeout из CI): 86 тестов из 91 проходят, затем
-  `TestClient.__exit__` → `anyio.start_blocking_portal` → `thread.join()` не
-  возвращается — WS-сессия не завершается чисто на пути «recoverable decode failure».
-  Лид: `_warmup_task = asyncio.create_task(self._warmup())`
+- **[БЛОКЕР, найден 2026-07-28] WS-сессия не завершается чисто, если клиент
+  отключился без `end_session`.** Именно это держало CI красным с 2026-07-05:
+  прогоны main висели по 6 ч и отменялись по лимиту, поэтому «CI зелёный» в
+  CLAUDE.md было неверно.
+
+  **Диагноз** (трейсбеки `pytest-timeout` из двух прогонов CI): сьют доходит до
+  `tests/test_ws_voice.py` и встаёт в
+  `TestClient.__exit__` → `anyio.start_blocking_portal` → `thread.join()`.
+
+  **Это не один тест, а паттерн.** Виснут те тесты, что выходят из
+  `with TestClient(...) as client, client.websocket_connect(...) as ws`
+  при **живой сессии**, не послав `end_session`:
+  `test_stt_empty_recoverable:113` (прогон 30310342443) и
+  `test_decode_failure_is_recoverable:131` (прогон 30309328595) — падал то один,
+  то другой. Соседний `test_enforcer_blocks_coaching_in_live_turn`, который
+  `end_session` шлёт, зелёный всегда.
+
+  **Лид:** `_warmup_task = asyncio.create_task(self._warmup())`
   (`app/api/ws_voice.py:125` и `:156`) не отменяется и не ожидается **нигде** —
-  `on_disconnect()` закрывает только flow. Версия «фейк LLM исчерпал скрипт»
-  проверена и отвергнута: `FakeLlm` stateless. Локально (macOS, python 3.12 и 3.14)
-  не воспроизводится — расхождение по таймингу, а не по коду.
-  Починить сам инвариант, а не подавить тест.
+  `on_disconnect()` (строка 91) закрывает только flow. Висячая задача на петле
+  портала — правдоподобная причина незакрывающегося треда.
+
+  Проверено и **отвергнуто**: «фейк LLM исчерпал скрипт» (`FakeLlm` stateless,
+  отдаёт один и тот же список на каждый вызов).
+
+  Локально (macOS, python 3.12 и 3.14) не воспроизводится — расхождение по
+  таймингу, а не по коду; на runner'е падает через раз.
+
+  **Чинить инвариант «отключение клиента завершает сессию», а не подавлять тест**
+  и не дописывать `end_session` в тесты: тесты воспроизводят реальный сценарий
+  «пользователь закрыл вкладку», и он обязан работать (constitution §8).
 - Ручной UI-прогон полного цикла: Mode 1 (interview) → review → summary → Vocabulary
   Bank → History, с живыми whisper / qwen / piper.
 - Наблюдение 1: артефакт в `translation_ru` в R1-summary — воспроизвести, локализовать
