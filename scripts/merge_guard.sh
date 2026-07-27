@@ -34,6 +34,15 @@ if [[ -z "$PY" ]]; then
   done
 fi
 [[ -n "$PY" ]] || die "не найден python (задай PYTHON=/path/to/python)"
+# АДАПТАЦИЯ ПРОЕКТА: путь обязан быть АБСОЛЮТНЫМ. Гейты гоняются через `cd $WT`
+# в одноразовом worktree, а относительный `backend/.venv/bin/python` указывает на
+# venv ГЛАВНОГО клона и внутри worktree не существует. Симптом был: «delivery gate
+# FAIL: No such file or directory» — мерж блокировался по ложной причине.
+if [[ "$PY" == */* ]]; then
+  PY="$(cd "$(dirname "$PY")" && pwd)/$(basename "$PY")"
+else
+  PY="$(command -v "$PY")"
+fi
 
 git rev-parse --verify --quiet "$SOURCE" >/dev/null || die "нет ветки '$SOURCE'"
 git rev-parse --verify --quiet "$TARGET" >/dev/null || die "нет ветки '$TARGET'"
@@ -54,6 +63,21 @@ git worktree add --quiet --detach "$WT" "$TARGET" || die "не смог созд
 if ! git -C "$WT" merge --no-ff --no-edit "$SOURCE" >/dev/null 2>&1; then
   git -C "$WT" merge --abort >/dev/null 2>&1 || true
   die "конфликт при слиянии $SOURCE в $TARGET — разреши его в ветке и повтори"
+fi
+
+# --- АДАПТАЦИЯ ПРОЕКТА: bootstrap зависимостей в worktree --------------------
+# worktree свежий, а `backend/.venv` и `frontend/node_modules` — gitignored, то есть
+# в нём их НЕТ. Без этого шага pre-commit падает на отсутствии mypy, а smoke — на
+# отсутствии vite: мерж блокируется по причине «нет бинаря», а не «нарушен инвариант».
+# Ставим ровно то же, что CI (.github/workflows/quality.yml).
+printf 'merge_guard: ставлю зависимости в worktree (как в CI)\n'
+if [[ -f "$WT/backend/pyproject.toml" ]] && command -v uv >/dev/null 2>&1; then
+  ( cd "$WT/backend" && uv sync --all-extras ) >/dev/null 2>&1 \
+    || die "не смог поставить backend-зависимости в worktree"
+fi
+if [[ -f "$WT/frontend/package-lock.json" ]] && command -v npm >/dev/null 2>&1; then
+  npm ci --prefix "$WT/frontend" >/dev/null 2>&1 \
+    || die "не смог поставить frontend-зависимости в worktree"
 fi
 
 # Гейты гоняются в слитом дереве. Каждый — только если он в проекте есть:
