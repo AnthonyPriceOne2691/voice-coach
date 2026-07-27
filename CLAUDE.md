@@ -2,26 +2,29 @@
 
 Голосовой AI-агент для mock technical interviews на английском. Локальный инструмент для одного пользователя (MacBook Air M5, 32 GB): whisper.cpp (STT) → Ollama qwen2.5:14b-instruct (LLM) → Piper (TTS), FastAPI + React. Всё офлайн, privacy-first.
 
-## ⚠️ Главная ловушка окружения
+## Окружение
 
-Путь репозитория содержит `:` (`Other:Another`) — это **ломает** `uv run`, npm-скрипты, venv внутри репо и Vite fs-checks. Правила:
-- Python-инструменты: **`backend/.venv/bin/<tool>`** напрямую (не `uv run`)
-- Node-инструменты: **`frontend/node_modules/.bin/<tool>`** напрямую (не `npm run`)
-- `uv sync` и `npm install` работают нормально
-- В CI (ubuntu) проблемы нет — там `uv run` можно
+Репозиторий живёт в `/Users/anthony/Documents/voice-interview-coach`. Обычные
+инструменты работают штатно: `uv run`, npm-скрипты, venv внутри репо, Vite fs-checks.
+
+> Историческая заметка: до 2026-07-27 репо лежал в пути с `:` (`Other:Another`), что
+> ломало `uv run`, npm-скрипты и venv. После переезда ограничение снято — прямые
+> вызовы `backend/.venv/bin/<tool>` больше не обязательны. При повторном переносе
+> репозитория пересоздай venv (`cd backend && uv sync --all-extras`): шебанги
+> console-скриптов содержат абсолютный путь и переезд их ломает.
 
 ## Команды
 
 ```bash
 ./scripts/dev.sh                     # всё разом: ollama + backend --reload + vite HMR; Ctrl+C гасит
-./scripts/run_checks.sh              # локальный quality gate (использует uv run — на Mac сломан, см. ниже)
+./scripts/run_checks.sh              # локальный quality gate (module size + ruff + mypy + pytest)
 
-# Quality gates вручную (Mac):
+# Quality gates вручную:
 python3 scripts/check_module_size.py                       # ≤ 500 LOC на файл
-cd backend && .venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests
-cd backend && .venv/bin/mypy app                           # strict
-cd backend && .venv/bin/pytest                             # coverage gate 85% (сейчас ~93%)
-cd frontend && ./node_modules/.bin/tsc -b && ./node_modules/.bin/vitest run
+cd backend && uv run ruff check app tests && uv run ruff format --check app tests
+cd backend && uv run mypy app                              # strict
+cd backend && uv run pytest                                # coverage gate 85% (сейчас ~93%)
+cd frontend && npm run build && npm test
 ```
 
 ## Структура

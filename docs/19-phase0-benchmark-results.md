@@ -146,7 +146,9 @@ pip install -r scripts/spike/requirements.txt
 python scripts/spike/benchmark_turn.py --stage full --runs 3
 ```
 
-> Venv внутри репозитория не работает, если путь содержит `:` (`Other:Another`). Используй `/tmp/vic-spike-venv`.
+> Историческая заметка (актуально на момент замеров): репозиторий лежал в пути с `:`
+> (`Other:Another`), из-за чего venv внутри репо не работал — отсюда `/tmp/vic-spike-venv`.
+> С 2026-07-27 репо переехал, ограничение снято; spike-venv оставлен вне репо намеренно.
 
 ---
 

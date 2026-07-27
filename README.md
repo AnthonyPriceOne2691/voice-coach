@@ -23,7 +23,10 @@
 ```
 </details>
 
-> ⚠️ Из-за `:` в пути (`Other:Another`) **`uv run` и npm-скрипты не работают** — вызывай бинарники напрямую: `backend/.venv/bin/<tool>`, `frontend/node_modules/.bin/<tool>`. Лечится переносом репозитория в путь без `:`.
+> ℹ️ Раньше репозиторий лежал в пути с `:` (`Other:Another`), из-за чего `uv run` и
+> npm-скрипты не работали. С 2026-07-27 репо переехал в `~/Documents/voice-interview-coach`
+> — обе команды работают штатно. После любого переноса репозитория пересоздавай venv:
+> `cd backend && uv sync --all-extras` (шебанги console-скриптов абсолютные).
 
 ## Phase 0 results (2026-06-26)
 
@@ -83,7 +86,9 @@ pip install -r scripts/spike/requirements.txt
 python scripts/spike/benchmark_turn.py --stage full --runs 3
 ```
 
-> **Note:** Python venv inside this repo fails if the parent folder name contains `:` (`Other:Another`). Use `/tmp/vic-spike-venv` or `brew install uv`.
+> **Note:** the spike venv is kept out of the repo on purpose (throwaway deps, separate
+> from `backend/.venv`). A `:` in the repo path used to break in-repo venvs entirely —
+> no longer the case since the 2026-07-27 move.
 
 ## Источники контекста (workspace)
 

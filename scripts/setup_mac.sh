@@ -25,7 +25,7 @@ ollama pull qwen2.5:14b-instruct
 ollama pull deepseek-r1:14b || true
 
 echo "==> Spike Python deps"
-# Note: venv inside repo path fails if folder name contains ':' (e.g. Other:Another)
+# Throwaway venv for spike scripts — kept outside the repo, separate from backend/.venv
 SPIKE_VENV="${TMPDIR:-/tmp}/vic-spike-venv"
 python3 -m venv "$SPIKE_VENV"
 source "$SPIKE_VENV/bin/activate"
