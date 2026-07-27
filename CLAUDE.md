@@ -79,11 +79,13 @@ cd frontend && npm run build && npm test
 
 ≤ 500 LOC на файл · SOLID, всё AI за Protocols (`SpeechToText`, `TextToSpeech`, `LlmClient`) · mypy strict · тесты в том же PR, реальные AI всегда мокаются · промпты/контракты в `data/`, не в коде.
 
-## Состояние (2026-07-05)
+## Состояние (2026-07-28)
 
-- **Phase 0** ✅ · **Phase 1** ✅ · **Phase 2 🟡 code complete (2026-07-05)** — оркестраторы, sentence-gated Contract Enforcer, Mode 2, SQLite, History/Words UI, R1-summary + Vocabulary Bank; live e2e-smoke пройден (interview→review→summary→bank). Остался ручной UI-прогон
+- **Phase 0** ✅ · **Phase 1** ✅ · **Phase 2 🟡 code complete (2026-07-05), НЕ принята** — оркестраторы, sentence-gated Contract Enforcer, Mode 2, SQLite, History/Words UI, R1-summary + Vocabulary Bank; live e2e-smoke пройден (interview→review→summary→bank). Остались ручной UI-прогон и блокер ниже
+- **Канон-стек развёрнут (2026-07-28)**: `delivery@1.11 · cqg@1.7 · okf@1.5`. Вход — `docs/canon/AGENT_STACK.md`; активная поставка — `delivery/active/STATUS.md`; приёмка и остатки — `delivery/STACK-ACCEPTANCE.md`
 - Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
-- Backend: 91 тест / 93.5% coverage (гейт 85), contracts 100%, mypy strict; frontend: 14 тестов
+- Backend: 91 тест / 93.5% coverage (гейт 85), contracts 100%, mypy strict; frontend: 14 тестов, eslint 0 errors / 17 warnings (ратчет)
+- **⚠ CI КРАСНЫЙ, и это правда, а не поломка стека.** `test_ws_voice.py` виснет на ubuntu-runner: WS-сессия не завершается, если клиент отключился без `end_session`. Падает через раз (`test_stt_empty_recoverable` / `test_decode_failure_is_recoverable`). Дефект с 2026-07-05 — тогда прогоны main висели по 6 ч и отменялись, поэтому строка «CI зелёный» здесь была неверной. Диагноз и лид — `delivery/active/spec.md`, первый пункт in-scope. Джобы `quality/gates` и `main-guard` зелёные
 - Наблюдать в использовании: качество R1-summary (замечен артефакт в translation_ru), markdown-списки в wrap-up review
-- GitHub: приватный `AnthonyPriceOne2691/voice-coach`, CI зелёный; gh CLI авторизован
+- GitHub: приватный `AnthonyPriceOne2691/voice-coach`; **серверной защиты ветки нет** (Free-тариф, 403) → мерж только через `bash scripts/merge_guard.sh <branch>`; gh CLI авторизован
 - Коммиты: identity задана локально (noreply-алиас аккаунта); пушить после каждого логического блока
