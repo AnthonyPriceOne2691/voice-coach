@@ -42,7 +42,8 @@ jobs:
         run: uv sync --all-extras
 
       - name: Install frontend deps
-        run: npm ci --prefix frontend
+        working-directory: frontend
+        run: npm ci
 
       - name: pre-commit (all files, STRICT=1)
         run: |
@@ -87,7 +88,7 @@ jobs:
       - name: Install deps for smoke oracles
         run: |
           (cd backend && uv sync --all-extras)
-          npm ci --prefix frontend
+          (cd frontend && npm ci)
 
       - name: Delivery phase gate + circuit breakers
         env:

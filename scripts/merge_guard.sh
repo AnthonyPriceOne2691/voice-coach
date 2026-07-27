@@ -76,7 +76,9 @@ if [[ -f "$WT/backend/pyproject.toml" ]] && command -v uv >/dev/null 2>&1; then
     || die "не смог поставить backend-зависимости в worktree"
 fi
 if [[ -f "$WT/frontend/package-lock.json" ]] && command -v npm >/dev/null 2>&1; then
-  npm ci --prefix "$WT/frontend" >/dev/null 2>&1 \
+  # `cd`, а не `npm ci --prefix <abs>`: с абсолютным prefix npm считает каталог
+  # workspace'ом и падает с "Missing: frontend@0.1.0 from lock file".
+  ( cd "$WT/frontend" && npm ci ) >/dev/null 2>&1 \
     || die "не смог поставить frontend-зависимости в worktree"
 fi
 
