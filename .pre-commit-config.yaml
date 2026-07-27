@@ -37,14 +37,22 @@ repos:
   # -------------------------------------------------------------------------
   - repo: local
     hooks:
+      # АДАПТАЦИЯ ПРОЕКТА: пакет целиком, а не список изменённых файлов.
+      # Канонический вариант (pass_filenames: true) на --all-files разбивается
+      # pre-commit'ом на батчи, и mypy 2.1.0 падает на одном из них с
+      # `INTERNAL ERROR` (в CI: один батч — «Success: 22 files», другой — краш;
+      # локально та же команда на всех 45 файлах проходит). Корень — взаимодействие
+      # батч-сплита с `packages = ["app"]` в pyproject: mypy получает и явные файлы,
+      # и сконфигурированный пакет.
+      # Прогон пакета детерминирован и совпадает с `run_checks.sh` / `ci.yml`.
       - id: mypy
-        name: mypy strict (изменённые файлы)
+        name: mypy strict (пакет app)
         language: system
         types_or: [python]
         files: ^backend/
         exclude: /tests/
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)/backend" && files=(); for f in "$@"; do files+=("${f#backend/}"); done; .venv/bin/mypy --config-file pyproject.toml "${files[@]}"' --
-        pass_filenames: true
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)/backend" && .venv/bin/mypy --config-file pyproject.toml'
+        pass_filenames: false
 
   # -------------------------------------------------------------------------
   # TypeScript / React: ESLint (per-file errors) + warning-ратчет + Prettier.

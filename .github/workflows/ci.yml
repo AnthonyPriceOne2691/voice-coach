@@ -10,6 +10,9 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # Страховка от зависания: прогон занимает ~1 мин; шаг pytest уже
+    # висел 6 ч на прошлых прогонах main (см. STACK-ACCEPTANCE «Остатки»).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 

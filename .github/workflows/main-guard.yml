@@ -1,4 +1,10 @@
-# .github/workflows/main-guard.yml
+# CQG §8.5.1 ④ — красное на main не остаётся тихим: открывается issue.
+#
+# АДАПТАЦИЯ ПРОЕКТА: канонический шаблон гоняет pre-commit сразу после checkout.
+# Здесь так нельзя — хуки `language: system` зовут backend/.venv/bin/mypy и
+# npx eslint, поэтому без установки зависимостей джоба падает с exit 127
+# («нет бинаря»), а не на реальном нарушении, и открыла бы ЛОЖНЫЙ issue.
+# Ставим то же и в том же порядке, что quality.yml.
 name: main-guard
 on:
   push:
@@ -9,13 +15,33 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
+      - uses: astral-sh/setup-uv@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps (гейты — language: system)
+        run: |
+          (cd backend && uv sync --all-extras)
+          (cd frontend && npm ci)
+
       - id: gates
         continue-on-error: true
+        env:
+          STRICT: "1"
+          LINT_PY_SRC: backend/app
+          LINT_FE_DIR: frontend
+          LINT_BE_DIR: backend
+          LINT_COV_PKG: app
         run: |
           pip install pre-commit
           pre-commit run --all-files
