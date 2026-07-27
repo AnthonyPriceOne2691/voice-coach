@@ -18,7 +18,11 @@
        delivery/STACK-ACCEPTANCE.md → «Остатки». -->
 - **worktree:** none (пока specify; на implement — ../voice-coach-wt-phase-2-acceptance)
 - **hooks:** claude (scripts/hooks/, подключение вручную — см. delivery/README.md)
-- **blockers:** none
+- **blockers:** CI красный — `test_decode_failure_is_recoverable` виснет на
+  ubuntu-runner (`TestClient.__exit__` не дожидается portal-треда). Дефект
+  предшествует стеку и держал прогоны main по 6 ч с 2026-07-05; локально не
+  воспроизводится. Полный диагноз и лид — в `spec.md`, «In scope», первый пункт.
+  Джобы `CI`, `gates`, `main-guard` зелёные; красная только `quality / delivery`.
 - **waivers:** none
 - **circuit_breakers:** defaults from docs/canon/AGENT_DELIVERY_HARNESS.md §3.4
 
