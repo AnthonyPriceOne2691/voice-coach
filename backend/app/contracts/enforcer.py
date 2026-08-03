@@ -63,9 +63,14 @@ class TurnEnforcer:
     def spoken_text(self) -> str:
         return " ".join(self.sentences)
 
-    # C901: плоский dispatch по rule.check — ветки независимы и читаются сверху вниз.
-    # Дробление на подфункции здесь ухудшает читаемость, а сам enforcer — критический
-    # per-sentence путь по doc 13: рефакторить его без spec нельзя (constitution §7).
+    # Сложность этой функции держится СНИМКОМ гейта complexity, а не подавлением на
+    # строке. Прежде тут стояло построчное подавление C901; с обновлением контура
+    # правило уехало в `ignore` конфига (иначе pre-commit красный навсегда на любом
+    # легаси), подавление стало ненужным, и RUF100 его снял. Причина отказа дробить
+    # не изменилась: плоский dispatch по rule.check — ветки независимы и читаются
+    # сверху вниз, а сам enforcer — критический per-sentence путь по doc 13, и
+    # рефакторить его без spec нельзя (constitution §7). Файл записан в
+    # `scripts/lint/complexity_baseline.txt` как `1:` — снимок только тает.
     def _check_sentence(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
         if rule.check == "no_cyrillic":
             match = _CYRILLIC.search(sentence)

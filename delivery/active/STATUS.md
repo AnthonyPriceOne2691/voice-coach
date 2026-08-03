@@ -30,7 +30,7 @@
 - **new_dependency:** detect-secrets reason=secrets-гейт §2.7; хук уже был в конфиге, инструмент стоял мимо манифеста by=human:anthony
 - **new_dependency:** import-linter reason=направление зависимостей §2.3; стоял мимо манифеста by=human:anthony
 - **new_dependency:** pytest-timeout reason=уже стоял транзитивно, закреплён явно — вис теста режется на 60 c by=human:anthony
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** reason=enforcer.py тронут только формой: C901 уехал в ignore конфига (требование гейта со снимком), RUF100 снял ставшее ненужным построчное подавление, ruff format слепил подпись; инвариант sentence-streaming не менялся by=human:anthony at=2026-08-03
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** contour_doctor.py даёт DEAD=0 и SKIP=0 на этом репозитории
