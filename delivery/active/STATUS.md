@@ -20,12 +20,11 @@
        приватный репо на бесплатном тарифе. Остаток — STACK-ACCEPTANCE.md. -->
 - **worktree:** none (bootstrap трогает дерево контура целиком, §7.2 шаг 6)
 - **hooks:** claude (scripts/hooks/)
-- **blockers:** `deps-audit` красный: `critical=1 high=1` на фронте, оба лечатся
-  апгрейдом `vitest` до 4.1.10 — **semver-major**. По приёмке эта строка
-  закрывается «auto + human, когда фикс semver-major»: решение за человеком, waiver
-  требует `by=human:`. Два варианта с ценой — `escalation.md` (§12.3). Оба пакета
-  **dev-only**, в прод-бандл не попадают — проверено `npm run build`.
-- **waivers:** none
+- **blockers:** none (был `deps-audit` по vitest — закрыт waiver'ом ниже, решение
+  принято 2026-08-03; два варианта с ценой остаются в `escalation.md`)
+- **waivers:** deps_audit_waiver (строка ниже — отдельным полем: гейт читает её
+  построчным grep'ом, и перенос строки её обнуляет)
+- **deps_audit_waiver:** reason=vitest 4.1.10 semver-major, dev-only, в прод-бандл не идёт (проверено npm run build), апгрейд отдельной поставкой by=human:anthony at=2026-08-03
 - **new_dependency:** pip-audit reason=deps-audit без него не судит (гейт §3); альтернатива safety отвергнута — платная база by=human:anthony
 - **new_dependency:** mutmut reason=единственный оракул «тесты утверждают» (§3.7); 2.x мёртв — нет --version, падает на py3.13+ by=human:anthony
 - **new_dependency:** detect-secrets reason=secrets-гейт §2.7; хук уже был в конфиге, инструмент стоял мимо манифеста by=human:anthony
