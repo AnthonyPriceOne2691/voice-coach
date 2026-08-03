@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
   issues: write
+# §8.7 мера 5: новый push отменяет предыдущий прогон ТОЙ ЖЕ ветки. Без этого
+# три быстрых пуша подряд держат три прогона, и платятся все три. Группа по
+# workflow+ref, а не по workflow: параллельные ветки друг друга не гасят.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
