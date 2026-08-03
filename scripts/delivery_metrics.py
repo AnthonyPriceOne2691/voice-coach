@@ -32,7 +32,23 @@ HARDENING_PATHS = (
     ".github/workflows/",
     "scripts/delivery_check.py",
     "scripts/okf_sync_gate.py",
+    # `.claude/` — механика контура (права агента §4.5), а не продуктовый код.
+    # Без исключения маячок §12.5 срабатывал на классе «безопасность» из-за
+    # слова `permission` в собственном файле настроек прав: контур ругался на
+    # свою же машинерию. Найдено на первом прогоне маячка (арена lab-10).
+    ".claude/",
 )
+# НОВЫЙ тест-файл — тоже усиление harness: по словарю §1.1 oracle это «гейты + тесты
+# + smoke + фазовые артефакты», и §5.4 считает усилением «добавить oracle». Путей
+# тестов в списке не было, поэтому поставка, добавившая два регрессионных оракула
+# (включая мета-оракул «проверка, что защита подключена»), получала
+# `harness_hardened: no` — а §9.2 по этой метрике советует «добавь oracle», то есть
+# добавить уже добавленное. Нашло приёмочное развёртывание.
+#
+# Считаются только ДОБАВЛЕННЫЕ файлы (`--diff-filter=A`), а не любая правка тестов:
+# иначе метрика стала бы всегда `yes` — тесты трогает каждая поставка — и перестала
+# бы отвечать на свой вопрос.
+TEST_PATH_MARKERS = ("test_", "_test.", "/tests/", "spec.")
 DOC_PREFIXES = ("delivery/", "knowledge/")
 
 
@@ -44,14 +60,33 @@ def git(*args: str) -> str:
     return out.stdout if out.returncode == 0 else ""
 
 
-def first_commit(path: str, needle: str | None = None) -> tuple[str, datetime] | None:
+def first_commit(
+    path: str, needle: str | None = None, rev_range: str | None = None
+) -> tuple[str, datetime] | None:
     """Первый коммит, добавивший path (или впервые внёсший needle в path).
 
     needle — РЕГУЛЯРКА (pickaxe-regex), а не литерал: в STATUS.md поля размечены
     markdown-жирным (`**phase:** handoff`), поэтому поиск литерала "phase: handoff"
     не находил ничего и метрики молча выходили пустыми.
+
+    ⚠ rev_range ОБЯЗАТЕЛЕН для путей внутри `delivery/active/`, и это не
+    перестраховка. Путь **переиспользуется каждой поставкой**: `STATUS.md` и
+    `spec.md` у всех одни и те же, поэтому «первый в истории» — это первая
+    поставка репозитория, а не текущая. lab-12 (нашли ОБЕ арки независимо):
+    `rework_after_done` печатал «3 commit(s) after first phase: handoff» на
+    поставке, которая handoff не объявляла — счёт шёл от handoff'а bootstrap'а.
+    Собственная проба нашла и брата, которого не увидел никто:
+    `time_to_accepted_spec` выдавал `4.0d` там, где спека и подпись сделаны в
+    один день, — число из ПРОШЛОЙ поставки, и оно выглядит правдоподобно, потому
+    что это настоящее число, просто не про эту работу.
+
+    Класс: **переиспользуемый путь + поиск по всей истории = чужой ответ с видом
+    своего.** Родня `--diff-filter=A` тому же: «файл добавлен» тоже случилось один
+    раз, в первой поставке.
     """
     args = ["log", "--reverse", "--format=%H %aI"]
+    if rev_range:
+        args.append(rev_range)
     if needle:
         args += [f"-S{needle}", "--pickaxe-regex"]
     else:
@@ -102,8 +137,15 @@ def collect(base: str) -> dict[str, str]:
     )
     m["commits"] = git("rev-list", "--count", f"{merge_base}..HEAD").strip() or "0"
 
-    spec_created = first_commit("delivery/active/spec.md")
-    spec_ok = first_commit("delivery/active/STATUS.md", r"human_ok_spec:\**[ \t]*yes")
+    # Область — ТЕКУЩАЯ поставка, а не вся история: пути в `delivery/active/`
+    # переиспользуются, и «первый в истории» отвечает про чужую работу (см.
+    # docstring `first_commit`). §5.1 требует ветку на поставку, поэтому
+    # `merge_base..HEAD` и есть её граница.
+    span = f"{merge_base}..HEAD"
+    spec_created = first_commit("delivery/active/spec.md", rev_range=span)
+    spec_ok = first_commit(
+        "delivery/active/STATUS.md", r"human_ok_spec:\**[ \t]*yes", rev_range=span
+    )
     if spec_created and spec_ok:
         m["time_to_accepted_spec"] = hours_between(spec_created[1], spec_ok[1])
     elif spec_created:
@@ -111,12 +153,21 @@ def collect(base: str) -> dict[str, str]:
     else:
         m["time_to_accepted_spec"] = "n/a (no spec.md in history — class S?)"
 
-    handoff = first_commit("delivery/active/STATUS.md", r"phase:\**[ \t]*handoff")
+    handoff = first_commit(
+        "delivery/active/STATUS.md", r"phase:\**[ \t]*handoff", rev_range=span
+    )
     if handoff:
         after = git("rev-list", "--count", f"{handoff[0]}..HEAD").strip() or "0"
         m["rework_after_done"] = f"{after} commit(s) after first phase: handoff"
     else:
         m["rework_after_done"] = "0 (handoff not declared yet)"
+
+    # Новые тест-файлы — отдельный источник усиления (см. TEST_PATH_MARKERS).
+    for line in git("diff", "--name-only", "--diff-filter=A",
+                    f"{merge_base}..HEAD").splitlines():
+        path = line.strip()
+        if path and any(mark in path for mark in TEST_PATH_MARKERS):
+            hardened.append(f"{path} (новый оракул)")
 
     m["harness_hardened"] = (
         f"yes — {', '.join(sorted(set(hardened))[:4])}" if hardened else "no"

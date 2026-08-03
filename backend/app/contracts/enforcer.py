@@ -66,9 +66,7 @@ class TurnEnforcer:
     # C901: плоский dispatch по rule.check — ветки независимы и читаются сверху вниз.
     # Дробление на подфункции здесь ухудшает читаемость, а сам enforcer — критический
     # per-sentence путь по doc 13: рефакторить его без spec нельзя (constitution §7).
-    def _check_sentence(  # noqa: C901
-        self, rule: RuleSpec, sentence: str, index: int
-    ) -> Violation | None:
+    def _check_sentence(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
         if rule.check == "no_cyrillic":
             match = _CYRILLIC.search(sentence)
             if match:

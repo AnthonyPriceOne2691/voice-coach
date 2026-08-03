@@ -73,5 +73,10 @@ if [[ "$count" -gt "$baseline" ]]; then
     exit 1
   fi
   printf '%sWARNING%s: дубли выросли: %d (baseline %d).\n' "$yellow" "$reset" "$count" "$baseline"
+else
+  # Успешный путь обязан назвать число (§6). Четвёртое появление класса «гейт не
+  # сказал, что смотрел»: закрывали у grep-гейта, complexity, ast-гейта — и каждый
+  # раз у одного скрипта. Здесь молчание неотличимо от «jscpd не запускался».
+  printf '%sjscpd: OK%s — clone-пар %d, снимок %d\n' "$green" "$reset" "$count" "$baseline"
 fi
 exit 0
