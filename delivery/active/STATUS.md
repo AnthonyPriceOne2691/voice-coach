@@ -9,7 +9,9 @@
 - **phase:** implement
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** no
+- **human_ok_spec:** deferred reason=bootstrap шёл по пошаговому устному
+  согласованию; спека написана ПОСЛЕ факта и подписи не получала. Помечать её
+  `yes` было бы тем же расхождением учёта с действительностью, что урок L1
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
