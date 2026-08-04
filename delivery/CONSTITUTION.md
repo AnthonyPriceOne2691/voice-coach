@@ -76,3 +76,36 @@
 | Канон домена (OKF) | `knowledge/` |
 | Гейты кода | `.pre-commit-config.yaml` + `scripts/lint/` |
 | Гейт мержа | `scripts/merge_guard.sh` + `.git/hooks/pre-push` |
+
+## Agent permissions
+
+Границы действий агента. Правило: **необратимое — `deny`, обратимое, но платит
+человек временем — `ask`.** Подтверждение на необратимом — не защита, а соучастие.
+
+`allow` здесь не перечисляется: это накопительный список конкретных команд, его
+место только в `.claude/settings.json` (§4.5). Строки ниже обязаны совпадать с
+файлом настроек: объявить здесь и не положить в настройки — значит, что гейт прав,
+а развёртывание нет.
+
+```text
+agent-permissions
+# Необратимое: подтверждение здесь не защита, а соучастие.
+deny: Bash(git push --force:*)
+deny: Bash(git push:* --force-with-lease)
+deny: Bash(rm -rf /:*)
+deny: Bash(psql:*)
+deny: Bash(mysql:*)
+deny: Read(./.env)
+deny: Read(./**/.env)
+# Обратимо, но платит человек своим временем.
+ask: Bash(git push:*)
+ask: Bash(gh pr merge:*)
+ask: Bash(pip install:*)
+ask: Bash(npm install:*)
+ask: Bash(uv sync:*)
+ask: WebFetch
+```
+
+<!-- `uv sync` добавлен против шаблона канона осознанно: в этом проекте
+     зависимости ставит именно он, а не pip/npm — иначе строка `ask` про установку
+     пакетов не покрывала бы фактический способ установки. -->

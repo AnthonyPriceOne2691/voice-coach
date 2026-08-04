@@ -28,6 +28,7 @@ BUNDLE = os.environ.get("OKF_BUNDLE", "knowledge")
 STRICT = os.environ.get("STRICT", "1") != "0"
 ALLOW_DRIFT = os.environ.get("ALLOW_CANON_DRIFT", "0") == "1"
 RESERVED = {"index.md", "log.md"}
+DELIVERY_STATUS = "delivery/active/STATUS.md"
 
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
@@ -81,6 +82,34 @@ def scalar_field(fm: str, name: str) -> str:
     return m.group(1).strip().strip("\"'") if m else ""
 
 
+def status_waiver(root: Path) -> str:
+    """Строка `canon_drift_waiver:` из STATUS активной поставки ("" если нет).
+
+    Waiver обязан жить там, где идёт ревью. env-переменная для этого не годится:
+    в CI её иначе как правкой workflow не задать — то есть НАВСЕГДА, а локально
+    она не оставляет следа в диффе, и ревьюер обхода не видит. Строка в STATUS
+    попадает в дифф, видна в PR и умирает вместе с поставкой (уходит в archive).
+
+    Зачем waiver вообще нужен: гейт видит «файл тронут», а не «инвариант изменён».
+    Типизация, формат, логи, переименования трогают код под `implementation:`, не
+    меняя смысла. Правка concept'а в таком PR была бы ЛОЖНЫМ «обновлено»: свежий
+    `generated.at` создаёт вид пересмотра канона, которого не было.
+    """
+    p = root / DELIVERY_STATUS
+    if not p.is_file():
+        return ""
+    m = re.search(
+        r"(?im)^[ \t]*[-*]?[ \t]*\**canon_drift_waiver\**[ \t]*:\**[ \t]*(.*)$",
+        p.read_text(encoding="utf-8"),
+    )
+    if not m:
+        return ""
+    val = re.sub(r"<!--.*?-->", "", m.group(1)).strip()
+    if not val or val.lower() in {"no", "none", "-", "…"} or val.startswith("<"):
+        return ""
+    return val
+
+
 def covers(declared: str, changed: str) -> bool:
     """Совпадение пути: точное, префикс каталога или glob-хвост /**."""
     d = declared.strip().lstrip("./").rstrip()
@@ -116,6 +145,12 @@ def main() -> int:
     ap.add_argument("--staged", action="store_true", help="use staged diff")
     ap.add_argument("--check-stale", action="store_true", help="stale_after check")
     args = ap.parse_args()
+
+    # Фолбэк на BASE из окружения: гейты CQG получают базу именно так, и
+    # расхождение конвенций (флаг здесь, переменная там) само приводило к
+    # запуску без базы — то есть к зелёному гейту, не проверившему ничего.
+    if not args.base and not args.staged:
+        args.base = os.environ.get("BASE") or None
 
     root = repo_root()
     bundle = root / BUNDLE
@@ -158,7 +193,18 @@ def main() -> int:
 
         files, issues = changed_files(args.base, args.staged)
         for i in issues:
-            warnings.append(f"cannot compute diff: {i}")
+            # ERROR, а не warning: невозможность вычислить дифф в sync-режиме — это
+            # неверная конфигурация обязательного входа, а не отсутствие внешнего
+            # инструмента. Гейт, вышедший 0 и не посмотревший ни одного файла,
+            # хуже отсутствующего (Delivery §3.1a). Найдено развёртыванием: вызов
+            # без --base давал WARNING и exit 0, то есть зелёный гейт, проверивший
+            # ноль. Отдельно от этого база теперь берётся и из окружения BASE —
+            # у гейтов CQG конвенция именно такая, и расхождение конвенций само
+            # приводило к «забыл флаг».
+            errors.append(
+                f"cannot compute diff: {i} — передай --base <ref> (или BASE=<ref>) "
+                "либо --staged; иначе гейт не проверяет ничего"
+            )
         if not files and not issues:
             # Пустой дифф = гейт ничего не судит. Это законно (push в саму базу),
             # но должно быть видно: молчаливый no-op читается как «проверено».
@@ -196,10 +242,27 @@ def main() -> int:
             f"{len(warnings)} warning(s))"
         )
         return 0
+    # Waiver из STATUS — основной механизм: виден в диффе, живёт одну поставку.
+    # На --check-stale не действует: просроченный concept — это не «код тронут без
+    # смены смысла», а отдельная проблема (§7.2).
+    if not args.check_stale:
+        waiver = status_waiver(root)
+        if waiver:
+            print(
+                f"okf_sync_gate: drift разрешён waiver'ом из {DELIVERY_STATUS}: "
+                f"{waiver}\n"
+                f"({len(errors)} concept(s) не тронуты — waiver виден в PR и умрёт "
+                f"с поставкой)"
+            )
+            return 0
+
     if ALLOW_DRIFT:
         print(
             f"okf_sync_gate: drift allowed by ALLOW_CANON_DRIFT=1 "
-            f"({len(errors)} finding(s)) — explain in PR",
+            f"({len(errors)} finding(s)).\n"
+            f"⚠ env-обход НЕ виден ревьюеру и в CI задаётся только правкой workflow "
+            f"(то есть навсегда). Предпочитай строку `canon_drift_waiver:` в "
+            f"{DELIVERY_STATUS}.",
             file=sys.stderr,
         )
         return 0
@@ -216,8 +279,15 @@ def main() -> int:
     else:
         print(
             f"okf_sync_gate: FAIL — {len(errors)} concept(s) out of sync with code.\n"
-            "Fix: update the concept + scope log.md, or drop the path from "
-            "`implementation:` if it no longer applies (§4.1).",
+            "Варианты, в порядке предпочтения:\n"
+            "  1. Инвариант правда изменился → обнови concept + scope log.md (§4.1).\n"
+            "  2. Смысл не менялся (типы, формат, логи, переименование) → строка\n"
+            f"     `canon_drift_waiver: reason=… by=human:…` в {DELIVERY_STATUS}:\n"
+            "     она видна в PR и умрёт вместе с поставкой. Правка concept'а «чтобы\n"
+            "     позеленело» — ложное «обновлено», так делать нельзя.\n"
+            "  3. Путь больше не описывает этот concept → убери его из "
+            "`implementation:`\n"
+            "     (или сузь до конкретных файлов, если срабатывания повторяются).",
             file=sys.stderr,
         )
     return 1

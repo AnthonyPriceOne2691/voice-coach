@@ -18,7 +18,12 @@ from pathlib import Path
 
 RESERVED = {"index.md", "log.md"}
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
-TYPE_RE = re.compile(r"(?m)^type:\s*(.+?)\s*$")
+# `[ \t]`, а НЕ `\s`: `\s` включает перевод строки, и на пустом `type:` регулярка
+# уходила на следующую строку — `type:` + `title: t` давало type == "title: t".
+# Валидатор печатал `0 error(s)` там, где SPEC §11 требует непустой type: ложное
+# зелёное. Найдено дописыванием регрессии, а не прогоном (тест на пустой тип был
+# первым, который вообще это спросил).
+TYPE_RE = re.compile(r"(?m)^type:[ \t]*(.+?)[ \t]*$")
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str]:

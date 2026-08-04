@@ -102,7 +102,12 @@ class _SessionHandler:
         user_settings = await self._c.user_settings.get_all()
         duration = int(user_settings.get("interview_duration_min", 15))
         pool = pick_session_pool(
-            self._c.question_bank, count=QUESTIONS_PER_SESSION, rng=random.Random()
+            self._c.question_bank,
+            count=QUESTIONS_PER_SESSION,
+            # Подавление стоит на строке, а не в ignore конфига: выбор вопросов
+            # интервью — не крипто, и это видно на месте. Токены/соли брать
+            # `secrets`, и тогда правило обязано краснеть.
+            rng=random.Random(),  # noqa: S311 -- выбор вопросов, не крипто
         )
         wrap_seed = self._c.prompts.template("interview_wrap_up")
         orchestrator = InterviewOrchestrator(pool, duration_min=duration, wrap_up_seed=wrap_seed)
