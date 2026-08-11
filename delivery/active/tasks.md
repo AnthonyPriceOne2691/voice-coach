@@ -25,7 +25,14 @@
 - [x] T11. Перевендоривание снимка + обе части селфтеста + `SHA256SUMS`
 - [x] T12. Три записи о версии -> `delivery@1.68 · cqg@2.01 · okf@1.15`
 - [x] T13. Архив `contour-bootstrap-1.61` + `observed.md` (§13) + строка в `INDEX.md`
-- [ ] T14. `STACK-ACCEPTANCE.md`: карта ролей, `checked_at`/`stale_after`, остатки
-- [ ] T15. Приёмка: `pre-commit run --all-files`, три вопроса §5.5, `pytest`,
-      smoke-оракулы; результаты — в `verify-report.md`
-- [ ] T16. Зелёный прогон `quality` в CI на ветке; мерж — ход человека
+- [x] T14. `STACK-ACCEPTANCE.md`: карта ролей, `checked_at`/`stale_after`, остатки
+- [x] T15. Решением человека (2026-08-11) вместо waiver'а починен код: 4 функции
+      фронта разделены, non-null assertion в `main.tsx` заменён проверкой,
+      6-строчный дубль History/Words вынесен в `ListState`; снимки сложности и
+      DRY вернулись к дореформенным значениям, ратчет зелёный без легализации
+- [x] T16. Решением человека поставлен `dependency-cruiser`: TS-половина гейта
+      слоёв судит (21 модуль), контракты фронта проверены воспроизведением
+- [x] T17. Приёмка: `pre-commit` 28/28, три вопроса §5.5, `pytest` 91/93.79%,
+      smoke 6/6, frontend build + 14 тестов; результаты — в `verify-report.md`
+- [ ] T18. Зелёный прогон `quality` в CI на ветке; push, PR и мерж — ход человека
+      (`git push -u origin contour/2.01` → PR → `scripts/merge_guard.sh`)
