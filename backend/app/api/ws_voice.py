@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import binascii
+import contextlib
 import io
 import json
 import logging
@@ -46,16 +47,42 @@ def _silent_wav(duration_s: float = 1.0, rate: int = 16000) -> bytes:
     return buffer.getvalue()
 
 
+#: Сколько ждём уборку сессии, если клиент отвалился. Секунды, не минуты: это
+#: один UPDATE по первичному ключу в локальном SQLite. Больше — значит что-то
+#: уже сломано, и лучше отпустить цикл, чем держать гашение приложения.
+DISCONNECT_CLEANUP_TIMEOUT_S = 5.0
+
+
 async def ws_session(websocket: WebSocket) -> None:
     await websocket.accept()
     container: Container = websocket.app.state.container
     handler = _SessionHandler(websocket, container)
+    live: set[asyncio.Task[None]] | None = getattr(websocket.app.state, "live_ws_cleanups", None)
     try:
         while True:
             message = await websocket.receive_json()
             await handler.dispatch(message)
     except WebSocketDisconnect:
-        await handler.on_disconnect()
+        # ⚠ Уборку НЕЛЬЗЯ делать простым await, и это замер, а не осторожность.
+        # Отключение клиента и гашение приложения приходят почти одновременно:
+        # портал отменяет задачу обработчика ровно посередине записи статуса.
+        # Отмена попадает внутрь `async with db.session()`, выход из контекста
+        # (rollback/release) не доводится, и соединение остаётся ВНЕ пула. Дальше
+        # его подбирает GC, SQLAlchemy заводит `_terminate_graceful_close`, а
+        # `asyncio.runners.close()` ждёт эту задачу вечно — прогон виснет целиком
+        # (6 из 10 на linux, 0 из 60 на macOS; разбор — delivery diagnosis.md).
+        #
+        # `shield` доводит уборку до конца, даже когда снаружи пришла отмена;
+        # таймаут не даёт ей же и подвесить гашение. Ссылку на задачу держит
+        # `app.state.live_ws_cleanups`, чтобы lifespan дождался её до dispose().
+        cleanup = asyncio.ensure_future(handler.aclose())
+        if live is not None:
+            live.add(cleanup)
+            cleanup.add_done_callback(live.discard)
+        try:
+            await asyncio.wait_for(asyncio.shield(cleanup), DISCONNECT_CLEANUP_TIMEOUT_S)
+        except TimeoutError:
+            logger.warning("session cleanup did not finish in %ss", DISCONNECT_CLEANUP_TIMEOUT_S)
 
 
 class _SessionHandler:
@@ -88,9 +115,33 @@ class _SessionHandler:
         else:
             await self._error("INTERNAL", f"unknown message type: {msg_type}", recoverable=True)
 
-    async def on_disconnect(self) -> None:
+    async def aclose(self) -> None:
+        """Уборка сессии: сначала снять свои задачи, потом дописать статус.
+
+        Порядок принципиален. `_warmup_task` живёт дольше запроса и в момент
+        отключения может держать соединение и файловый дескриптор; если её не
+        снять ДО записи, она уйдёт в отменяемый цикл вместе с записью — тот же
+        класс, из-за которого висел прогон (diagnosis.md, H1).
+        """
+        await self._cancel_warmup()
         if self._flow is not None:
             await self._flow.finish(status="in_progress")  # checkpoint already on disk
+            self._flow = None
+
+    async def _cancel_warmup(self) -> None:
+        """Задача-сирота становится задачей с владельцем.
+
+        `asyncio.create_task` без отмены — ровно то, о чём предупреждает
+        документация asyncio: сборщик мусора может уничтожить задачу на середине,
+        а закрытие цикла — ждать её. Здесь она отменяется и ДОЖИДАЕТСЯ: без
+        await отмена только помечена, но не доведена.
+        """
+        task, self._warmup_task = self._warmup_task, None
+        if task is None or task.done():
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
     async def _on_hello(self) -> None:
         ollama_ok = await self._c.ollama.is_up() if self._c.ollama else True
@@ -266,6 +317,7 @@ class _SessionHandler:
     # -- session end ---------------------------------------------------------------
 
     async def _finish_naturally(self, flow: VoiceFlow) -> None:
+        await self._cancel_warmup()
         await flow.finish(status="completed")
         next_action = "offer_review" if self._kind == "interview" else "generate_summary"
         await self._session_ended(flow, reason="finished", next_action=next_action)
@@ -278,6 +330,7 @@ class _SessionHandler:
         if flow is None:
             return
         self._flow = None
+        await self._cancel_warmup()
         status = "completed" if reason == "user" else "failed"
         await flow.finish(status=status)
         await self._session_ended(flow, reason=reason, next_action="none")

@@ -21,6 +21,11 @@ from app.summary.validate import SummaryInvalidError, extract_json, validate_sum
 
 logger = logging.getLogger(__name__)
 
+#: Сколько гашение приложения ждёт фоновые суммаризации. Порядок тот же, что у
+#: слива ws-сессий: секунды. Дольше — значит LLM висит, и держать ради этого
+#: закрытие процесса нельзя.
+SHUTDOWN_SUMMARY_TIMEOUT_S = 10.0
+
 SCHEMA_HINT = (
     "Output a single JSON object with fields: overall_summary (string), "
     "scores {clarity, structure, technical_depth, english_fluency, positioning: int 1-5}, "
@@ -59,6 +64,26 @@ class SummaryService:
         task = asyncio.create_task(self._safe_full(interview_id, review_id))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    async def aclose(self) -> None:
+        """Дождаться фоновых суммаризаций перед гашением приложения.
+
+        «Fire-and-forget» отвечает за латентность, а не за живучесть: задача всё
+        равно пишет в БД, и оборванная на середине запись оставляет соединение
+        вне пула. Ровно этот класс подвесил прогон в ws-сессии (diagnosis.md той
+        же поставки), просто там сирота была видимее. Здесь — та же дверь.
+
+        Срок ожидания — константа модуля, а не параметр (ASYNC109): у гашения он
+        один на всё приложение, и прятать его в аргумент по умолчанию значит
+        разрешить двум вызывающим ждать по-разному без причины.
+        """
+        if not self._tasks:
+            return
+        _, pending = await asyncio.wait(set(self._tasks), timeout=SHUTDOWN_SUMMARY_TIMEOUT_S)
+        for task in pending:
+            task.cancel()
+        if pending:
+            logger.warning("shutdown: %d summary task(s) cancelled by timeout", len(pending))
 
     async def _safe_full(self, interview_id: str, review_id: str) -> None:
         try:
