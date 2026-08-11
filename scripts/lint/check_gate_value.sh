@@ -25,7 +25,22 @@ cd "$REPO_ROOT" || exit 1
 
 yellow=$(printf '\033[33m'); green=$(printf '\033[32m'); reset=$(printf '\033[0m')
 
-if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+# `gh auth token` — локальная проверка учёток; `gh auth status` ходит в СЕТЬ и
+# на порванном канале объявляет отсутствие логина (`cqg@1.89`, пришло полем).
+# Хостинг спрашивается ПЕРЕД `gh` (`cqg@2.01`). Иначе на GitLab-машине с
+# установленным и авторизованным `gh` (обычное дело у разработчика) скрипт шёл
+# дальше, `gh run list` отдавал пусто, и печаталось «нет прогонов workflow
+# quality» — то есть «данных нет» вместо «роль на этом хостинге не закрыта».
+# Диагноз по симптому вместо причины отправляет чинить не то.
+ORIGIN=$(git config --get remote.origin.url 2>/dev/null || true)
+if printf '%s' "$ORIGIN" | grep -qi 'gitlab' || [[ -z "$ORIGIN" && -f .gitlab-ci.yml ]]; then
+  printf '%s⚠ gate-value: проект на GitLab — роль «гейты хоть раз срабатывали» контуром не закрыта.%s\n' \
+    "$yellow" "$reset" >&2
+  printf 'Решение «убрать гейт» без данных принимать нельзя (§9.1a). Закрой роль\n' >&2
+  printf 'своим скриптом на `glab ci list` либо объяви её в `not-applicable.json`.\n' >&2
+  exit 0
+fi
+if ! command -v gh >/dev/null 2>&1 || ! gh auth token >/dev/null 2>&1; then
   printf '%s⚠ gate-value: нужен авторизованный gh — без него данных о срабатываниях нет.%s\n' \
     "$yellow" "$reset" >&2
   printf 'Решение «убрать гейт» без данных принимать нельзя (§9.1a).\n' >&2

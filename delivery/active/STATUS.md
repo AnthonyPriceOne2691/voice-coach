@@ -1,84 +1,89 @@
 # Active delivery status
 
-- **slug:** contour-bootstrap-1.61
-- **stack:** delivery@1.48, cqg@1.61, okf@1.12
+- **slug:** contour-2.01
+- **stack:** delivery@1.68, cqg@2.01, okf@1.15
 - **class:** M
 - **kind:** bootstrap
-- **repro_test:** n/a reason=не bugfix, кода продукта не трогает
+- **repro_test:** n/a reason=не bugfix; кода продукта поставка не меняет
 - **diagnosis:** n/a reason=не bugfix
-- **phase:** implement
+- **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred reason=bootstrap шёл по пошаговому устному
-  согласованию; спека написана ПОСЛЕ факта и подписи не получала. Помечать её
-  `yes` было бы тем же расхождением учёта с действительностью, что урок L1
+- **human_ok_spec:** deferred reason=обновление шло по наряду человека
+  (`Prepare/UPDATE-ORDER.md`), спека собрана из него и подписи ещё не получала;
+  долг закрывается до handoff (§2.2b)
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
+- **artifact_oracle:** n/a reason=сборка есть только у фронта (`npm run build`),
+  и эта поставка её входов не трогает: ни один файл `frontend/src/**` не изменён.
+  Проверка собранного принадлежит поставке, которая фронт меняет (§6.5a)
 - **ci-oracles:** tooling
   <!-- CI есть (4 workflow), гейт мержа в репозитории. Серверной защиты ветки нет:
        приватный репо на бесплатном тарифе. Остаток — STACK-ACCEPTANCE.md. -->
-- **worktree:** none (bootstrap трогает дерево контура целиком, §7.2 шаг 6)
+- **worktree:** ../voice-interview-coach-contour (ветка contour/2.01)
 - **hooks:** claude (scripts/hooks/)
-- **blockers:** none (был `deps-audit` по vitest — закрыт waiver'ом ниже, решение
-  принято 2026-08-03; два варианта с ценой остаются в `escalation.md`)
-- **waivers:** deps_audit_waiver (строка ниже — отдельным полем: гейт читает её
-  построчным grep'ом, и перенос строки её обнуляет)
-- **deps_audit_waiver:** reason=vitest 4.1.10 semver-major, dev-only, в прод-бандл не идёт (проверено npm run build), апгрейд отдельной поставкой by=human:anthony at=2026-08-03
-- **new_dependency:** pip-audit reason=deps-audit без него не судит (гейт §3); альтернатива safety отвергнута — платная база by=human:anthony
-- **new_dependency:** mutmut reason=единственный оракул «тесты утверждают» (§3.7); 2.x мёртв — нет --version, падает на py3.13+ by=human:anthony
-- **new_dependency:** detect-secrets reason=secrets-гейт §2.7; хук уже был в конфиге, инструмент стоял мимо манифеста by=human:anthony
-- **new_dependency:** import-linter reason=направление зависимостей §2.3; стоял мимо манифеста by=human:anthony
-- **new_dependency:** pytest-timeout reason=уже стоял транзитивно, закреплён явно — вис теста режется на 60 c by=human:anthony
-- **canon_drift_waiver:** reason=enforcer.py тронут только формой: C901 уехал в ignore конфига (требование гейта со снимком), RUF100 снял ставшее ненужным построчное подавление, ruff format слепил подпись; инвариант sentence-streaming не менялся by=human:anthony at=2026-08-03
+- **blockers:** none
+- **waivers:** none
+- **new_dependency:** dependency-cruiser reason=TS-половина роли «направление
+  зависимостей» без него не судит вовсе, а честный пропуск на fullstack-репо
+  оставляет непроверенным весь фронт; альтернатива eslint-plugin-import отвергнута —
+  она видит правило импорта, но не граф, и транзитивный обход слоя ей невидим
+  by=human:anthony at=2026-08-11 (dev-only, в прод-бандл не идёт)
+- **runtime_paths:** none reason=поставка трогает только контур и метаданные
+  сборки backend'а; путей, чей отказ виден лишь на целевой среде (экран, права,
+  железо, тракт ввода-вывода, миграции), дифф не задевает. Обратное было бы
+  неправдой ровно про `backend/pyproject.toml`, поэтому он и исполнен: `uv sync
+  --all-extras` на ЧИСТОМ дереве worktree, а не рассуждение о нём (§12.6)
+- **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
-- **observe_signal:** contour_doctor.py даёт DEAD=0 и SKIP=0 на этом репозитории
-- **observe_until:** 2026-08-10
-- **circuit_breakers:** exempt (kind: bootstrap, §3.4 — развёртывание трогает всё
-  дерево контура и не режется на части)
+- **observe_signal:** `contour_doctor.py` версии `cqg@2.01` даёт `DEAD 0` на этом
+  репозитории, и `check_gate_coverage.sh` печатает подключённых >= 12.
+  Версия инструмента названа НАМЕРЕННО — урок L2 предыдущей поставки: порог,
+  который считает инструмент контура, стареет вместе с его версией
+- **observe_until:** 2026-08-25
+- **circuit_breakers:** exempt (kind: bootstrap, §3.4 — обновление контура трогает
+  всё дерево контура и не режется на части)
 
 ## Что это
 
-Обновление развёрнутого контура `cqg@1.7 · delivery@1.11 · okf@1.5` →
-`cqg@1.61 · delivery@1.48 · okf@1.12`. Не рефреш: **ни один из 21 скрипта не
-совпадал байт-в-байт**, восемь отсутствовали целиком (`complexity`, `deps-audit`,
-`mutation`, `new-dependency`, `ci-status`, `gate_value`, `assert_digest`,
-`contour_doctor`).
+Обновление развёрнутого контура `delivery@1.48 · cqg@1.61 · okf@1.12` →
+`delivery@1.68 · cqg@2.01 · okf@1.15` по процедуре **CQG §5.5** (обновление
+живого проекта ≠ развёртывание). Наряд человека — `Prepare/UPDATE-ORDER.md`.
 
-Почему сейчас и почему впереди `phase-2-acceptance`: та стояла с 2026-07-28 на
-блокере (висящий `test_ws_voice.py`), и диагностировать вис на контуре 1.61 дешевле —
-там судит мутационный гейт и `filterwarnings=["error"]` ловит незакрытые ресурсы,
-типичную причину таких висов. Поставка припаркована по правилу «одна active»
-(§7.2), блокер переезжает в спеку следующей.
+Главное число: **28 файлов payload'а отсутствовали** — не потому, что их
+потеряли, а потому что после 1.61 payload порезан по планке 300 строк, и
+`delivery_check.py` стал комплектом из 11 файлов, `contour_doctor.py` — из 8.
+Скрипт без своей части не стартует вовсе; это выбрано каноном сознательно.
 
-## Долг, вынесенный из bootstrap'а (2026-08-04)
+**Природа расхождений измерена, а не оценена глазами.** Сверка со снимком
+`docs/canon@1.61` дала однозначный ответ: из 17 «разошедшихся» скриптов
+адаптированным не оказался ни один — все 17 совпали со старым каноном байт в
+байт, то есть просто устарели. Настоящих адаптаций пять, все — конфиги:
+`.pre-commit-config.yaml`, `quality.yml`, `main-guard.yml`, `.importlinter`,
+`.prettierrc`. Каждая объявлена в `scripts/lint/adapted.json` с полем `changed`.
 
-Два ws-теста (`test_stt_empty_recoverable`, `test_decode_failure_is_recoverable`)
-помечены `skipif(CI)` с TODO: они виснут на ubuntu и `pytest-timeout` убивает
-ПРОЦЕСС, то есть красным становится весь прогон, а не тест. Дефект предшествует
-контуру и не воспроизводится локально (0 из 60 прогонов). Разбор и снятие
-подавления — `phase-2-acceptance`, первой строкой её спеки; решение — D8.
-Правило, по которому это законно: Delivery §7.2 шаг 6.
+## Найдено по ходу (не планировалось)
 
-## Замер ДО (contour_doctor.py на cqg@1.7)
+1. **`uv sync --all-extras` падал на чистом дереве.** `readme = "../README.md"`
+   в `backend/pyproject.toml` — hatchling запрещает путь наружу из каталога
+   проекта. В главном клоне не видно: venv собран давно. На свежем checkout'е —
+   то есть в CI и в одноразовом worktree `merge_guard.sh` — гейты и smoke не
+   стартовали бы вовсе. Поле снято.
+2. **Три гейта были слепы к части своей области, и это звалось `DEAD`.** Лишние
+   `LINT_BE_DIR`/`LINT_FE_DIR` в `entry:` у grep/ast/file-length делали корнем
+   области весь `backend`, а маска гейта — `backend/app/**`: `backend/tests/*.py`
+   не увидел бы никто, при том что роль объявлена закрытой. Префикс сужен до
+   переменных, которые гейт реально читает; `file-length` получил `*.js`, иначе
+   `frontend/eslint.config.js` не смотрел никто.
+3. **`quality.yml` стоял без `if: always()`** — с самого развёртывания. Шаг,
+   который крашится, обрывает джобу, и четыре гейта ниже не запускаются НИ РАЗУ:
+   подключённый гейт за упавшим шагом неотличим от отсутствующего (§3.1a).
 
-`AUTO 14 · WEAK 3 · ABSENT 7 · TOOL 0 · SKIP 3 · DEAD 0`
+## Остаток, который поставка НЕ закрывает
 
-Лжи не было, но `SKIP 3` — и это не слепота доктора: на 1.7 у `check_grep_gate.sh`
-и `check_ast_gate.py` ещё нет `--list-rules`, поэтому перечислить их правила нечем.
-**Два несущих гейта были непроверяемы в принципе.**
-
-## Своё, что канон не поставляет — сохранить, а не снести
-
-- `scripts/lint/check_canon_vendor.sh` — вариант C §7.1: следит за копией канонов
-  в `docs/canon/`. Роль в карте ролей канона отсутствует; сохраняется как есть.
-- `.github/workflows/canon-freshness.yml` — расписание на свежесть копии.
-- `scripts/check_module_size.py` — своё, вне контура.
-
-⚠ **Исправление собственной ошибки по ходу bootstrap'а.** Сначала я записал, что
-`CANON_UPSTREAM=Prepare` — относительный путь, которого в репозитории нет, и потому
-шаг 3 (сверка с upstream) не выполняется. **Это неверно:** каталог `Prepare/` в
-репозитории ЕСТЬ, он под `.gitignore` (строка 30), и сверка работает. Что верно:
-копия в `Prepare/` была на `cqg@1.7` и разъехалась бы с `docs/canon/` — обновлена
-вместе с ней. То есть у варианта C **две** копии канонов, и обе надо двигать.
+Висящий `test_ws_voice.py` на ubuntu-runner — продуктовый дефект Phase 2,
+предшествующий контуру. Его место — `phase-2-acceptance`, первой строкой спеки.
+Обновление контура его не чинит и не прячет: два теста остаются под `skipif(CI)`
+с TODO, как их пометила предыдущая поставка.

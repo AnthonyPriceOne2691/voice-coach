@@ -1,0 +1,6 @@
+{
+  "check_canon_vendor.sh": {
+    "path": "docs/canon/AGENT_STACK.md",
+    "content": "подменённая копия канона — правка на месте, мимо Prepare/\n"
+  }
+}

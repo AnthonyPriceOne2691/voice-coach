@@ -29,21 +29,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0      # нужен для BASE-диффа: diff-coverage и baseline-ratchet
-      - uses: actions/setup-python@v5
+      # ⚠ `cache:` вычисляется, а не пишется константой (cqg@2.00): `cache: pip`
+      # требует питоновского манифеста, и на проекте без него setup-python роняет
+      # ВСЮ джобу гейтов до первого гейта. Здесь манифест есть, но форма канонная —
+      # чтобы правка раскладки не воскресила чужую находку.
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-          cache: pip
+          cache: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') != '' && 'pip' || '' }}
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: ${{ hashFiles('**/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: '**/package-lock.json'
 
       - name: Install backend deps
         working-directory: backend
@@ -53,46 +57,96 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # ⚠ ГЛАВНЫЙ УРОК восьмого развёртывания канона, и он не про кэш. Когда шаг
+      # установки падает, соседние гейты с `if: always()` отрабатывают и отчитываются
+      # ЗЕЛЁНЫМ — каждый честно говорит «инструмента нет → пропуск», а в сумме это
+      # читается как «гейты прошли». Локально такой пропуск честен (стенд беден),
+      # в CI — нет: инструменты ставятся шагом выше. Поэтому здесь пропуск переводится
+      # в КРАСНОЕ, и делается это ДО гейтов, чтобы причина стояла в логе раньше их
+      # зелёных галок. Список выводится из того, что объявил сам проект, а не зашит.
+      - name: Инструменты гейтов на месте (иначе пропуск читается как успех)
+        run: |
+          na="scripts/lint/not-applicable.json"
+          skip() { [ -f "$na" ] && grep -q "\"$1\"" "$na"; }
+          have() {
+            for p in "backend/.venv/bin/$1" ".venv/bin/$1" "node_modules/.bin/$1" \
+                     "$LINT_FE_DIR/node_modules/.bin/$1"; do
+              [ -x "$p" ] && return 0
+            done
+            command -v "$1" >/dev/null 2>&1
+          }
+          missing=""; checked=""
+          expect() { skip "$1" || { checked="$checked $1"; have "$1" || missing="$missing $1"; }; }
+          expect detect-secrets
+          if ls **/pyproject.toml **/requirements*.txt >/dev/null 2>&1; then
+            expect ruff; expect mypy
+          fi
+          if [ -f package.json ] || [ -f "$LINT_FE_DIR/package.json" ]; then
+            expect eslint; expect jscpd
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::инструменты гейтов не поставились:$missing"
+            echo "Гейты ниже уйдут в честный пропуск, и джоба будет ВЫГЛЯДЕТЬ проверенной."
+            echo "Смотри шаг установки: он упал или поставил не туда (§8.3)."
+            echo "Инструмент не нужен на этом стеке — объяви роль в $na (§5.5)."
+            exit 1
+          fi
+          echo "toolchain: проверено ->$checked (пусто = все роли объявлены n/a)"
+
+      # ⚠ `--verbose` обязателен, и это не отладка (cqg@1.87). Без него pre-commit
+      # ГЛОТАЕТ stdout прошедших хуков, и числа «просмотрено N файл(ов)» в лог не
+      # попадают. Строка приёмки §6 тогда проверяема локально и НЕПРОВЕРЯЕМА в CI —
+      # то есть ровно там, где по Delivery §10.4 живёт истина.
       - name: pre-commit (all files, STRICT=1)
+        id: precommit
         run: |
           pip install pre-commit
-          pre-commit run --all-files --show-diff-on-failure
+          pre-commit run --all-files --show-diff-on-failure --verbose
 
+      # ⚠ `if: always()` на КАЖДОМ независимом гейте — не косметика. Шаг, который
+      # не просто падает, а КРАШИТСЯ, обрывает джобу, и шаги ниже не выполняются
+      # НИ РАЗУ: подключённый гейт за упавшим шагом неотличим от отсутствующего
+      # (Delivery §3.1a). На этом проекте так и было — четыре гейта ниже стояли
+      # без охраны с самого развёртывания.
       - name: Gate coverage (все гейты подключены)
+        if: always()
         run: bash scripts/lint/check_gate_coverage.sh
 
       - name: Baseline ratchet (снимки только вниз)
+        if: always()
         env:
           BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
         run: bash scripts/lint/check_baseline_ratchet.sh
 
       - name: Diff coverage
+        if: always()
         env:
           BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
           MIN_PCT: "70"
         run: bash scripts/lint/check_diff_coverage.sh
 
       - name: Canon vendor + stack selftest
+        if: always()
         run: bash scripts/lint/check_canon_vendor.sh
 
   delivery:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0      # breakers и метрики считаются по merge-base..HEAD
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: ${{ hashFiles('**/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: '**/package-lock.json'
 
       - name: Install deps for smoke oracles
         run: |
@@ -109,7 +163,10 @@ jobs:
             echo "no active delivery — skip"
           fi
 
+      # if: always() — как у джобы gates и по той же причине: падение фазового
+      # гейта иначе уносит ЧЕТЫРЕ проверки ниже, и в логе их просто нет.
       - name: Canon sync gate (code <-> knowledge)
+        if: always()
         env:
           BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
         run: |
@@ -120,6 +177,7 @@ jobs:
           fi
 
       - name: Harness metrics (report only, never fails)
+        if: always()
         env:
           BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
         run: |
@@ -128,6 +186,7 @@ jobs:
           fi
 
       - name: Smoke evals (product oracles)
+        if: always()
         run: |
           if [ -f delivery/evals/smoke/run.sh ]; then
             bash delivery/evals/smoke/run.sh
@@ -136,6 +195,7 @@ jobs:
           fi
 
       - name: OKF bundle validator
+        if: always()
         run: |
           if [ -f scripts/okf_validate.py ] && [ -d knowledge ]; then
             python scripts/okf_validate.py knowledge/

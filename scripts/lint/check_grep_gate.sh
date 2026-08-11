@@ -268,5 +268,8 @@ if [[ "$scanned" -eq 0 ]]; then
     "$yellow" "$RULE" "$reset"
   exit 0
 fi
-printf '%s%s: OK%s — просмотрено %d файл(ов), в снимке %d\n' "$green" "$RULE" "$reset" "$scanned" "$snap_n"
+# Маска — корень и расширение выборки (§6): см. `check_file_length.sh` о том,
+# зачем число без маски не даёт отличить узкую маску от узкой области.
+printf '%s%s: OK%s — просмотрено %d файл(ов), в снимке %d, по маске: %s\n' \
+  "$green" "$RULE" "$reset" "$scanned" "$snap_n" "$PY_SRC/**"
 exit 0

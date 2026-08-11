@@ -139,29 +139,12 @@ def changed_files(base: str | None, staged: bool) -> tuple[list[str], list[str]]
     return [f for f in out.splitlines() if f], []
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--base", help="ref to diff against (e.g. origin/main)")
-    ap.add_argument("--staged", action="store_true", help="use staged diff")
-    ap.add_argument("--check-stale", action="store_true", help="stale_after check")
-    args = ap.parse_args()
+def collect_concepts(root, bundle) -> tuple[dict, list]:
+    """Карта `concept → объявленные пути` и список просроченных.
 
-    # Фолбэк на BASE из окружения: гейты CQG получают базу именно так, и
-    # расхождение конвенций (флаг здесь, переменная там) само приводило к
-    # запуску без базы — то есть к зелёному гейту, не проверившему ничего.
-    if not args.base and not args.staged:
-        args.base = os.environ.get("BASE") or None
-
-    root = repo_root()
-    bundle = root / BUNDLE
-    errors: list[str] = []
-    warnings: list[str] = []
-
-    if not bundle.is_dir():
-        print(f"okf_sync_gate: no bundle at {BUNDLE}/ — skip (deploy OKF first)")
-        return 0
-
-    # --- собрать карту concept -> declared paths
+    Шов `main` (`okf@1.13`): блок только СОБИРАЕТ данные и ничего не судит,
+    поэтому отделяется чисто и возвращает ровно две структуры.
+    """
     concepts: dict[str, list[str]] = {}
     stale: list[tuple[str, str]] = []
     today = date.today()
@@ -181,56 +164,41 @@ def main() -> int:
             when = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
             if when < today:
                 stale.append((rel, after))
+    return concepts, stale
 
-    if args.check_stale:
-        for rel, when in stale:
-            errors.append(f"{rel}: stale_after {when} is in the past — re-verify or bump")
-        if not stale:
-            print(f"okf_sync_gate: freshness OK ({len(concepts)} mapped concepts)")
-    else:
-        for rel, when in stale:
-            warnings.append(f"{rel}: stale_after {when} is in the past (§7.2)")
 
-        files, issues = changed_files(args.base, args.staged)
-        for i in issues:
-            # ERROR, а не warning: невозможность вычислить дифф в sync-режиме — это
-            # неверная конфигурация обязательного входа, а не отсутствие внешнего
-            # инструмента. Гейт, вышедший 0 и не посмотревший ни одного файла,
-            # хуже отсутствующего (Delivery §3.1a). Найдено развёртыванием: вызов
-            # без --base давал WARNING и exit 0, то есть зелёный гейт, проверивший
-            # ноль. Отдельно от этого база теперь берётся и из окружения BASE —
-            # у гейтов CQG конвенция именно такая, и расхождение конвенций само
-            # приводило к «забыл флаг».
-            errors.append(
-                f"cannot compute diff: {i} — передай --base <ref> (или BASE=<ref>) "
-                "либо --staged; иначе гейт не проверяет ничего"
-            )
-        if not files and not issues:
-            # Пустой дифф = гейт ничего не судит. Это законно (push в саму базу),
-            # но должно быть видно: молчаливый no-op читается как «проверено».
-            warnings.append(
-                f"diff vs '{args.base or 'staged'}' is empty — gate inert this run"
-            )
-        if files:
-            touched_bundle = {f for f in files if f.startswith(f"{BUNDLE}/")}
-            code = [f for f in files if f not in touched_bundle]
-            for rel, declared in sorted(concepts.items()):
-                if rel in touched_bundle:
-                    continue  # concept обновлён — синхронизация заявлена
-                hits = sorted(
-                    {c for c in code for d in declared if covers(d, c)}
-                )[:5]
-                if hits:
-                    errors.append(
-                        f"{rel}: implementation changed but concept untouched -> "
-                        f"{', '.join(hits)}"
-                    )
-            if not concepts:
-                warnings.append(
-                    "no concept declares implementation: — gate is inert; "
-                    "start filling the field (Приложение A.3)"
+def check_concept_sync(files, concepts: dict, errors: list[str],
+                       warnings: list[str]) -> None:
+    """Код тронут, а concept — нет: рассинхрон знания и реализации (§7.2).
+    """
+    if files:
+        touched_bundle = {f for f in files if f.startswith(f"{BUNDLE}/")}
+        code = [f for f in files if f not in touched_bundle]
+        for rel, declared in sorted(concepts.items()):
+            if rel in touched_bundle:
+                continue  # concept обновлён — синхронизация заявлена
+            hits = sorted(
+                {c for c in code for d in declared if covers(d, c)}
+            )[:5]
+            if hits:
+                errors.append(
+                    f"{rel}: implementation changed but concept untouched -> "
+                    f"{', '.join(hits)}"
                 )
+        if not concepts:
+            warnings.append(
+                "no concept declares implementation: — gate is inert; "
+                "start filling the field (Приложение A.3)"
+            )
 
+
+def report(args, root, concepts: dict, errors: list[str],
+           warnings: list[str]) -> int:
+    """Печать итога и код возврата.
+
+    Шов `main` (`okf@1.13`): вывод отделён от суждения — так `main` остаётся
+    диспетчером, а советы не мешают читать логику.
+    """
     for w in warnings:
         print(f"WARNING: {w}")
     for e in errors:
@@ -291,6 +259,98 @@ def main() -> int:
             file=sys.stderr,
         )
     return 1
+
+
+def parse_cli() -> argparse.Namespace:
+    """Разбор аргументов вместе с фолбэком на `BASE` из окружения.
+
+    Шов по данным: блок отдаёт наружу ровно одно имя — `args`, свободных имён у
+    него нет вовсе (`ast`), поэтому граница проходит по нему без остатка. Держать
+    фолбэк здесь же обязательно: «чем судить» — часть разбора входа, а не
+    логики, и разъехавшись с ним, гейт снова запускался бы без базы.
+    """
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--base", help="ref to diff against (e.g. origin/main)")
+    ap.add_argument("--staged", action="store_true", help="use staged diff")
+    ap.add_argument("--check-stale", action="store_true", help="stale_after check")
+    args = ap.parse_args()
+
+    # Фолбэк на BASE из окружения: гейты CQG получают базу именно так, и
+    # расхождение конвенций (флаг здесь, переменная там) само приводило к
+    # запуску без базы — то есть к зелёному гейту, не проверившему ничего.
+    if not args.base and not args.staged:
+        args.base = os.environ.get("BASE") or None
+    return args
+
+
+def judge_freshness(concepts: dict, stale: list, errors: list[str]) -> None:
+    """`--check-stale`: просроченный `stale_after` — ошибка, а не предупреждение.
+
+    Половина развилки `main`, вырезанная целиком: `ast` называет свободными
+    ровно `concepts`, `stale`, `errors`, а решение о коде возврата остаётся у
+    `report` — через шов не проходит ни `return`, ни `break`.
+    """
+    for rel, when in stale:
+        errors.append(f"{rel}: stale_after {when} is in the past — re-verify or bump")
+    if not stale:
+        print(f"okf_sync_gate: freshness OK ({len(concepts)} mapped concepts)")
+
+
+def judge_sync(args, concepts: dict, stale: list, errors: list[str],
+               warnings: list[str]) -> None:
+    """Sync-режим: дифф против базы против карты `implementation:` (§4.1).
+
+    Вторая половина той же развилки. Шов здесь потому, что режимы делят только
+    вход и печать: `stale` в этой ветке даёт warning, а в соседней — ошибку, и
+    держать оба смысла в одной функции значило хранить развилку дважды. Замер:
+    `main` 152/37 → 46/10 после `okf@1.13` и → 18/3 здесь.
+    """
+    for rel, when in stale:
+        warnings.append(f"{rel}: stale_after {when} is in the past (§7.2)")
+
+    files, issues = changed_files(args.base, args.staged)
+    for i in issues:
+        # ERROR, а не warning: невозможность вычислить дифф в sync-режиме — это
+        # неверная конфигурация обязательного входа, а не отсутствие внешнего
+        # инструмента. Гейт, вышедший 0 и не посмотревший ни одного файла,
+        # хуже отсутствующего (Delivery §3.1a). Найдено развёртыванием: вызов
+        # без --base давал WARNING и exit 0, то есть зелёный гейт, проверивший
+        # ноль. Отдельно от этого база теперь берётся и из окружения BASE —
+        # у гейтов CQG конвенция именно такая, и расхождение конвенций само
+        # приводило к «забыл флаг».
+        errors.append(
+            f"cannot compute diff: {i} — передай --base <ref> (или BASE=<ref>) "
+            "либо --staged; иначе гейт не проверяет ничего"
+        )
+    if not files and not issues:
+        # Пустой дифф = гейт ничего не судит. Это законно (push в саму базу),
+        # но должно быть видно: молчаливый no-op читается как «проверено».
+        warnings.append(
+            f"diff vs '{args.base or 'staged'}' is empty — gate inert this run"
+        )
+    check_concept_sync(files, concepts, errors, warnings)
+
+
+def main() -> int:
+    args = parse_cli()
+
+    root = repo_root()
+    bundle = root / BUNDLE
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if not bundle.is_dir():
+        print(f"okf_sync_gate: no bundle at {BUNDLE}/ — skip (deploy OKF first)")
+        return 0
+
+    concepts, stale = collect_concepts(root, bundle)
+
+    if args.check_stale:
+        judge_freshness(concepts, stale, errors)
+    else:
+        judge_sync(args, concepts, stale, errors, warnings)
+
+    return report(args, root, concepts, errors, warnings)
 
 
 if __name__ == "__main__":

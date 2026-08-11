@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Раскладка контура: каноны, принуждение, инструменты, снимки, чтение хуков.
+
+Часть доктора (`cqg@1.82`, вход — `contour_doctor.py`). Здесь вопросы «что
+развёрнуто и как настроено»: они дёшевы, ничего не запускают и отвечаются до
+любых проб. Сюда же чтение `.pre-commit-config.yaml` (`_hook_env`,
+`_hook_files_re`) — это тоже раскладка, а не суждение о гейте.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+from pathlib import Path
+
+from doctor_core import ABSENT, AUTO, DEAD, SKIP, WEAK, _block_after, run
+
+CANONS = ("AGENT_STACK.md", "AGENT_DELIVERY_HARNESS.md",
+          "CODE_QUALITY_GATES.md", "OKF_KNOWLEDGE_BUNDLE.md")
+
+# Инструменты, на которых стоят гейты. `timeout` отдельно: он GNU coreutils и на
+
+TOOLS = {
+    "ruff": "гейт сложности, основной линт",
+    "mypy": "типы",
+    # `pragma` — не украшение и не подавление находки. Имя инструмента содержит
+    # слово из denylist'а его же KeywordDetector'а, а дальше по строке идут
+    # двоеточие и значение в кавычках — та самая форма, которую он считает
+    # секретом. Первое развёртывание намерило это находкой: канон поставлял
+    # payload, который метит его же гейт. Форма подавления взята у самого
+    # инструмента, чтобы след был читаемым, а не спрятанным в baseline проекта.
+    # Регрессия — `tests/test_payload_clean_for_scanners.py`.
+    "detect-secrets": "secrets-гейт (§2.7)",  # pragma: allowlist secret
+    "pip-audit": "deps-audit, python-половина",
+    "mutmut": "mutation — «тесты утверждают» (§3.7)",
+    "jscpd": "DRY-гейт",
+    "npm": "deps-audit, js-половина; eslint-ратчет",
+    "timeout": "бюджет мутационного гейта (macOS: brew install coreutils)",
+}
+
+# Канарейка = «файл с нарушением ровно этого класса». Ключ — имя правила из
+# `--list-rules`, чтобы список правил брался у СКРИПТА, а не дублировался здесь:
+
+
+class LayoutChecks:
+    # --- A. каноны -----------------------------------------------------------
+    def _declared_version(self, prefix: str) -> str:
+        """Версия слоя из строки `stack:` в STATUS — то, что проект ЗАЯВИЛ.
+
+        Заявление и снимок обязаны совпадать: расходятся — одно из двух врёт, и
+        какое именно, отсюда не видно, но молчать нельзя.
+        """
+        if not prefix:
+            return ""
+        st = self.root / "delivery" / "active" / "STATUS.md"
+        if not st.is_file():
+            return ""
+        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
+                      st.read_text("utf-8", errors="replace"))
+        return m.group(1) if m else ""
+
+    def _canon_version(self, p: Path) -> str:
+        """Версия из шапки канона; пусто — шапка не читается.
+
+        Шов по данным: наружу шло одно значение — строка версии, а не сам
+        match. Заодно файл читается ОДИН раз: обе формы шапки (`Canon version:`
+        у канонов, `Эта карта:` у карты стека) брали текст заново.
+        """
+        text = p.read_text("utf-8")
+        m = (re.search(r"\*\*Canon version:\*\*\s*`([^`]+)`", text)
+             or re.search(r"\*\*Эта карта:\*\*\s*`([^`]+)`", text))
+        return m.group(1) if m else ""
+
+    def _version_drift(self, current: str) -> str:
+        """Отстал ли СНИМОК канона от того, что проект ЗАЯВИЛ в STATUS.
+
+        Шов по данным: наружу блок отдавал одно имя — `drift`, строку-хвост
+        сообщения; `declared` живёт только здесь. Пустая строка вместо флага —
+        чтобы вызывающий не пересобирал текст из двух кусков.
+
+        Снимок сверяется с ЗАЯВЛЕННОЙ версией из STATUS. Иначе он —
+        единственный источник правды о самом себе: доктор читал шапку снимка и
+        считал её истиной, а проект тем временем развернул более новый payload.
+        Замер на живом проекте: скрипты 1.77, снимок 1.75, STATUS 1.77 — и никто
+        не сказал ни слова.
+
+        Это делает честным и диагноз расхождения скриптов: без такой проверки
+        совет «обнови скрипт из payload'а» вреден, когда на самом деле отстал
+        снимок, а не скрипт.
+        """
+        declared = self._declared_version(current.split("@")[0] if current else "")
+        if not current or not declared or declared == current:
+            return ""
+        return (f" — STATUS заявляет {declared}: снимок ОТСТАЛ от "
+                "развёрнутого payload, обнови docs/canon (§5 шаг 11)")
+
+    def check_canons(self) -> None:
+        # Каноны лежат ЛИБО в корне, ЛИБО в снимке `docs/canon/` — и второе не
+        # экзотика, а дефолт: §5 шаг 11 велит агенту выбирать вариант C, не
+        # спрашивая. Первая редакция смотрела только в корень и на правильно
+        # развёрнутом проекте печатала «файла нет — слой не развёрнут» по всем
+        # четырём. ABSENT не роняет прогон, поэтому ошибка тихая: доктор говорил
+        # «бедность» там, где всё на месте, и приёмка §6 читалась бы по нему.
+        for name in CANONS:
+            p = self.root / name
+            if not p.is_file():
+                p = self.root / "docs" / "canon" / name
+            if not p.is_file():
+                self.add(ABSENT, f"канон {name}", "файла нет — слой не развёрнут")
+                continue
+            version = self._canon_version(p)
+            where = "" if p.parent == self.root else f" ({p.parent.relative_to(self.root)})"
+            drift = self._version_drift(version)
+            self.add(AUTO if (version and not drift) else WEAK, f"канон {name}",
+                     (f"версия {version}" if version else "версия в шапке не читается")
+                     + where + drift)
+
+    # --- B. места принуждения ------------------------------------------------
+    def check_enforcement(self) -> None:
+        cfg = self.root / ".pre-commit-config.yaml"
+        self.add(AUTO if cfg.is_file() else ABSENT, "конфиг pre-commit",
+                 "есть" if cfg.is_file() else "нет — коммит-гейтов не существует")
+
+        self._check_hooks_installed(cfg.is_file())
+
+        # CI ищется у ОБОИХ хостингов (`cqg@2.00`). Первая редакция смотрела
+        # только в `.github/workflows`, поэтому на GitLab-проекте с живым
+        # пайплайном доктор печатал «CI workflow: нет — §10.4 закроет как weak».
+        # Это ложное отрицание в документе, который для читателя И ЕСТЬ ответ про
+        # покрытие: гейт мержа у контура чисто гитовый (`merge_guard.sh`), а
+        # CI-контракт §10.4 описан шагами, а не файлом одного хостинга, — значит
+        # привязка к пути была допущением, а не требованием. Тот же класс, что
+        # питоновское допущение в шаблоне workflow (`cqg@1.85`).
+        wf = sorted((self.root / ".github" / "workflows").glob("*.y*ml")) \
+            if (self.root / ".github" / "workflows").is_dir() else []
+        wf += [p for p in (self.root / ".gitlab-ci.yml",) if p.is_file()]
+        self.add(AUTO if wf else ABSENT, "CI workflow",
+                 ", ".join(p.name for p in wf) if wf else "нет — §10.4 закроет как weak")
+
+        mg = self.root / "scripts" / "merge_guard.sh"
+        self.add(AUTO if mg.is_file() else ABSENT, "гейт мержа merge_guard.sh",
+                 "есть" if mg.is_file() else "нет — мерж не проверяет слитое состояние")
+
+    def _git_hooks_dir(self) -> Path:
+        """Каталог, куда git РЕАЛЬНО кладёт хуки этого дерева.
+
+        Шов по данным: наружу блок отдавал одно имя — `gitdir`; код возврата
+        git границу не пересекает.
+
+        ⚠ Каталог хуков берётся у git, а не собирается из `.git/hooks`
+        (`cqg@1.90`). В worktree `.git` — ФАЙЛ со ссылкой, хуки лежат в общем
+        каталоге основного репозитория, и доктор объявлял их неустановленными
+        ровно там, где они только что отработали на коммите. Ложное срабатывание
+        — дефект проверки (§4.3b), причём этот стоил бы дороже обычного: два
+        `DEAD` роняют прогон, то есть обновление контура в worktree выглядело бы
+        провалом. Поймано первым же применением: канон разворачивали в worktree,
+        чтобы не трогать рабочую ветку проекта.
+        """
+        code, common = run(["git", "rev-parse", "--git-common-dir"], self.root)
+        gitdir = Path(common.strip()) if code == 0 and common.strip() else self.root / ".git"
+        return gitdir if gitdir.is_absolute() else self.root / gitdir
+
+    def _check_hooks_installed(self, has_cfg: bool) -> None:
+        """Установлен ли хук ФАКТИЧЕСКИ: конфиг без `pre-commit install` — это
+        список пожеланий: ни один хук не запустится, и об этом ничто не скажет.
+
+        Шов по данным: цикл не отдаёт наружу ни одного имени, только вердикты, а
+        из места принуждения ему нужен ровно один факт — есть ли конфиг.
+        """
+        gitdir = self._git_hooks_dir()
+        for hook in ("pre-commit", "pre-push"):
+            h = gitdir / "hooks" / hook
+            if h.is_file() and "pre-commit" in h.read_text("utf-8", errors="ignore"):
+                self.add(AUTO, f"хук {hook} установлен",
+                         str(h if not h.is_relative_to(self.root)
+                             else h.relative_to(self.root)))
+            else:
+                self.add(DEAD if has_cfg else ABSENT, f"хук {hook} установлен",
+                         "конфиг есть, а хук НЕ установлен: `pre-commit install"
+                         f"{' --hook-type pre-push' if hook == 'pre-push' else ''}`"
+                         if has_cfg else "нет")
+
+    # --- C. инструменты ------------------------------------------------------
+    def check_tools(self) -> None:
+        # ⚠ `node_modules/.bin` в списке ОБЯЗАТЕЛЕН, и это не удобство. Локальная
+        # devDependency npm-проекта живёт только там: без этого каталога доктор
+        # печатал `ABSENT инструмент jscpd — нет → DRY-гейт не работает` и
+        # четырьмя строками ниже `AUTO область check_jscpd_gate.sh — просмотрено
+        # 2 файл(ов)`. Отчёт, содержащий взаимоисключающие строки о собственном
+        # гейте, обесценивает подпись «лжи нет» в подвале — а она и есть продукт
+        # доктора. Тот же класс, что чинили весь день: заявление разошлось с
+        # деревом, и увидел это человек, а не механика.
+        #
+        # Проверка областей окружение хука уже воспроизводит (тянет `LINT_*` из
+        # `entry:`), а проба инструментов — нет. Здесь минимум: каталоги, куда
+        # инструмент кладут менеджеры пакетов обоих экосистем.
+        fe = os.environ.get("LINT_FE_DIR", "frontend")
+        venvs = [self.root / ".venv" / "bin", self.root / "backend" / ".venv" / "bin",
+                 self.root / "node_modules" / ".bin", self.root / fe / "node_modules" / ".bin"]
+        for tool, why in TOOLS.items():
+            found = next((str(v / tool) for v in venvs
+                          if (v / tool).is_file() or (v / tool).is_symlink()), None) \
+                or shutil.which(tool) \
+                or (shutil.which("gtimeout") if tool == "timeout" else None)
+            self.add(AUTO if found else ABSENT, f"инструмент {tool}",
+                     found if found else f"нет → {why} не работает")
+
+    # --- D. снимки -----------------------------------------------------------
+    def check_snapshots(self) -> None:
+        d = self.root / "scripts" / "lint"
+        if not d.is_dir():
+            self.add(ABSENT, "снимки гейтов", "нет scripts/lint — контур не развёрнут")
+            return
+        found = sorted(p.name for p in d.glob("*baseline*.txt"))
+        self.add(AUTO if found else WEAK, "снимки (baseline)",
+                 f"{len(found)} шт: {', '.join(found)}" if found
+                 else "ни одного: гейт без снимка красный на первом коммите, "
+                      "и его снимают")
+
+
+    # --- Что в контуре разошлось с каноном и почему (cqg@1.71) ----------------
+    # Обновление контура было археологией: §5 описывает развёртывание на
+    # greenfield, а что делать со СТАРЫМ проектом, часть скриптов которого
+    # адаптирована под стек, не сказано нигде. Слепое копирование payload'а
+    # адаптацию уничтожает — замерено на Swift-проекте: канонная python-версия
+    # затёрла `check_grep_gate.sh` с тремя своими правилами (`force-unwrap`,
+    # `hardcoded-network`), и спасло только чистое дерево и `git checkout`.
+    #
+    # Различать «адаптирован» и «просто устарел» приходилось глазами, и признак
+    # неочевиден: из шести разошедшихся скриптов два оказались НЕ адаптированными
+    # (ноль упоминаний своего стека в теле), один — настоящей адаптацией, а
+    # ещё один нёс адаптацию ЛИШНЮЮ: маска Swift была зашита в тело, хотя
+    # канонная версия давно принимает её через `LINT_LENGTH_GLOBS`.
+    #
+    # Отсюда `scripts/lint/adapted.json`: проект объявляет, что и почему изменено
+    # против канона. Расхождение без объявления — не ложь (быть на версию позади
+    # нормально), но и не молчание: печатается списком, чтобы обновление
+    # начиналось с готового ответа, а не с раскопок.
+    ADAPTED = "scripts/lint/adapted.json"
+
+    #: Конфиги и workflow'ы, которые поставляет канон, — путь → (маркер, язык).
+    #: Маркер у скрипта выводится из имени, у конфига — нет, поэтому таблица.
+    #:
+    #: ⚠ Их сверка появилась позже скриптов (`cqg@1.91`) и стоила затёртой
+    #: адаптации: накат разложил канонный `quality.yml` поверх настроенного, `env`
+    #: вернулся к дефолтам `backend/features`/`frontend` на проекте, где
+    #: python-половины нет вовсе, а фронт в корне. Сверка смотрела только
+    #: `scripts/lint/*`, поэтому не сказал никто — а §5.5 ради этого и написана.
+    #: Конфиги адаптируют ШТАТНО (§6: значения живут в `env:`/`entry:`), значит
+    #: расхождение тут нормально — но объявленное, а не молчаливое.
+    CANON_CONFIGS = {
+        ".pre-commit-config.yaml": ("### `.pre-commit-config.yaml`", "yaml"),
+        ".github/workflows/quality.yml": ("### 8.3. Workflow (GitHub Actions)", "yaml"),
+        ".github/workflows/main-guard.yml":
+            ("**④ Красное на `main` не остаётся незамеченным.**", "yaml"),
+        # Адаптер GitLab сверяется так же, как оба workflow'а (`cqg@2.01`). Без
+        # этой строки §5.5 на GitLab-проекте не находила НИЧЕГО и молчала: и
+        # «адаптер устарел», и «адаптирован без объявления» проходили тихо —
+        # ровно та половина класса, которую `cqg@1.91` закрыл для GitHub.
+        ".gitlab-ci.yml": ("### 8.3a. GitLab: тот же контракт, тонкий адаптер", "yaml"),
+    }
+
+    def _compare_with_snapshot(self, text: str, rel: str, marker: str, lang: str,
+                               declared: dict) -> None:
+        """Одно сравнение «файл проекта против снимка канона»."""
+        live = self.root / rel
+        if not live.is_file() or marker not in text:
+            return                       # файла нет или канон его не поставляет
+        body = _block_after(text, marker, lang)
+        if body is None:
+            return
+        name = rel.rsplit("/", 1)[-1]
+        spec = declared.get(rel) or declared.get(name)
+        point = f"расхождение с каноном {name}"
+        if body.strip() == live.read_text(encoding="utf-8", errors="replace").strip():
+            if spec:
+                self.add(WEAK, point, "объявлен адаптированным, а тело СОВПАДАЕТ "
+                                      "с каноном — объявление устарело и мешает "
+                                      "обновлению")
+            return
+        if isinstance(spec, dict) and str(spec.get("reason", "")).strip():
+            self.add(WEAK, point, "адаптирован намеренно: " + str(spec["reason"])[:90])
+            return
+        self.add(WEAK, point,
+                 "тело отличается от снимка канона, а объявления нет. "
+                 "Либо устарел (обнови из payload'а), либо адаптирован "
+                 f"под стек (объяви в {self.ADAPTED} с причиной) — "
+                 "иначе обновление начнётся с раскопок и затрёт правку")
+
+    def _declared_adaptations(self) -> dict:
+        """Что проект ОБЪЯВИЛ изменённым против канона (`adapted.json`).
+
+        Шов по данным: наружу блок отдаёт одно имя — `declared`. Нечитаемый файл
+        схлопывается в пустой словарь, а жалоба на него остаётся рядом с
+        чтением, потому что судить ею нечего.
+        """
+        f = self.root / self.ADAPTED
+        if not f.is_file():
+            return {}
+        try:
+            return json.loads(f.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError) as exc:
+            self.add(SKIP, self.ADAPTED, f"не разобран ({exc}) — адаптации "
+                                         "объявлены и не прочитаны")
+            return {}
+
+    def check_divergence_from_canon(self) -> None:
+        snap = self.root / "docs" / "canon" / "CODE_QUALITY_GATES.md"
+        d = self.root / "scripts" / "lint"
+        if not snap.is_file():
+            return                       # снимка канона нет — сверять не с чем
+        text = snap.read_text(encoding="utf-8", errors="replace")
+
+        declared = self._declared_adaptations()
+        if d.is_dir():
+            for script in sorted(d.glob("*")):
+                if not script.is_file() or script.suffix not in (".sh", ".py"):
+                    continue
+                lang = "python" if script.suffix == ".py" else "bash"
+                self._compare_with_snapshot(
+                    text, f"scripts/lint/{script.name}",
+                    f"### `scripts/lint/{script.name}`", lang, declared)
+
+        for rel, (marker, lang) in sorted(self.CANON_CONFIGS.items()):
+            self._compare_with_snapshot(text, rel, marker, lang, declared)
+

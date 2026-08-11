@@ -72,7 +72,20 @@ repos:
         # но контраст «пути настраиваются через env» против «этот путь inline»
         # стоил неверного диагноза: сводка «mypy strict … Failed» читалась как
         # ошибки типов (развёртывание 2026-07-31, дефект прочтения, не механики).
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)/${LINT_BE_DIR:-backend}" && ${LINT_VENV:-.venv}/bin/mypy --config-file pyproject.toml "${LINT_COV_PKG:-features}"'
+        #
+        # ⚠ `LINT_VENV` разрешается ПО КАНДИДАТАМ, как в четырёх скриптах гейтов, —
+        # находка 5 первого развёртывания. §6 обещает, что значение принимается и
+        # относительно backend, и от repo-root («скрипты разрешают оба написания»),
+        # но этот entry делал `cd backend` и брал значение уже ОТТУДА: разрешённое
+        # `backend/.venv` давало `backend/backend/.venv/bin/mypy` и **exit 127
+        # сырой ошибкой шелла**. Читается как поломка окружения, а не как
+        # расхождение канона с самим собой. Третий кандидат — venv в корне репо
+        # (тот же layout, что разрешают гейты). Инструмента нет — причина
+        # НАЗЫВАЕТСЯ, включая переменную, которой это правится: чужие слова
+        # («command not found») отправляют чинить не туда. Держит
+        # `TestMypyHookHonoursBothVenvSpellings`, включая обратный прогон.
+        entry: |-
+          env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'R="$(git rev-parse --show-toplevel)" || exit 1; B="${LINT_BE_DIR:-backend}"; V="${LINT_VENV:-.venv}"; M=""; for c in "$R/$B/$V/bin/mypy" "$R/$V/bin/mypy" "$R/$B/.venv/bin/mypy"; do [ -x "$c" ] && { M="$c"; break; }; done; [ -n "$M" ] || { printf "\033[31mmypy не найден — искал %s и %s. LINT_VENV принимается и относительно %s, и от repo-root (§6); правится LINT_VENV / LINT_BE_DIR или установкой mypy в venv проекта\033[0m\n" "$B/$V/bin/mypy" "$V/bin/mypy" "$B"; exit 1; }; cd "$R/$B" || exit 1; "$M" --config-file pyproject.toml "${LINT_COV_PKG:-features}"'
         pass_filenames: false
 
   # -------------------------------------------------------------------------
@@ -116,7 +129,7 @@ repos:
       - id: file-length
         name: Файлы кода <= 500/1000 строк (baseline-ratchet)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_file_length.sh'
+        entry: env LINT_PY_SRC=backend/app LINT_LENGTH_GLOBS="*.py *.ts *.tsx *.js" bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_file_length.sh'
         types_or: [python, ts, tsx]
         pass_filenames: false
 
@@ -136,43 +149,43 @@ repos:
       - id: config-access-gate
         name: config-access — типизированный config.X, не getattr/os.getenv
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule config-access'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule config-access'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: di-indirection-gate
         name: di-indirection — без pkg/session/ctx Any и importlib reach-back
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule di-indirection'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule di-indirection'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: service-no-web-gate
         name: service-no-web — сервис-слой не импортирует web-фреймворк
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule service-no-web'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule service-no-web'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: no-grab-bag-module-gate
         name: no-grab-bag — utils/misc/common/helpers.py без темы запрещены
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule no-grab-bag-module'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_grep_gate.sh --rule no-grab-bag-module'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: silent-except-gate
         name: silent-except — broad-except без raise/лога (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule silent-except'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule silent-except'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: inline-prompt-gate
         name: inline-prompt — LLM-промпт инлайном в .py (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule inline-prompt'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule inline-prompt'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: cpu-in-async-gate
         name: cpu-in-async — разбор/регулярка в цикле внутри async def (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule cpu-in-async'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule cpu-in-async'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
@@ -184,7 +197,7 @@ repos:
       - id: unbounded-list-gate
         name: unbounded-list — эндпоинт отдаёт список без границы (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule unbounded-list'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule unbounded-list'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
@@ -196,8 +209,13 @@ repos:
       - id: jscpd-dry-gate
         name: DRY — рост копипаста (jscpd clone-count ratchet)
         language: system
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_jscpd_gate.sh'
-        files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
+        entry: env LINT_PY_SRC=backend/app LINT_FE_DIR=frontend LINT_TS_SRC=frontend/src bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/lint/check_jscpd_gate.sh'
+        # `files:` называет РОВНО то, что гейт судит, а не «весь backend»: доктор
+        # считает по этому шаблону знаменатель области, и `backend/.*\.py` тянул в
+        # него `backend/tests/**`, которые гейт исключает по построению
+        # (`-i **/tests/**`). Роль объявлена закрытой, 18 файлов не смотрит никто —
+        # доктор зовёт это `DEAD`, и он прав: триггер обязан совпадать с судимым.
+        files: ^(backend/app/.*\.py|frontend/src/.*\.(ts|tsx)|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
   # -------------------------------------------------------------------------
@@ -205,11 +223,11 @@ repos:
   # -------------------------------------------------------------------------
   - repo: local
     hooks:
-      - id: import-linter
-        name: import-linter — dependency direction
+      - id: layers-gate
+        name: layers — направление зависимостей (import-linter / dependency-cruiser)
         language: system
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)/backend" && ./.venv/bin/lint-imports'
-        files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
+        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend LINT_TS_SRC=frontend/src bash scripts/lint/check_layers_gate.sh
+        files: ^(backend/.*\.py|frontend/src/.*|\.importlinter|\.dependency-cruiser\..*|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
   # -------------------------------------------------------------------------
@@ -220,20 +238,23 @@ repos:
     hooks:
       - id: complexity-gate
         name: function complexity ratchet (C901/PLR09xx)
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash scripts/lint/check_complexity_gate.sh
+        entry: env LINT_PY_SRC=backend/app LINT_FE_DIR=frontend LINT_TS_SRC=frontend/src bash scripts/lint/check_complexity_gate.sh
         language: system
-        files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
+        # См. комментарий у jscpd-dry-gate: шаблон называет ровно судимое, иначе
+        # `backend/tests/**` попадают в область гейта, маска их не покрывает
+        # никогда, и это `DEAD` у доктора — роль объявлена, часть области слепа.
+        files: ^(backend/app/.*\.py|frontend/src/.*\.(ts|tsx)|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
       - id: blind-error
         name: error messages carry context
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash scripts/lint/check_grep_gate.sh --rule blind-error
+        entry: env LINT_PY_SRC=backend/app bash scripts/lint/check_grep_gate.sh --rule blind-error
         language: system
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: unstructured-log
         name: logs are structured (searchable by field)
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash scripts/lint/check_grep_gate.sh --rule unstructured-log
+        entry: env LINT_PY_SRC=backend/app bash scripts/lint/check_grep_gate.sh --rule unstructured-log
         language: system
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
@@ -267,8 +288,16 @@ repos:
         # принцип, что check_ci_status.sh); ③ успех печатает число просмотренных
         # (§6: «чисто» обязано отличаться от «ноль файлов»); ④ нет baseline при
         # живом инструменте = exit 1 с командой снятия.
+        #
+        # ⚠ Сообщения ниже пишут «secrets — …», а НЕ «secrets: …», и это не стиль.
+        # Замер (первое развёртывание, находка 2): detect-secrets на yaml-файле
+        # относит находку к строке `entry: |-`, а его KeywordDetector считает
+        # секретом всё, что стоит после `secret…:` — то есть текст СВОЕГО ЖЕ
+        # сообщения. Конфиг канона краснил у собственного хука. Двоеточие после
+        # слова из denylist'а (`secret`, `password`, `token`, `api_key`) внутри
+        # этого entry запрещено; регрессия — `tests/test_payload_clean_for_scanners.py`.
         entry: |-
-          bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; t=""; for c in "${LINT_VENV:-backend/.venv}/bin/detect-secrets-hook" "${LINT_BE_DIR:-backend}/.venv/bin/detect-secrets-hook" ".venv/bin/detect-secrets-hook"; do [ -x "$c" ] && { t="$c"; break; }; done; [ -n "$t" ] || t="$(command -v detect-secrets-hook || true)"; if [ -n "$t" ]; then [ -f .secrets.baseline ] || { printf "\033[31msecrets: baseline отсутствует. Сними его (порядок §5 шага 11: сначала git add): detect-secrets scan --all-files > .secrets.baseline\033[0m\n"; exit 1; }; "$t" --baseline .secrets.baseline "$@" || exit 1; printf "secrets: просканировано %d файл(ов)\n" "$#"; else if grep -qsiE "security-oracles:.*weak" delivery/active/STATUS.md; then printf "\033[33m⚠ detect-secrets не установлен; security-oracles: weak объявлен в STATUS — бедность названа, не спрятана (§2.7)\033[0m\n"; else printf "\033[31msecrets: инструмента НЕТ, а weak НЕ объявлен — гейт не смеет молча выйти нулём (lab-11 F10). Выходы: pip install detect-secrets (он в requirements-dev.txt шага 4) ИЛИ объяви security-oracles: weak в delivery/active/STATUS.md\033[0m\n"; exit 1; fi; fi' --
+          bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; t=""; for c in "${LINT_VENV:-backend/.venv}/bin/detect-secrets-hook" "${LINT_BE_DIR:-backend}/.venv/bin/detect-secrets-hook" ".venv/bin/detect-secrets-hook"; do [ -x "$c" ] && { t="$c"; break; }; done; [ -n "$t" ] || t="$(command -v detect-secrets-hook || true)"; if [ -n "$t" ]; then [ -f .secrets.baseline ] || { printf "\033[31msecrets — baseline отсутствует. Сними его (порядок §5 шага 11: сначала git add): detect-secrets scan \$(git ls-files -c -o --exclude-standard) > .secrets.baseline\033[0m\n"; exit 1; }; "$t" --baseline .secrets.baseline "$@" || exit 1; printf "secrets — просканировано %d файл(ов)\n" "$#"; else if grep -qsiE "security-oracles:.*weak" delivery/active/STATUS.md; then printf "\033[33m⚠ detect-secrets не установлен; security-oracles: weak объявлен в STATUS — бедность названа, не спрятана (§2.7)\033[0m\n"; else printf "\033[31msecrets — инструмента НЕТ, а weak НЕ объявлен — гейт не смеет молча выйти нулём (lab-11 F10). Выходы: pip install detect-secrets (он в requirements-dev.txt шага 4) ИЛИ объяви security-oracles: weak в delivery/active/STATUS.md\033[0m\n"; exit 1; fi; fi' --
         pass_filenames: true
 
       # ⚠ ЗАМЕР, а не мнение: `deps-audit` один даёт ~24 с (ходит в сеть за базой

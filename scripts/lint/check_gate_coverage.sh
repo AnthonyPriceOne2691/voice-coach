@@ -28,6 +28,10 @@ set -uo pipefail
 STRICT=${STRICT:-1}
 LINT_DIR=${LINT_DIR:-scripts/lint}
 
+# SCRIPT_DIR — ДО `cd` в корень репозитория: `BASH_SOURCE` относителен каталога
+# вызова, и после `cd` путь к соседним частям уже не найти (`cqg@1.86`).
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$REPO_ROOT" || exit 1
 
@@ -44,6 +48,87 @@ red=$(printf '\033[31m'); yellow=$(printf '\033[33m'); green=$(printf '\033[32m'
 #
 # Этот файл в исключения НЕ вносится: мета-гейт, который сам никем не вызывается,
 # — ровно та дыра, от которой он защищает, на уровень выше.
+# --- Проектные исключения ролей (cqg@1.67) ------------------------------------
+# `not_wired_reason()` ниже — исключения САМОГО КАНОНА, одинаковые везде. Но есть
+# второй, куда более частый случай: роль каталога §3 неприменима НА ЭТОМ СТЕКЕ.
+# Карта ролей §Применимость велит пометить такую строку `n/a + причина`, а
+# механики для этого не было вовсе — и последствия замерены на живом
+# Astro/TS-проекте: четыре python-правила и хук mypy остались подключёнными и
+# красными, потому что зовут `backend/.venv/bin/python`, которого нет.
+#
+# Выключить их правкой ЭТОГО скрипта нельзя: payload сверяется байт-в-байт
+# (`assert_digest.sh`), и проект, поправивший `not_wired_reason()`, разъезжается
+# с каноном навсегда. Поэтому объявление живёт в файле ПРОЕКТА — тот же приём,
+# что `canaries.json` (cqg@1.64):
+#
+#   scripts/lint/not-applicable.json
+#   {
+#     "check_ast_gate.py:silent-except": "нет python-кода: проект на Astro/TS",
+#     "check_deps_audit.sh": "python-манифеста нет; npm-половина работает"
+#   }
+#
+# Ключ — имя скрипта ИЛИ `имя:правило`: гранулярность правила обязательна, потому
+# что `check_ast_gate.py` несёт четыре правила разом, и «выключить всё или
+# ничего» здесь означало бы выключить всё.
+#
+# Причина ОБЯЗАТЕЛЬНА и печатается на каждом прогоне — как у `not_wired_reason()`,
+# и по той же причине: состояние проекта меняется («тестов нет», «нет TS»), и
+# устаревшее исключение должно попадаться на глаза, а не лежать в файле.
+NA_FILE="$LINT_DIR/not-applicable.json"
+na_reasons=""
+if [[ -f "$NA_FILE" ]]; then
+  PY_NA=$(command -v python3 2>/dev/null || true)
+  if [[ -z "$PY_NA" ]]; then
+    printf '%s⚠ есть %s, но python3 не найден — проектные исключения НЕ прочитаны.\n' \
+      "$yellow" "$NA_FILE"
+    printf 'Это не «исключений нет»: они объявлены и не применены.%s\n' "$reset"
+  else
+    # stderr забирается ВМЕСТЕ с stdout, и только на ошибке. Первая редакция
+    # печатала `$na_reasons` (то есть stdout) в сообщении об ошибке, а диагноз
+    # питон писал в stderr — выходило «не применён: » с пустым местом там, где
+    # должна стоять причина. Гейт, не назвавший причину, — тот же класс, что
+    # «пропуск с чужим диагнозом»: поймано собственным тестом.
+    na_out=$("$PY_NA" - "$NA_FILE" 2>&1 <<'PYNA'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception as exc:
+    sys.stderr.write("не разобран как JSON (%s)\n" % exc)
+    raise SystemExit(2)
+if not isinstance(data, dict):
+    sys.stderr.write("ожидался объект {ключ: причина}\n")
+    raise SystemExit(2)
+for k, v in data.items():
+    reason = str(v).strip()
+    if not reason:
+        sys.stderr.write("%s: объявление БЕЗ причины\n" % k)
+        raise SystemExit(3)
+    sys.stdout.write("%s\t%s\n" % (k, reason))
+PYNA
+)
+    na_rc=$?
+    if (( na_rc != 0 )); then
+      printf '%s✗ %s не применён:%s\n' "$red" "$NA_FILE" "$reset" >&2
+      printf '%s\n' "$na_out" | sed 's/^/  /' >&2
+      printf 'Исключение без причины исключением не является (карта ролей\n' >&2
+      printf '§Применимость): «не думали» и «подумали и нет» обязаны различаться\n' >&2
+      printf 'в тексте, а не в тишине.\n' >&2
+      exit 1
+    fi
+    na_reasons="$na_out"
+  fi
+fi
+
+# Причина исключения по ключу `<скрипт>` или `<скрипт>:<правило>`; пусто — нет.
+na_reason() {
+  [[ -n "$na_reasons" ]] || return 1
+  local hit
+  hit=$(printf '%s
+' "$na_reasons" | awk -F'	' -v k="$1" '$1 == k { print $2; exit }')
+  [[ -n "$hit" ]] || return 1
+  printf '%s' "$hit"
+}
+
 not_wired_reason() {
   case "$1" in
     check_diff_coverage.sh)
@@ -111,207 +196,9 @@ if (( ${#gates[@]} == 0 )); then
   exit 1
 fi
 
-unwired=()
-unwired_rules=()
-exempted=0
-rules_checked=0
-
-# Все правила, РЕАЛЬНО вызванные в конфигах — собираем один раз и сравниваем
-# точно (`grep -qxF`). Первая версия проверяла каждое имя anchored-регуляркой
-# `--rule[[:space:]]+$rule([[:space:]]|$|")` и давала ложные срабатывания на
-# подключённых правилах: `$` внутри группы ERE ведёт себя по-разному в
-# реализациях grep — тот же класс, что §3.1a про замер портируемости.
-wired_rules=$(grep -ohsE -- '--rule[[:space:]]+[A-Za-z0-9_-]+' "${CONFIGS[@]}" 2>/dev/null \
-  | sed -E 's/^--rule[[:space:]]+//' | sort -u)
-for path in "${gates[@]}"; do
-  base=$(basename "$path")
-  if reason=$(not_wired_reason "$base"); then
-    printf '  ○ %-30s не подключён осознанно: %s\n' "$base" "$reason"
-    exempted=$((exempted + 1))
-    continue
-  fi
-  # -F: имя содержит точку, как regex она матчила бы лишний символ.
-  if ! grep -qsF -- "$base" "${CONFIGS[@]}"; then
-    unwired+=("$base")
-    continue
-  fi
-
-  # --- Гранулярность ПРАВИЛА, а не файла (полевая находка F7).
-  # Многоправильный скрипт считался подключённым, если в конфиге упомянут хотя
-  # бы один его вызов. Правило `unstructured-log` прожило так целый релиз: было
-  # в каталоге §3, в таблице §3.1 и в теле скрипта — и ни в одном конфиге.
-  #
-  # Поддержку флага определяем ГРЕПОМ, и только потом исполняем. Первая версия
-  # этой проверки запускала `--list-rules` у каждого скрипта подряд — и повесила
-  # мета-гейт: он вызвал сам себя (он тоже check_*.sh) и ушёл в рекурсию, а
-  # `check_deps_audit.sh` при таком «опросе» полез бы в сеть. Опрос обязан быть
-  # безопасным: только те скрипты, которые флаг объявили.
-  if [[ "$base" != "$(basename "${BASH_SOURCE[0]}")" ]] \
-     && grep -qsF -- '--list-rules' "$path"; then
-    case "$path" in
-      *.py) rules=$(python3 "$path" --list-rules 2>/dev/null) ;;
-      *)    rules=$(bash "$path" --list-rules 2>/dev/null) ;;
-    esac
-    while IFS= read -r rule; do
-      [[ -n "$rule" ]] || continue
-      rules_checked=$((rules_checked + 1))
-      if ! printf '%s\n' "$wired_rules" | grep -qxF -- "$rule"; then
-        unwired_rules+=("$base --rule $rule")
-      fi
-    done < <(printf '%s\n' "$rules")
-  fi
-done
-
-# Обратная сторона: конфиг ссылается на скрипт, которого нет.
-#
-# Ссылка ПОД ОХРАНОЙ `[[ -f … ]]` пропускается. `merge_guard.sh` вызывает
-# опциональные слои именно так — `[[ -f scripts/okf_sync_gate.py ]] && run_gate …`, —
-# потому что контур разворачивается послойно (AGENT_STACK §2.C прямо называет
-# конфигурацию без OKF рабочей, а CQG §5 шаг 9 ставит merge_guard внутри ② — до ③).
-# Без этого исключения мета-гейт был НАВСЕГДА красным в разрешённой конфигурации
-# ①②④: ругался на опциональный скрипт опционального слоя, который уже защищён
-# охраной. Это §4.3b случай 1 — «гейт ругается на то, чего проверять не должен», а
-# дальше по тому же §4.3b такой гейт сначала бесит, потом его снимают. Нашло восьмое
-# развёртывание, в момент когда ② уже стоял, а ③ ещё нет.
-missing=()
-while IFS= read -r ref; do
-  [[ -n "$ref" ]] || continue
-  [[ -e "$ref" ]] && continue
-  # Охрана в той же строке, где ссылка. Признаются ВСЕ ходовые формы:
-  # `[[ -f X ]]` (bash), `[ -f X ]` (POSIX) и `test -f X`, с флагами -f/-x/-e.
-  #
-  # lab-12: признавалась только двойная скобка, а §8.3 этого же канона
-  # поставляет `if [ -f scripts/okf_sync_gate.py ]; then` — одинарную, потому что
-  # `run:` в GitHub Actions пишут в POSIX-стиле. В полном развёртывании дефект
-  # МАСКИРУЕТСЯ: грепа ищет по всем конфигам сразу, и двойная скобка из
-  # `merge_guard.sh` закрывает ссылку, найденную в workflow. Виден он там, где
-  # merge_guard не развёрнут или форма другая, — и тогда мета-гейт красен на
-  # конфигурации ①②④ без OKF, которую AGENT_STACK §2.C прямо называет рабочей.
-  # То есть F6 второй раз: правку сделали на форму, а не на свойство «ссылка
-  # защищена проверкой существования».
-  guard="(\[\[?[[:space:]]+-[fxe][[:space:]]+\"?${ref//\//\\/}\"?[[:space:]]+\]\]?"
-  guard="$guard|test[[:space:]]+-[fxe][[:space:]]+\"?${ref//\//\\/}\"?)"
-  if grep -qhsE -- "$guard" "${CONFIGS[@]}" 2>/dev/null; then
-    printf '%s  ○  %s: опционален (вызов под охраной -f) — слой не развёрнут%s\n' \
-      "$yellow" "$ref" "$reset"
-    continue
-  fi
-  missing+=("$ref")
-done < <(grep -ohsE 'scripts/[A-Za-z0-9_/.-]+\.(sh|py)' "${CONFIGS[@]}" | sort -u)
-
-# --- Незаполненный шаблон в КОНФИГЕ контура ---------------------------------
-# Для полей STATUS канон это проверяет (`is_placeholder` в delivery_check), а для
-# извлечённых конфигов не проверял ничего — и плейсхолдер доезжал до падения
-# ЧУЖИМИ СЛОВАМИ. Развёртывание 2026-07-31: в `backend/.importlinter` остался
-# `<pkg>` из шаблона, и `lint-imports` сказал «Could not find package '<pkg>'» —
-# сообщение инструмента, из которого не видно, что это шаблонная дыра.
-#
-# Граница — где НАЧИНАЕТСЯ SHELL, а не где кончается расширение файла.
-# В shell `<` — это редирект, heredoc и сравнение, поэтому *.sh не сканируются.
-# Но shell живёт и ВНУТРИ yaml: блочные скаляры (`run: |`, `entry: |-`) в
-# workflow и pre-commit — вложенные программы, и `<путь>` в тексте их
-# diagnostic-сообщений — не поле шаблона. lab-11 (обе арки): гейт краснил
-# БАЙТ-В-БАЙТ нетронутый quality.yml этого же канона за `<путь>` внутри echo,
-# потому что границу держало расширение файла. Фильтруется ВЕСЬ скаляр:
-# правка «на слово путь» повторила бы класс, а не закрыла его.
-yaml_without_block_scalars() {
-  awk '
-    function ind(s,  p) { p = match(s, /[^ ]/); return p ? p - 1 : length(s) }
-    {
-      if (insc) {
-        if ($0 ~ /^ *$/) next          # пустая строка скаляр не закрывает
-        if (ind($0) > sci) next        # тело скаляра — вложенная программа
-        insc = 0                       # отступ вернулся — скаляр кончился
-      }
-      if ($0 !~ /^[ \t]*#/ && $0 ~ /:[ \t]*[|>][+-]?[ \t]*$/) { insc = 1; sci = ind($0) }
-      print                            # строка ключа — конфиг, сканируется
-    }' "$1"
-}
-# Интерпретатор для сканера плейсхолдеров ниже: `python3`, `python` — как у
-# соседних хуков. Нет ни одного — сканер молчит, и это честнее, чем grep,
-# который «работал» и не находил.
-PY_BIN=$(command -v python3 || command -v python || true)
-if [[ -z "$PY_BIN" ]]; then
-  printf '%s⚠ gate-coverage: питон не найден — проверка незаполненных шаблонов\n' "$yellow"
-  printf 'в конфигах ПРОПУЩЕНА (не «шаблонов нет»). Остальные проверки идут.%s\n' "$reset"
-fi
-placeholders=()
-for cfg in "${CONFIGS[@]}" backend/.importlinter .importlinter; do
-  [[ -f "$cfg" ]] || continue
-  case "$cfg" in
-    *.yaml|*.yml)                      content=$(yaml_without_block_scalars "$cfg" 2>/dev/null) ;;
-    *.ini|*.cfg|*.toml|*.importlinter) content=$(cat "$cfg" 2>/dev/null) ;;
-    *) continue ;;
-  esac
-  # `<слово>` или `<слово|слово>`: форма шаблона канона. Строки-комментарии тоже
-  # считаются: закомментированный плейсхолдер в конфиге — та же незаполненность.
-  #
-  # ⚠ ПОЧЕМУ ПИТОН, А НЕ `grep -oE`. Прежняя версия искала класс
-  # `[A-Za-zА-Яа-я_]`, и **кириллический диапазон в POSIX-классе зависит от
-  # локали**: GNU grep под `LC_ALL=C` (а это дефолт CI-раннеров) печатает
-  # `grep: Invalid collation character` и **не находит НИЧЕГО**. То есть проверка
-  # «незаполненный шаблон в конфиге» была мертва ровно в том слое, который канон
-  # называет единственным неподделываемым, — и молча: stderr улетал в лог, а
-  # сканер возвращал пустой список. Найдено красным CI этого репозитория
-  # (8 прогонов подряд), воспроизведено локально не удалось: у macOS-grep
-  # диапазон работает во всех локалях, поэтому «у меня зелено» держалось.
-  # `re` в питоне работает с Unicode независимо от локали. Брат того же класса в
-  # Delivery (`is_placeholder`) с самого начала на питоне — здесь остался
-  # нетронутый.
-  # Семантика НЕ унифицирована с Delivery намеренно: там `<pkg>` не находка
-  # (иначе `List<int>` и `<100ms` в прозе краснили бы), здесь — находка, потому
-  # что это дыра шаблона в конфиге (lab-10, `.importlinter`).
-  [[ -n "$PY_BIN" ]] || continue
-  while IFS= read -r hit; do
-    [[ -n "$hit" ]] && placeholders+=("$cfg: $hit")
-  done < <(printf '%s\n' "$content" | "$PY_BIN" -c '
-import re, sys
-pat = re.compile(r"<[A-Za-z\u0410-\u044f_][A-Za-z0-9\u0410-\u044f_|/. -]{0,30}>")
-print("\n".join(sorted({m for m in pat.findall(sys.stdin.read())})))
-' 2>/dev/null)
-done
-# exit НЕ здесь: находка уходит в общий разбор внизу, где STRICT=0 честно
-# смягчает ВСЕ красные ветки. До правки exit 1 стоял ВЫШЕ проверки STRICT,
-# и документированный soft-режим до этой ветки не доходил (lab-11 F5).
-
-if (( ${#unwired[@]} == 0 && ${#missing[@]} == 0 && ${#unwired_rules[@]} == 0 && ${#placeholders[@]} == 0 )); then
-  printf '%sgate-coverage: OK%s — %d скрипт(ов), подключено %d, осознанно нет %d; правил сверено %d (%d конфиг(ов))\n' \
-    "$green" "$reset" "${#gates[@]}" "$(( ${#gates[@]} - exempted ))" "$exempted" \
-    "$rules_checked" "${#CONFIGS[@]}"
-  exit 0
-fi
-
-# Циклы под защитой (( ${#arr[@]} )): в bash 3.2 — штатном на macOS — раскрытие
-# пустого массива "${arr[@]}" падает по `set -u`, даже если массив объявлен.
-if (( ${#unwired[@]} )); then
-  for b in "${unwired[@]}"; do
-    printf '%s  ✗  %s: скрипт есть, но НЕ подключён (pre-commit / CI / merge_guard)%s\n' "$red" "$b" "$reset" >&2
-  done
-fi
-if (( ${#missing[@]} )); then
-  for m in "${missing[@]}"; do
-    printf '%s  ✗  %s: упомянут в конфиге, но файла нет%s\n' "$red" "$m" "$reset" >&2
-  done
-fi
-if (( ${#unwired_rules[@]} )); then
-  for r in "${unwired_rules[@]}"; do
-    printf '%s  ✗  %s: ПРАВИЛО не подключено (скрипт подключён, это правило — нет)%s\n' \
-      "$red" "$r" "$reset" >&2
-  done
-fi
-if (( ${#placeholders[@]} )); then
-  printf '%sERROR%s: незаполненный шаблон в конфиге контура — процедура развёрнута наполовину:\n' \
-    "$red" "$reset" >&2
-  for p in "${placeholders[@]}"; do printf '  ✗  %s\n' "$p" >&2; done
-  printf 'Подставь значения своего проекта. Иначе инструмент упадёт своими словами\n' >&2
-  printf '(«Could not find package «<pkg>»»), и шаблонная дыра будет неотличима от бага.\n' >&2
-fi
-
-if [[ "$STRICT" == "0" ]]; then
-  printf '%sgate-coverage: WARNING (STRICT=0)%s\n' "$yellow" "$reset" >&2
-  exit 0
-fi
-printf '\n%sERROR%s: гейт без подключения = гейта нет. Впиши его в `.pre-commit-config.yaml`\n' "$red" "$reset" >&2
-printf 'или в CI-шаг, либо объяви исключение с причиной в not_wired_reason() этого скрипта.\n' >&2
-printf 'Сверься с таблицей §3 построчно — не собирай конфиг «по смыслу».\n' >&2
-exit 1
+# Части лежат рядом (`cqg@1.86`, планка 300 строк §9.1a п.5). SCRIPT_DIR
+# резолвится ДО `cd` в корень: `BASH_SOURCE` относителен каталога вызова.
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/gate_coverage_roles.sh"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/gate_coverage_template.sh"

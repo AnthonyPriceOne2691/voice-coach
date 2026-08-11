@@ -10,6 +10,7 @@ Usage:
   * yaml-блоки    -> yaml.safe_load (или запрет табов, если PyYAML нет)
   * сбалансированность ``` в каждом файле
   * версии в шапках канонов == таблица §1 в AGENT_STACK.md
+  * объявленная стоимость чтения == измеренная (selftest_sizes, допуск ±10%)
 
 Exit 0 = всё чисто. Exit 1 = хоть один блок не парсится / версии разошлись.
 """
@@ -21,6 +22,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+import selftest_sizes
 
 CANONS = (
     "AGENT_STACK.md",
@@ -293,6 +296,27 @@ def main() -> int:
         for problem in broken_tables(text):
             failures.append(f"{name}: таблица не отрендерится — {problem}")
         print(f"{name}: {checked} executable block(s) checked")
+
+    # Объявленная стоимость чтения против измеренной. Числа, по которым агент
+    # решает, что НЕ открывать, до stack-map@1.43 расходились с фактом в 4.6 раза
+    # и противоречили друг другу — механики, которая бы это ловила, не было.
+    sizes: dict[str, tuple[int, int, int]] = {}
+    last_sections: dict[str, str] = {}
+    for name in CANONS:
+        path = root / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        sizes[name] = selftest_sizes.measure(text)
+        last = selftest_sizes.last_section(text)
+        if last:
+            last_sections[name] = last
+        failures += [f"стоимость чтения — {p}" for p in
+                     selftest_sizes.check_file(name, text)]
+    smap = root / CANONS[0]
+    if smap.is_file():
+        failures += [f"стоимость чтения — {p}" for p in selftest_sizes.check_map(
+            smap.read_text(encoding="utf-8"), sizes, last_sections)]
 
     heads, table = declared_versions(root)
     for layer, ver in heads.items():
