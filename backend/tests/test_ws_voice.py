@@ -230,8 +230,9 @@ def test_disconnect_without_end_session_finishes_flow(tmp_path: Path) -> None:
             # выходим из ws-контекста БЕЗ end_session — браузер закрыли, сеть упала
 
     row = fetch_interview(container.settings.database_url, session_id)
-    assert row is not None
-    assert row.status == "in_progress"
-    assert row.ended_at is not None
-    # транскрипт интро уже на диске: flush per turn, а не в конце сессии
-    assert json.loads(row.transcript_json)[0]["role"] == "agent"
+    assert row is not None  # B1
+    assert row.status == "in_progress"  # B1
+    # B1/B3: ровно это падало до фикса — уборку обрывали, ended_at оставался пустым
+    assert row.ended_at is not None  # B1, B3
+    # B1: транскрипт интро уже на диске, flush per turn, а не в конце сессии
+    assert json.loads(row.transcript_json)[0]["role"] == "agent"  # B1

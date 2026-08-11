@@ -25,7 +25,7 @@
        где отказ виден только на целевой среде: на macOS 0 из 60, на linux 6 из
        10. Поэтому исполнялся, а не обсуждался: прогоны в linux-контейнере до и
        после фикса, см. verify-report → «Исполнение рисковых путей». -->
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** reason=в summary/service.py добавлен только aclose() — ожидание фоновых задач при гашении; инвариант D-8 (концепт knowledge/engineering/model-split.md) не тронут: модели задаются типизированным конфигом, вывод R1 идёт через strip_thinking, токен-бюджеты summary отдельные by=human:anthony at=2026-08-12
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** прогоны `CI` и `quality` на `main` зелёные БЕЗ подавления
