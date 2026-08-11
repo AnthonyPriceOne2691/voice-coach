@@ -35,22 +35,13 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
 import sys
 
-LOCKFILES = (
-    "poetry.lock",
-    "package-lock.json",
-    "Cargo.lock",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "Gemfile.lock",
-    "uv.lock",
-)
 
+from dependency_manifests import extractor_for
 
 def git(*args: str) -> str:
     """git с подавлением ошибок: пустая строка = не смог (файла нет в ревизии)."""
@@ -60,179 +51,6 @@ def git(*args: str) -> str:
         return ""
     return out.stdout if out.returncode == 0 else ""
 
-
-def _toml(text: str):
-    """dict или None. None = нет tomllib (python<3.11) либо TOML не парсится."""
-    try:
-        import tomllib
-    except ImportError:
-        return None
-    try:
-        return tomllib.loads(text)
-    except Exception:  # noqa: BLE001 -- битый TOML: пусть работает фолбэк
-        return None
-
-
-def _req_name(spec: str) -> str:
-    """'requests[socks] >= 2.0 ; python_version<"3.9"' -> 'requests'."""
-    head = spec.split(";")[0].strip()
-    m = re.match(r"[A-Za-z0-9._-]+", head)
-    return m.group(0).lower() if m else ""
-
-
-def _toml_dep_names_fallback(text: str) -> set[str]:
-    """Без tomllib: только участки, относящиеся к зависимостям.
-
-    Сканировать весь файл нельзя: `name = "..."` в [project] попал бы в набор и
-    добавление любого поля метаданных читалось бы как новая зависимость.
-    """
-    out: set[str] = set()
-    in_dep_table = False
-    in_dep_array = False
-    for raw in text.splitlines():
-        line = raw.split("#")[0].strip()
-        if line.startswith("["):
-            in_dep_table = "dependencies" in line
-            in_dep_array = False
-            continue
-        if re.match(r"^(optional-)?dependencies\s*=", line):
-            in_dep_array = "]" not in line
-            for m in re.finditer(r'["\']([A-Za-z0-9._-]+)', line):
-                out.add(m.group(1).lower())
-            continue
-        if in_dep_array:
-            for m in re.finditer(r'["\']([A-Za-z0-9._-]+)', line):
-                out.add(m.group(1).lower())
-            if "]" in line:
-                in_dep_array = False
-            continue
-        if in_dep_table:
-            m = re.match(r"^([A-Za-z0-9._-]+)\s*=", line)
-            if m:
-                out.add(m.group(1).lower())
-    return out
-
-
-def names_pyproject(text: str) -> set[str]:
-    data = _toml(text)
-    if data is None:
-        return _toml_dep_names_fallback(text)
-    out: set[str] = set()
-    proj = data.get("project") or {}
-    for spec in proj.get("dependencies") or []:
-        out.add(_req_name(str(spec)))
-    for group in (proj.get("optional-dependencies") or {}).values():
-        for spec in group or []:
-            out.add(_req_name(str(spec)))
-    for group in (data.get("dependency-groups") or {}).values():
-        for spec in group or []:
-            if isinstance(spec, str):
-                out.add(_req_name(spec))
-    poetry = (data.get("tool") or {}).get("poetry") or {}
-    for key in ("dependencies", "dev-dependencies"):
-        out.update(n.lower() for n in (poetry.get(key) or {}))
-    for group in (poetry.get("group") or {}).values():
-        out.update(n.lower() for n in ((group or {}).get("dependencies") or {}))
-    out.discard("python")  # требование к рантайму, а не зависимость
-    return {n for n in out if n}
-
-
-def names_cargo(text: str) -> set[str]:
-    data = _toml(text)
-    if data is None:
-        return _toml_dep_names_fallback(text)
-    out: set[str] = set()
-    for key in ("dependencies", "dev-dependencies", "build-dependencies"):
-        out.update(n.lower() for n in (data.get(key) or {}))
-    for target in (data.get("target") or {}).values():
-        for key in ("dependencies", "dev-dependencies", "build-dependencies"):
-            out.update(n.lower() for n in ((target or {}).get(key) or {}))
-    return out
-
-
-def names_package_json(text: str) -> set[str]:
-    try:
-        data = json.loads(text)
-    except ValueError:
-        return set()
-    out: set[str] = set()
-    for key in (
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-    ):
-        section = data.get(key)
-        if isinstance(section, dict):
-            out.update(n.lower() for n in section)
-    return out
-
-
-def names_requirements(text: str) -> set[str]:
-    out: set[str] = set()
-    for raw in text.splitlines():
-        line = raw.split("#")[0].strip()
-        if not line or line.startswith("-"):  # -r / -e / --index-url
-            continue
-        name = _req_name(line)
-        if name:
-            out.add(name)
-    return out
-
-
-def names_go_mod(text: str) -> set[str]:
-    out: set[str] = set()
-    block = False
-    for raw in text.splitlines():
-        line = raw.split("//")[0].strip()
-        if line.startswith("require") and line.endswith("("):
-            block = True
-            continue
-        if block:
-            if line == ")":
-                block = False
-            elif line:
-                out.add(line.split()[0].lower())
-            continue
-        if line.startswith("require "):
-            rest = line[len("require ") :].split()
-            if rest:
-                out.add(rest[0].lower())
-    return out
-
-
-def names_swift(text: str) -> set[str]:
-    out: set[str] = set()
-    for m in re.finditer(
-        r'\.package\s*\(\s*(?:name:\s*"([^"]+)"|url:\s*"([^"]+)")', text
-    ):
-        name = m.group(1) or (m.group(2) or "").rstrip("/").rsplit("/", 1)[-1]
-        if name.endswith(".git"):
-            name = name[:-4]
-        if name:
-            out.add(name.lower())
-    return out
-
-
-EXTRACTORS = (
-    ("pyproject.toml", names_pyproject),
-    ("Cargo.toml", names_cargo),
-    ("package.json", names_package_json),
-    ("go.mod", names_go_mod),
-    ("Package.swift", names_swift),
-)
-
-
-def extractor_for(path: str):
-    base = path.rsplit("/", 1)[-1]
-    if base in LOCKFILES:
-        return None
-    for name, fn in EXTRACTORS:
-        if base == name:
-            return fn
-    if base.startswith("requirements") and base.endswith(".txt"):
-        return names_requirements
-    return None
 
 
 def declared(status: str) -> tuple[set[str], list[str]]:
@@ -257,22 +75,16 @@ def declared(status: str) -> tuple[set[str], list[str]]:
     return ok, malformed
 
 
-def main() -> int:
-    base = os.environ.get("BASE", "origin/main")
-    strict = os.environ.get("STRICT", "1") != "0"
-    root = git("rev-parse", "--show-toplevel").strip()
-    if root:
-        os.chdir(root)
 
-    if not git("rev-parse", "--verify", "--quiet", base).strip():
-        # Честный WARNING, а не тишина: тот же приём, что в check_ci_status.sh.
-        print(f"WARNING: new-dependency: ref '{base}' недоступен — гейт пропущен")
-        return 0
+def scan_manifests(merge_base: str) -> tuple[list[str], int]:
+    """→ (что появилось нового, сколько манифестов проверено).
 
-    merge_base = git("merge-base", base, "HEAD").strip() or base
+    Манифест, которого в базе НЕ БЫЛО, даёт одну находку — путь целиком, а не по
+    пакету на строку: появление файла это ОДНО решение, иначе первый коммит с
+    тридцатью зависимостями требовал бы тридцати строк в STATUS.
+    """
     findings: list[str] = []
     checked = 0
-
     for path in git("ls-files").splitlines():
         fn = extractor_for(path)
         if fn is None:
@@ -281,19 +93,15 @@ def main() -> int:
         head_text = git("show", f"HEAD:{path}")
         base_text = git("show", f"{merge_base}:{path}")
         if not base_text.strip():
-            # Манифеста не было: это ОДНО решение, а не N. Иначе первый коммит с
-            # тридцатью зависимостями требовал бы тридцати строк в STATUS.
             if head_text.strip():
                 findings.append(path.lower())
             continue
-        for name in sorted(fn(head_text) - fn(base_text)):
-            findings.append(name)
+        findings.extend(sorted(fn(head_text) - fn(base_text)))
+    return findings, checked
 
-    print(f"new-dependency: манифестов проверено {checked}, база {merge_base}")
-    if not findings:
-        print("new-dependency: OK — новых прямых зависимостей нет")
-        return 0
 
+def report(findings: list[str], strict: bool) -> int:
+    """Сверка находок с объявлениями в STATUS и починка словами."""
     status = ""
     try:
         with open("delivery/active/STATUS.md", encoding="utf-8") as fh:
@@ -327,6 +135,27 @@ def main() -> int:
         print("WARNING (STRICT=0)", file=sys.stderr)
         return 0
     return 1
+
+
+def main() -> int:
+    base = os.environ.get("BASE", "origin/main")
+    strict = os.environ.get("STRICT", "1") != "0"
+    root = git("rev-parse", "--show-toplevel").strip()
+    if root:
+        os.chdir(root)
+
+    if not git("rev-parse", "--verify", "--quiet", base).strip():
+        # Честный WARNING, а не тишина: тот же приём, что в check_ci_status.sh.
+        print(f"WARNING: new-dependency: ref '{base}' недоступен — гейт пропущен")
+        return 0
+
+    merge_base = git("merge-base", base, "HEAD").strip() or base
+    findings, checked = scan_manifests(merge_base)
+    print(f"new-dependency: манифестов проверено {checked}, база {merge_base}")
+    if not findings:
+        print("new-dependency: OK — новых прямых зависимостей нет")
+        return 0
+    return report(findings, strict)
 
 
 if __name__ == "__main__":

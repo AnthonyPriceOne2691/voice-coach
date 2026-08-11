@@ -70,12 +70,17 @@ const w=r.reduce((a,f)=>a+f.warningCount,0);
 const errs=r.filter(f=>f.errorCount>0)
   .map(f=>f.errorCount+":"+f.filePath.split("/frontend/").pop())
   .sort();
-console.log(w);console.log(errs.join("\n"));
+console.log(w);console.log("files="+r.length);console.log(errs.join("\n"));
 }catch{console.log("");}})'
 }
 
 report=$(current_report)
 count=$(printf '%s\n' "$report" | head -1)
+# Число ПРОСМОТРЕННЫХ файлов — отдельной строкой `files=N`. Под фильтр ошибок
+# (`^[0-9]+:`) она не подходит, поэтому разбор ниже её не заметит, а формат
+# снимка остался прежним.
+seen=$(printf '%s\n' "$report" | sed -n 's/^files=//p' | head -1)
+seen=${seen:-0}
 err_lines=$(printf '%s\n' "$report" | tail -n +2 | grep -E '^[0-9]+:' || true)
 if [[ -z "$count" ]]; then
   printf '%sERROR%s: не удалось посчитать eslint warnings (пустой/битый JSON-вывод eslint).\n' "$red" "$reset"
@@ -138,6 +143,18 @@ else
   # Совпадение со снимком — тоже путь, и он обязан себя назвать (§6): молчаливый
   # exit 0 здесь неотличим от «eslint не запускался вообще». Тот же класс, что у
   # ast-гейта; найден тремя арками пятого развёртывания.
-  printf '%seslint-warnings: OK%s — warnings %d, снимок %d\n' "$green" "$reset" "$count" "$baseline"
+  # «warnings 0» доказывает вердикт, но НЕ доказывает, что смотрели: ноль
+  # предупреждений на ноле файлов выглядит точно так же. §6 требует число
+  # просмотренного от каждого гейта формы, и ратчет — не исключение. Полевой
+  # аудит: три хука фронта стояли с шаблонной маской, каталога такого нет, и все
+  # трое печатали успех, не увидев ни одного файла.
+  if [[ "$seen" == "0" ]]; then
+    printf '%seslint-warnings: 0 файлов просмотрено%s — проверь LINT_FE_DIR и маску\n' \
+      "$yellow" "$reset"
+    printf 'хука (§6): ноль предупреждений на непросмотренном — не «чисто».\n'
+    exit 0
+  fi
+  printf '%seslint-warnings: OK%s — просмотрено %s файл(ов), warnings %d, снимок %d\n' \
+    "$green" "$reset" "$seen" "$count" "$baseline"
 fi
 exit 0

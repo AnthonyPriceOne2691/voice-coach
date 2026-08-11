@@ -1,0 +1,43 @@
+{
+  "_": "CQG §5.5. Что в этом проекте изменено ПРОТИВ канона и почему. Читается contour_doctor.py (ключ — путь от корня репо или имя файла). Поле changed обязательно: без него «адаптирован» не отвечает на вопрос «что именно портировать», и обновление снова становится диффом против канона. Запись, у которой тело СОВПАЛО с каноном, — устарела: доктор скажет это прямо, снимайте её.",
+
+  ".pre-commit-config.yaml": {
+    "reason": "прод-Python лежит в backend/app, а не в каноническом backend/features: без env в каждом entry: гейты уходят в дефолт и зеленеют, не видя ни одного файла (§6)",
+    "changed": "у каждого скрипт-хука entry: начинается с env <нужные гейту переменные>; у grep/ast/file-length префикс СУЖЕН до LINT_PY_SRC (+LINT_LENGTH_GLOBS), иначе корнем области становится весь backend и backend/tests попадают в знаменатель доктора; хвостом добавлены свои pre-push хуки проекта: canon-vendor (вариант C §7.1), smoke-evals, delivery-gate, baseline-ratchet, new-dependency"
+  },
+
+  ".github/workflows/quality.yml": {
+    "reason": "backend живёт на uv+pyproject, а канонный шаблон ставит зависимости через pip и backend/requirements-dev.txt; поведенческие гейты (pytest/mypy/ruff) исторически живут в ci.yml — сознательное перекрытие, записано в STACK-ACCEPTANCE",
+    "changed": "шаги установки: astral-sh/setup-uv + uv sync --all-extras вместо python -m venv/pip install -r; env путей backend/app и app; свой шаг Canon vendor + stack selftest (роли в каноне нет); джоба delivery ставит зависимости для smoke-оракулов. Из канона 2.01 портированы: checkout/setup-python/setup-node @v7 с вычисляемым cache:, шаг «Инструменты гейтов на месте», --verbose у pre-commit и if: always() на независимых гейтах"
+  },
+
+  ".github/workflows/main-guard.yml": {
+    "reason": "канонный шаблон слушает workflow_run и только открывает issue; здесь джоба сама ставит зависимости и гоняет pre-commit, потому что хуки language: system зовут backend/.venv/bin/mypy и npx eslint — без установки джоба падала бы на «нет бинаря» и открывала ЛОЖНЫЙ issue (замер 2026-07-28)",
+    "changed": "триггер push вместо workflow_run; джоба verify вместо alert; шаги checkout/setup-python/setup-uv/setup-node + install deps перед pre-commit; issue открывается по steps.gates.outcome == failure"
+  },
+
+  "backend/.importlinter": {
+    "reason": "контракты слоёв описывают РЕАЛЬНУЮ раскладку проекта (app.main → api → summary/voice → orchestrator → contracts/llm/knowledge → storage → common/config), канон поставляет шаблон с <pkg> и выдуманными доменами",
+    "changed": "все три контракта переписаны под пакет app; добавлен контракт web-only-in-api (статический дубль grep-правила service-no-web); include_external_packages = True. Доктор этот файл с каноном не сверяет — запись для следующего обновления"
+  },
+
+  "delivery-gate-diff-base": {
+    "reason": "канонный pre-push брал --diff-base из @{u}: после первого push'а базой становится сама ветка, «дифф поставки» схлопывается в последний инкремент, и требование §12.5 «≥2 цитаты из диффа» становится арифметически невыполнимым (замер: против origin/main 27 файлов и 34 идентификатора, против origin/contour/2.01 — 1 и 1). CI судит тот же блок против цели мержа и зелёный — два оракула на одном правиле расходились по базе",
+    "changed": "в .pre-commit-config.yaml у хука delivery-gate: --diff-base берётся из refs/remotes/origin/HEAD с fallback на origin/main, а не из @{u}. Круг ответственности не меняется: circuit breakers на kind=bootstrap всё равно exempt, а фазовые артефакты судятся по всей поставке, как в CI"
+  },
+
+  "complexity_halves.sh": {
+    "reason": "фронт живёт в подкаталоге, а гейт зовёт eslint из корня репозитория: flat-config ищется от cwd, и eslint выходил кодом 2 — TS-половина роняла гейт вместо того, чтобы судить",
+    "changed": "добавлена функция _ts_config_flag() и её вызов в ts_counts(): eslint получает --config фронт-конфига, найденного по кандидатам; переопределяется через LINT_ESLINT_CONFIG. Отсутствие конфига поведения не меняет — тогда всё ровно как в каноне"
+  },
+
+  ".dependency-cruiser.cjs": {
+    "reason": "шаблон канона написан под фронт в корне репозитория (пути ^src/..., tsconfig.json рядом); здесь фронт в frontend/, а depcruise зовётся из корня, поэтому и пути правил, и путь к tsconfig считаются от корня",
+    "changed": "правила переписаны под слои этого фронта (types/ и lib/ — листья, hooks не тянет UI, components не знает страниц, no-circular), пути с префиксом ^frontend/src; tsConfig.fileName указывает на корневой tsconfig.depcruise.json, который наследует frontend/tsconfig.json и пере-базирует include (без этого TS18003 «No inputs were found»)"
+  },
+
+  "frontend/.prettierrc": {
+    "reason": "стиль проекта — двойные кавычки; канонный шаблон ставит singleQuote: true",
+    "changed": "singleQuote: false. Доктор этот файл с каноном не сверяет — запись для следующего обновления"
+  }
+}

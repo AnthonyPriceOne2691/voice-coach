@@ -1,19 +1,42 @@
-# Tasks — contour-bootstrap-1.61
+# Tasks
 
-- [x] Замер ДО (`contour_doctor.py`, инвентарь sha256 по 21 скрипту)
-- [x] `phase-2-acceptance` → `archive/2026-07-28-phase-2-acceptance` + пометка «не закрыта»
-- [x] `archive/INDEX.md` с уроком L1 («CI красный» — не одно состояние)
-- [x] STATUS новой поставки, `kind: bootstrap`
-- [x] 21 скрипт + `scripts/stack_selftest.py`
-- [x] `docs/canon/` и `Prepare/` + `SHA256SUMS` переснят
-- [x] `.pre-commit-config.yaml`: канон дословно + `canon-vendor`/`smoke-evals` поверх
-- [x] `pyproject`: шесть bandit-правил возвращены, пять комплексити в ignore, `norecursedirs`, `[tool.mutmut]`
-- [x] инструменты в манифест `dev`, `uv sync`, объявления `new_dependency`
-- [x] снимки: 6 grep + 4 ast + complexity + file_length + deps-audit
-- [x] `S311` закрыт подавлением с причиной на строке
-- [x] `npm audit fix` (два high), эскалация по `vitest` semver-major
-- [x] env вшит в 22 `entry:` — гейты не зависят от шелла
-- [x] baseline секретов по отслеживаемым файлам (не `--all-files`)
-- [x] 28 хуков при чистом env, 91 тест, 93.51%
-- [ ] `agent-permissions` в CONSTITUTION (WARNING `delivery_check`)
-- [ ] мерж в main через `merge_guard.sh` — ПОКА bootstrap активен (§7.2 шаг 6)
+- [x] T1. Worktree `contour/2.01` от `main`; дерево `main` не трогается
+- [x] T2. Извлекатель payload'а по трём правилам §5.0 (первый фенс после
+      заголовка · счёт глубины фенсов · фенс с отступом); сверка с
+      `stack_selftest`: 98 блоков, извлечено 74/74 файла
+- [x] T3. Новый `contour_doctor.py` + 7 частей — **первым**, иначе шаг 2 §5.5 молчит
+- [x] T4. Природа расхождений: сверка проекта со снимком `docs/canon@1.61`.
+      17 «разошедшихся» скриптов = устарели (перезаписать), 5 конфигов =
+      адаптированы (портировать), 1 файл совпал с каноном обеих версий
+- [x] T5. 28 отсутствующих файлов payload'а: 11 частей фазового гейта, 7 частей
+      доктора, половины mutation/complexity/ast/gate-coverage/dependency,
+      `check_layers_gate.sh`, `.dependency-cruiser.cjs`
+- [x] T6. Подстановка роли: `import-linter` -> `layers-gate` в конфиге (роль одна,
+      порог один; теперь её видит мета-гейт)
+- [x] T7. Портирование канонной дельты в `.pre-commit-config.yaml` (mypy по
+      кандидатам venv, сообщения secrets), `quality.yml` (actions@v7, вычисляемый
+      `cache:`, шаг «Инструменты гейтов на месте», `--verbose`, `if: always()`)
+- [x] T8. `adapted.json` / `canaries.json` / `not-applicable.json`
+- [x] T9. Сужение env-префикса у grep/ast/file-length: лишний `LINT_BE_DIR`
+      делал знаменателем области весь `backend`, включая `backend/tests`, —
+      маска гейта их не покрывает никогда, и доктор звал это `DEAD`
+- [x] T10. `backend/pyproject.toml`: снято `readme = "../README.md"` — на чистом
+      дереве `uv sync` падал, то есть гейты не стартовали
+- [x] T11. Перевендоривание снимка + обе части селфтеста + `SHA256SUMS`
+- [x] T12. Три записи о версии -> `delivery@1.68 · cqg@2.02 · okf@1.15`
+- [x] T13. Архив `contour-bootstrap-1.61` + `observed.md` (§13) + строка в `INDEX.md`
+- [x] T14. `STACK-ACCEPTANCE.md`: карта ролей, `checked_at`/`stale_after`, остатки
+- [x] T15. Решением человека (2026-08-11) вместо waiver'а починен код: 4 функции
+      фронта разделены, non-null assertion в `main.tsx` заменён проверкой,
+      6-строчный дубль History/Words вынесен в `ListState`; снимки сложности и
+      DRY вернулись к дореформенным значениям, ратчет зелёный без легализации
+- [x] T16. Решением человека поставлен `dependency-cruiser`: TS-половина гейта
+      слоёв судит (21 модуль), контракты фронта проверены воспроизведением
+- [x] T17. Приёмка: `pre-commit` 28/28, три вопроса §5.5, `pytest` 91/93.79%,
+      smoke 6/6, frontend build + 14 тестов; результаты — в `verify-report.md`
+- [x] T18. Ветка отправлена, PR #3 открыт, **прогон `quality` зелёный** на
+      `24368c3` (`gates` 1m0s + `delivery` 39s); исторический `CI` — тоже зелёный
+      за 45 с. По пути гейты поймали четыре вещи, которых локальный прогон не
+      видел, — разбор в `verify-report.md` и в `STACK-ACCEPTANCE.md`
+- [ ] T19. Подпись спеки человеком (`human_ok_spec: yes`) и мерж
+      `bash scripts/merge_guard.sh contour/2.01` — оба шага за человеком

@@ -101,33 +101,62 @@ export function useVoiceSession() {
     }, 50);
   }, [startRecorder]);
 
+  // Разбор входящих сообщений разложен по одному обработчику на тип. Раньше это
+  // была одна цепочка if/else с цикломатической сложностью 11 при пороге 10
+  // (гейт сложности, ts-половина). Ветвление осталось ровно одно — switch по
+  // типу; всё, что делает КАЖДЫЙ тип, живёт в своей функции и читается целиком.
+
+  const onServerState = useCallback(
+    (value: SessionState) => {
+      refs.current.serverState = value;
+      setState(value);
+      // Микрофон открывается только здесь: сервер сказал, что слушает.
+      if (value === "listening") startRecorder();
+    },
+    [startRecorder],
+  );
+
+  const onAudioChunk = useCallback((chunk: string) => {
+    const r = refs.current;
+    if (chunk) {
+      r.playing = true;
+      setPlayingUi(true);
+    }
+    void r.queue?.enqueue(chunk);
+  }, []);
+
+  const onServerError = useCallback(
+    (payload: { code: string; message: string; recoverable: boolean }) => {
+      setError(`${payload.code}: ${payload.message}`);
+      if (!payload.recoverable) setActive(false);
+    },
+    [],
+  );
+
+  const onSessionEnded = useCallback((payload: SessionEnded) => {
+    setActive(false);
+    setState("idle");
+    setEnded(payload);
+  }, []);
+
   const handleMessage = useCallback(
     (raw: string) => {
       const message = parseServerMessage(raw);
       if (!message) return;
-      const r = refs.current;
-      if (message.type === "state") {
-        r.serverState = message.payload.value;
-        setState(message.payload.value);
-        if (message.payload.value === "listening") startRecorder();
-      } else if (message.type === "transcript") {
-        setTranscript((prev) => [...prev, message.payload]);
-      } else if (message.type === "audio") {
-        if (message.payload.chunk_base64) {
-          r.playing = true;
-          setPlayingUi(true);
-        }
-        void r.queue?.enqueue(message.payload.chunk_base64);
-      } else if (message.type === "error") {
-        setError(`${message.payload.code}: ${message.payload.message}`);
-        if (!message.payload.recoverable) setActive(false);
-      } else if (message.type === "session_ended") {
-        setActive(false);
-        setState("idle");
-        setEnded(message.payload as SessionEnded);
+      switch (message.type) {
+        case "state":
+          return onServerState(message.payload.value);
+        case "transcript":
+          return setTranscript((prev) => [...prev, message.payload]);
+        case "audio":
+          return onAudioChunk(message.payload.chunk_base64);
+        case "error":
+          return onServerError(message.payload);
+        case "session_ended":
+          return onSessionEnded(message.payload as SessionEnded);
       }
     },
-    [startRecorder],
+    [onServerState, onAudioChunk, onServerError, onSessionEnded],
   );
 
   const start = useCallback(

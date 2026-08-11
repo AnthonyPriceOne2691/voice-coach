@@ -2,12 +2,83 @@ import { useState } from "react";
 import { MicLevelMeter } from "../components/MicLevelMeter";
 import { SessionStateRing } from "../components/SessionStateRing";
 import { TranscriptPanel } from "../components/TranscriptPanel";
-import { useVoiceSession } from "../hooks/useVoiceSession";
+import { useVoiceSession, type SessionEnded } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
 
 interface Props {
   reviewTarget: string | null;
   onReviewStarted: () => void;
+}
+
+// Две ветвистые части вынесены из страницы: что показать ПОСЛЕ конца сессии и
+// какая кнопка стоит в контролах. Обе — про состояние, а не про верстку, и обе
+// давали странице цикломатическую сложность 12 при пороге 10.
+
+function EndedCard({
+  ended,
+  onStartReview,
+  onSkipReview,
+}: {
+  ended: SessionEnded;
+  onStartReview: (interviewId: string) => void;
+  onSkipReview: (interviewId: string) => void;
+}) {
+  if (ended.session_kind === "review") {
+    return (
+      <div className="notice-banner">
+        Review saved. Henry is writing your full summary — it will appear in History shortly.
+      </div>
+    );
+  }
+  if (ended.next_action !== "offer_review") return null;
+  return (
+    <div className="modal-card">
+      <h3>Interview complete 🎉</h3>
+      <p>Review it together with your recruiter friend?</p>
+      <div className="controls">
+        <button className="btn btn-start" onClick={() => onStartReview(ended.session_id)}>
+          Start Review Together
+        </button>
+        <button className="btn btn-ghost" onClick={() => onSkipReview(ended.session_id)}>
+          Skip for now
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SessionControls({
+  active,
+  reviewTarget,
+  onEnd,
+  onStartReview,
+  onStartInterview,
+}: {
+  active: boolean;
+  reviewTarget: string | null;
+  onEnd: () => void;
+  onStartReview: (interviewId: string) => void;
+  onStartInterview: () => void;
+}) {
+  if (active) {
+    return (
+      <button className="btn btn-end" onClick={onEnd}>
+        End session
+      </button>
+    );
+  }
+  if (reviewTarget) {
+    return (
+      <button className="btn btn-start" onClick={() => onStartReview(reviewTarget)}>
+        Start Review Together
+      </button>
+    );
+  }
+  return (
+    <button className="btn btn-start" onClick={onStartInterview}>
+      Start Mock Interview
+    </button>
+  );
 }
 
 export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
@@ -40,41 +111,22 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
       {error && <div className="error-banner">{error}</div>}
       {notice && <div className="notice-banner">{notice}</div>}
 
-      {ended?.session_kind === "interview" && ended.next_action === "offer_review" && (
-        <div className="modal-card">
-          <h3>Interview complete 🎉</h3>
-          <p>Review it together with your recruiter friend?</p>
-          <div className="controls">
-            <button className="btn btn-start" onClick={() => startReview(ended.session_id)}>
-              Start Review Together
-            </button>
-            <button className="btn btn-ghost" onClick={() => void skipReview(ended.session_id)}>
-              Skip for now
-            </button>
-          </div>
-        </div>
-      )}
-
-      {ended?.session_kind === "review" && (
-        <div className="notice-banner">
-          Review saved. Henry is writing your full summary — it will appear in History shortly.
-        </div>
+      {ended && (
+        <EndedCard
+          ended={ended}
+          onStartReview={startReview}
+          onSkipReview={(id) => void skipReview(id)}
+        />
       )}
 
       <div className="controls">
-        {active ? (
-          <button className="btn btn-end" onClick={end}>
-            End session
-          </button>
-        ) : reviewTarget ? (
-          <button className="btn btn-start" onClick={() => startReview(reviewTarget)}>
-            Start Review Together
-          </button>
-        ) : (
-          <button className="btn btn-start" onClick={() => void start()}>
-            Start Mock Interview
-          </button>
-        )}
+        <SessionControls
+          active={active}
+          reviewTarget={reviewTarget}
+          onEnd={end}
+          onStartReview={startReview}
+          onStartInterview={() => void start()}
+        />
       </div>
 
       <TranscriptPanel entries={transcript} />

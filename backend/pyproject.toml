@@ -6,7 +6,11 @@ build-backend = "hatchling.build"
 name = "voice-interview-coach"
 version = "0.1.0"
 description = "Local voice mock technical interview coach"
-readme = "../README.md"
+# readme НЕ указывается: единственный README лежит в корне репозитория, а
+# hatchling запрещает путь наружу из каталога проекта («Readme path must be
+# within the project directory»). Пакет никуда не публикуется, поле — метаданные.
+# Замер: на чистом дереве (git worktree, CI) `uv sync --all-extras` падал на
+# editable-сборке, то есть гейты и smoke не стартовали вовсе.
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
