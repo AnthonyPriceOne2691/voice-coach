@@ -34,5 +34,9 @@
       слоёв судит (21 модуль), контракты фронта проверены воспроизведением
 - [x] T17. Приёмка: `pre-commit` 28/28, три вопроса §5.5, `pytest` 91/93.79%,
       smoke 6/6, frontend build + 14 тестов; результаты — в `verify-report.md`
-- [ ] T18. Зелёный прогон `quality` в CI на ветке; push, PR и мерж — ход человека
-      (`git push -u origin contour/2.01` → PR → `scripts/merge_guard.sh`)
+- [x] T18. Ветка отправлена, PR #3 открыт, **прогон `quality` зелёный** на
+      `24368c3` (`gates` 1m0s + `delivery` 39s); исторический `CI` — тоже зелёный
+      за 45 с. По пути гейты поймали четыре вещи, которых локальный прогон не
+      видел, — разбор в `verify-report.md` и в `STACK-ACCEPTANCE.md`
+- [ ] T19. Подпись спеки человеком (`human_ok_spec: yes`) и мерж
+      `bash scripts/merge_guard.sh contour/2.01` — оба шага за человеком
