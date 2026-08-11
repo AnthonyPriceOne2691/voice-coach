@@ -6,12 +6,13 @@
 - **kind:** bootstrap
 - **repro_test:** n/a reason=не bugfix; кода продукта поставка не меняет
 - **diagnosis:** n/a reason=не bugfix
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred reason=обновление шло по наряду человека
-  (`Prepare/UPDATE-ORDER.md`), спека собрана из него и подписи ещё не получала;
-  долг закрывается до handoff (§2.2b)
+- **human_ok_spec:** yes by=human:anthony at=2026-08-11
+  <!-- Спека собрана из наряда `Prepare/UPDATE-ORDER.md` и до подписи шла как
+       `deferred` (§2.2b). Долг закрыт на handoff, как §2.2b и требует, — а не
+       переписан задним числом в «всегда было yes». -->
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
