@@ -36,7 +36,7 @@
   железо, тракт ввода-вывода, миграции), дифф не задевает. Обратное было бы
   неправдой ровно про `backend/pyproject.toml`, поэтому он и исполнен: `uv sync
   --all-extras` на ЧИСТОМ дереве worktree, а не рассуждение о нём (§12.6)
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** reason=useVoiceSession.ts тронут только формой — цепочка if/else разложена на switch и четыре именованных обработчика ради порога сложности; порядок вызовов, момент открытия микрофона и инвариант echo-защиты (concept knowledge/engineering/echo-protection.md) не менялись by=human:anthony at=2026-08-11
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** `contour_doctor.py` версии `cqg@2.01` даёт `DEAD 0` на этом
