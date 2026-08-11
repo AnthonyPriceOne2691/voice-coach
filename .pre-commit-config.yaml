@@ -347,7 +347,18 @@ repos:
     hooks:
       - id: delivery-gate
         name: delivery phase gate + breakers (pre-push)
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo origin/main)"'
+        # ⚠ База — ЦЕЛЬ МЕРЖА, а не `@{u}`, и это замер, а не вкусовщина.
+        # Канонная форма брала upstream ветки: пока ветка не запушена, это
+        # `origin/main` и всё верно, но после первого push'а базой становится
+        # сама ветка, и «дифф поставки» схлопывается в последний инкремент.
+        # Замер (2026-08-11, эта поставка): против `origin/main` — 27 файлов,
+        # 34 идентификатора, 8 цитат в блоке ревью рисков; против
+        # `origin/contour/2.01` — 1 файл, 1 идентификатор, и требование §12.5
+        # «≥2 цитаты из диффа» становится НЕВЫПОЛНИМЫМ арифметически: в пуле
+        # один токен. CI при этом судит тот же блок против `origin/main`
+        # (`BASE: origin/${{ github.base_ref }}` в quality.yml) и зелёный —
+        # то есть два оракула на одном правиле расходились по базе.
+        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"'
         language: system
         stages: [pre-push]
         pass_filenames: false
