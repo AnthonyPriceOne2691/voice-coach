@@ -36,14 +36,19 @@
 Здесь вход и сборка; части лежат рядом и грузятся из каталога скрипта:
 
     doctor_core.py       вердикты, палитра, запуск подпроцесса (не знает соседей)
-    doctor_layout.py     каноны, принуждение, инструменты, снимки, чтение хуков
+    doctor_layout.py     принуждение, инструменты, снимки, тела конфигов, хуки
+    doctor_versions.py   что ЗАЯВЛЕНО: шапки канонов и записи `stack:` (2.02)
+    doctor_hooks.py      чтение `.pre-commit-config.yaml`
     doctor_areas.py      видит ли гейт код проекта (1.69): прогон и чтение числа
     doctor_area_verdicts.py  вердикт о площади: просмотрено N из M (1.80/1.88)
     doctor_canaries.py   данные проб и объявления проекта
     doctor_probes.py     сами пробы исполнением
 
-Развёртывание копирует ВСЕ шесть файлов: без любого из них доктор не стартует —
-и это лучше, чем стартовать без части проверок (§5.0 инвентарь).
+Развёртывание копирует ВСЕ девять файлов: без любого из них доктор не стартует —
+и это лучше, чем стартовать без части проверок (§5.0 инвентарь). Число здесь
+сверяется механикой (`test_ts_stack_coverage`): до `cqg@2.02` стояло «шесть» при
+восьми — счётчик разъехался на `cqg@1.98` и пережил две правки, потому что
+единственным его читателем был глаз.
 """
 
 from __future__ import annotations
@@ -68,10 +73,11 @@ from doctor_canaries import CanaryData
 from doctor_core import ABSENT, AUTO, COLOR, DEAD, ORDER, RESET, SKIP, TOOL, WEAK, run
 from doctor_hooks import HookReaders
 from doctor_layout import LayoutChecks
+from doctor_versions import VersionChecks
 from doctor_probes import ProbeChecks
 
 
-class Doctor(LayoutChecks, HookReaders, AreaChecks, AreaVerdicts,
+class Doctor(VersionChecks, LayoutChecks, HookReaders, AreaChecks, AreaVerdicts,
              CanaryData, ProbeChecks):
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -149,6 +155,7 @@ def main() -> int:
 
     doc = Doctor(root.resolve())
     doc.check_canons()
+    doc.check_stack_records()
     doc.check_enforcement()
     doc.check_tools()
     doc.check_snapshots()

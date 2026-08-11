@@ -82,8 +82,8 @@ cd frontend && npm run build && npm test
 ## Состояние (2026-07-28)
 
 - **Phase 0** ✅ · **Phase 1** ✅ · **Phase 2 🟡 code complete (2026-07-05), НЕ принята** — оркестраторы, sentence-gated Contract Enforcer, Mode 2, SQLite, History/Words UI, R1-summary + Vocabulary Bank; live e2e-smoke пройден (interview→review→summary→bank). Остались ручной UI-прогон и блокер ниже
-- **Канон-стек обновлён (2026-08-11)**: `delivery@1.68 · cqg@2.01 · okf@1.15` — ветка `contour/2.01`, ждёт push/PR человека. Вход — `docs/canon/AGENT_STACK.md`; активная поставка — `delivery/active/STATUS.md`; приёмка и остатки — `delivery/STACK-ACCEPTANCE.md`
-- **Обновление контура ≠ развёртывание**: порядок — CQG §5.5. Природа расхождения определяется сверкой со снимком `docs/canon/`, адаптации объявлены в `scripts/lint/adapted.json`; рядом `canaries.json` и `not-applicable.json`. Скрипты контура — **комплекты**: `contour_doctor.py` из 8 файлов, `delivery_check.py` из 11; без своей части вход не стартует
+- **Канон-стек обновлён (2026-08-11)**: `delivery@1.68 · cqg@2.02 · okf@1.15` — ветка `contour/2.01`, ждёт push/PR человека. Вход — `docs/canon/AGENT_STACK.md`; активная поставка — `delivery/active/STATUS.md`; приёмка и остатки — `delivery/STACK-ACCEPTANCE.md`
+- **Обновление контура ≠ развёртывание**: порядок — CQG §5.5. Природа расхождения определяется сверкой со снимком `docs/canon/`, адаптации объявлены в `scripts/lint/adapted.json`; рядом `canaries.json` и `not-applicable.json`. Скрипты контура — **комплекты**: `contour_doctor.py` из 9 файлов, `delivery_check.py` из 11; без своей части вход не стартует
 - Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
 - Backend: 91 тест / 93.8% coverage (гейт 85), contracts 100%, mypy strict; frontend: 14 тестов, eslint 0 errors, warning-ратчет держит снимок
 - **Гейты фронта ожили на 2.01**: у complexity и jscpd появились TS-половины, у роли слоёв — `dependency-cruiser` (конфиг в корне + `tsconfig.depcruise.json`, оба знают, что фронт в подкаталоге). До 2.01 фронт этими ролями не проверялся вовсе — зелёное значило «никто не смотрел»

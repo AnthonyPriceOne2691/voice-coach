@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Ratified:** 2026-07-28
-**Canon stack:** delivery@1.68 · cqg@2.01 · okf@1.15
+**Canon stack:** delivery@1.68 · cqg@2.02 · okf@1.15
 <!-- каноны вендорятся в docs/canon/ (AGENT_STACK.md §7.1, вариант C) -->
 **CI:** deployed (github-actions) merge-gate: tooling   <!-- §10.4 -->
 

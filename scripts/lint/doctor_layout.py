@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Раскладка контура: каноны, принуждение, инструменты, снимки, чтение хуков.
+"""Раскладка контура: принуждение, инструменты, снимки, тела конфигов, хуки.
 
 Часть доктора (`cqg@1.82`, вход — `contour_doctor.py`). Здесь вопросы «что
 развёрнуто и как настроено»: они дёшевы, ничего не запускают и отвечаются до
 любых проб. Сюда же чтение `.pre-commit-config.yaml` (`_hook_env`,
 `_hook_files_re`) — это тоже раскладка, а не суждение о гейте.
+
+Суждения о том, что проект ЗАЯВИЛ (версии в шапках и в записях `stack:`),
+переехали в `doctor_versions.py` (`cqg@2.02`): файл дошёл до 406 строк при
+планке 300, а границу между «что лежит» и «что заявлено» видно по данным —
+новый модуль не читает ни хуков, ни инструментов.
 """
 
 from __future__ import annotations
@@ -16,9 +21,6 @@ import shutil
 from pathlib import Path
 
 from doctor_core import ABSENT, AUTO, DEAD, SKIP, WEAK, _block_after, run
-
-CANONS = ("AGENT_STACK.md", "AGENT_DELIVERY_HARNESS.md",
-          "CODE_QUALITY_GATES.md", "OKF_KNOWLEDGE_BUNDLE.md")
 
 # Инструменты, на которых стоят гейты. `timeout` отдельно: он GNU coreutils и на
 
@@ -45,78 +47,6 @@ TOOLS = {
 
 
 class LayoutChecks:
-    # --- A. каноны -----------------------------------------------------------
-    def _declared_version(self, prefix: str) -> str:
-        """Версия слоя из строки `stack:` в STATUS — то, что проект ЗАЯВИЛ.
-
-        Заявление и снимок обязаны совпадать: расходятся — одно из двух врёт, и
-        какое именно, отсюда не видно, но молчать нельзя.
-        """
-        if not prefix:
-            return ""
-        st = self.root / "delivery" / "active" / "STATUS.md"
-        if not st.is_file():
-            return ""
-        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
-                      st.read_text("utf-8", errors="replace"))
-        return m.group(1) if m else ""
-
-    def _canon_version(self, p: Path) -> str:
-        """Версия из шапки канона; пусто — шапка не читается.
-
-        Шов по данным: наружу шло одно значение — строка версии, а не сам
-        match. Заодно файл читается ОДИН раз: обе формы шапки (`Canon version:`
-        у канонов, `Эта карта:` у карты стека) брали текст заново.
-        """
-        text = p.read_text("utf-8")
-        m = (re.search(r"\*\*Canon version:\*\*\s*`([^`]+)`", text)
-             or re.search(r"\*\*Эта карта:\*\*\s*`([^`]+)`", text))
-        return m.group(1) if m else ""
-
-    def _version_drift(self, current: str) -> str:
-        """Отстал ли СНИМОК канона от того, что проект ЗАЯВИЛ в STATUS.
-
-        Шов по данным: наружу блок отдавал одно имя — `drift`, строку-хвост
-        сообщения; `declared` живёт только здесь. Пустая строка вместо флага —
-        чтобы вызывающий не пересобирал текст из двух кусков.
-
-        Снимок сверяется с ЗАЯВЛЕННОЙ версией из STATUS. Иначе он —
-        единственный источник правды о самом себе: доктор читал шапку снимка и
-        считал её истиной, а проект тем временем развернул более новый payload.
-        Замер на живом проекте: скрипты 1.77, снимок 1.75, STATUS 1.77 — и никто
-        не сказал ни слова.
-
-        Это делает честным и диагноз расхождения скриптов: без такой проверки
-        совет «обнови скрипт из payload'а» вреден, когда на самом деле отстал
-        снимок, а не скрипт.
-        """
-        declared = self._declared_version(current.split("@")[0] if current else "")
-        if not current or not declared or declared == current:
-            return ""
-        return (f" — STATUS заявляет {declared}: снимок ОТСТАЛ от "
-                "развёрнутого payload, обнови docs/canon (§5 шаг 11)")
-
-    def check_canons(self) -> None:
-        # Каноны лежат ЛИБО в корне, ЛИБО в снимке `docs/canon/` — и второе не
-        # экзотика, а дефолт: §5 шаг 11 велит агенту выбирать вариант C, не
-        # спрашивая. Первая редакция смотрела только в корень и на правильно
-        # развёрнутом проекте печатала «файла нет — слой не развёрнут» по всем
-        # четырём. ABSENT не роняет прогон, поэтому ошибка тихая: доктор говорил
-        # «бедность» там, где всё на месте, и приёмка §6 читалась бы по нему.
-        for name in CANONS:
-            p = self.root / name
-            if not p.is_file():
-                p = self.root / "docs" / "canon" / name
-            if not p.is_file():
-                self.add(ABSENT, f"канон {name}", "файла нет — слой не развёрнут")
-                continue
-            version = self._canon_version(p)
-            where = "" if p.parent == self.root else f" ({p.parent.relative_to(self.root)})"
-            drift = self._version_drift(version)
-            self.add(AUTO if (version and not drift) else WEAK, f"канон {name}",
-                     (f"версия {version}" if version else "версия в шапке не читается")
-                     + where + drift)
-
     # --- B. места принуждения ------------------------------------------------
     def check_enforcement(self) -> None:
         cfg = self.root / ".pre-commit-config.yaml"

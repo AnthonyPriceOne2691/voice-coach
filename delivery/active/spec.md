@@ -1,4 +1,4 @@
-# Spec: обновление контура до `delivery@1.68 · cqg@2.01 · okf@1.15`
+# Spec: обновление контура до `delivery@1.68 · cqg@2.02 · okf@1.15`
 
 ## Problem
 
@@ -66,12 +66,12 @@
 
 | # | Вход | Ожидаемый выход |
 |---|---|---|
-| A1 | `python3 scripts/lint/contour_doctor.py` (доктор `cqg@2.01`, payload 2.01) | `DEAD 0` |
-| A2 | `python3 docs/canon/stack_selftest.py docs/canon` | `97 block(s), 0 failure(s)` |
+| A1 | `python3 scripts/lint/contour_doctor.py` (доктор `cqg@2.02`, payload 2.01) | `DEAD 0` |
+| A2 | `python3 docs/canon/stack_selftest.py docs/canon` | `98 block(s), 0 failure(s)` |
 | A3 | `bash scripts/lint/check_gate_coverage.sh` | `gate-coverage: OK`, подключено >= 12, у каждого неподключённого напечатана причина |
 | A4 | `bash scripts/lint/check_layers_gate.sh` (граничный: TS-инструмента нет) | python-половина судит, TS-половина — **честный пропуск**, а не «0 modules cruised» зелёным |
 | A5 | `python3 scripts/delivery_check.py --require-ci` (ошибочный вход: `stack:` в STATUS расходится со снимком) | ошибка с названием обеих версий, а не молчание |
-| A6 | `ls scripts/lint/doctor_*.py scripts/delivery_*.py` | 7 частей доктора и 11 частей фазового гейта на месте (комплект, а не файл) |
+| A6 | `ls scripts/lint/doctor_*.py scripts/delivery_*.py` | 9 частей доктора и 11 частей фазового гейта на месте (комплект, а не файл) |
 | A7 | `Canon version` в `docs/canon/*.md` против `stack:` в `STATUS.md` и `CONSTITUTION.md` | три одинаковые тройки версий, ни одной расходящейся |
 
 ## Non-functional
