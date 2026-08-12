@@ -17,5 +17,7 @@
       (`assert row.ended_at is not None` → `None`)
 - [x] T9. Замер после фикса: 10 прогонов сьюта на linux — 0 висов; полный сьют
       92 теста / 93.25%; ruff, ruff format, mypy strict, module size — зелёные
-- [ ] T10. Приёмка: pre-commit целиком, smoke-оракулы, `verify-report.md`
-- [ ] T11. PR, зелёные `quality` + `CI`, мерж через `merge_guard`
+- [x] T10. Приёмка: pre-commit целиком, smoke-оракулы, `verify-report.md`
+      + блок метрик (§9.2) с заполненными MANUAL-полями
+- [ ] T11. PR #4, `quality` + `CI` зелёные на `97e05ba`; остаётся
+      `human_ok_spec: yes` (подпись человека) и мерж через `merge_guard`
