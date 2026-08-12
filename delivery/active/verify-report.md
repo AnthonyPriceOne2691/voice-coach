@@ -113,6 +113,17 @@ content-type. Записано уроком.
 7. **Цепочка гейтов** не тронута; добавлен один тест внутри существующего
    `npm test`.
 
+## Правка вне подписанной спеки: три строки в `.gitignore`
+
+Спека их не объявляла. Основание: **процесс этой же поставки дважды уронил CI**
+по одной причине — шаблоны `backend/.venv/`, `frontend/node_modules/`,
+`data/models/` со слэшем совпадают только с каталогом, а прогон в worktree
+одалживает окружение симлинками (тем же приёмом, что `merge_guard`). Симлинки
+уезжали в коммит.
+
+Проверено `git check-ignore -v`: теперь каждый симлинк называет своё правило.
+Правка не меняет поведение продукта и не касается ни одного примера C1–C6.
+
 ## Spec coverage gaps
 
 - **C2 частично** — см. выше: UI не рендерит `ended_at`. Остаток наблюдаемости.
@@ -144,7 +155,7 @@ content-type. Записано уроком.
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — delivery/active/spec.md (новый оракул) |
 | implement_retries | **1** — тест читал исходники через `node:fs` и уронил `npm run build` (`Cannot find module 'node:fs'`, @types/node в проекте нет). Переписан на `?raw` самого Vite; сам фикс прокси переделке не подвергался |
-| verify_fails_before_green | заполняется после первого прогона CI на ветке |
+| verify_fails_before_green | **1** — первый прогон: все три джобы красные (`CI` и обе `quality`). Причина не в коде поставки: в коммит уехали симлинки одолженного окружения (`backend/.venv`, `data/models`, `frontend/node_modules`), и `uv sync` упал на `failed to create directory backend/.venv: File exists`. `.gitignore` ловил эти пути только со слэшем, то есть как каталоги. Исправлено в этой же поставке — тремя строками вне спеки |
 | est_token_or_cost | n/a — не измерялось; локальный инструмент, внешних платных вызовов нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
