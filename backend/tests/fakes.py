@@ -22,9 +22,14 @@ class FakeStt:
 class FakeTts:
     def __init__(self) -> None:
         self.synthesized: list[str] = []
+        #: Темп КАЖДОГО вызова, а не текущее значение настройки: «ключ записан»
+        #: и «синтез позван с этим числом» — разные утверждения, и проверять
+        #: надо второе (L20/L22).
+        self.scales: list[float | None] = []
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, *, length_scale: float | None = None) -> bytes:
         self.synthesized.append(text)
+        self.scales.append(length_scale)
         return b"WAV:" + text.encode()
 
 
@@ -34,6 +39,10 @@ class FakeLlm:
         self.last_messages: list[ChatMessage] | None = None
         self.last_model: str | None = None
         self.last_num_ctx: int | None = None
+        #: ВСЕ вызовы, а не последний: мета-ход проверяется утверждением
+        #: «просьба о темпе не дошла до модели ни разу», и разогрев в этот
+        #: журнал тоже попадает — он безобиден и виден.
+        self.calls: list[list[ChatMessage]] = []
 
     async def stream_chat(
         self,
@@ -44,6 +53,7 @@ class FakeLlm:
         max_tokens: int,
         num_ctx: int | None = None,
     ) -> AsyncIterator[str]:
+        self.calls.append(messages)
         self.last_messages = messages
         self.last_model = model
         self.last_num_ctx = num_ctx

@@ -11,6 +11,7 @@ from app.storage.db import Database
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
+from app.storage.turns import META_STATE
 from app.summary.service import SummaryService
 from app.summary.validate import SummaryInvalidError, extract_json, validate_summary
 from tests.fakes import ScriptedLlm
@@ -122,6 +123,34 @@ async def test_full_summary_stores_debrief_and_vocabulary(prompts: PromptLibrary
     # R1 with 16K ctx for the offline pass (doc 20)
     assert "INTERVIEW TRANSCRIPT" in llm.calls[0][1]["content"]
     assert "REVIEW TRANSCRIPT" in llm.calls[0][1]["content"]
+
+
+async def test_meta_turns_never_reach_the_summary_prompt(prompts: PromptLibrary) -> None:
+    """P9: просьба о темпе была, но она не реплика кандидата и не улика в разборе."""
+    db = Database("sqlite+aiosqlite:///:memory:")
+    await db.create_all()
+    interviews = InterviewRepository(db)
+    reviews = ReviewRepository(db)
+    await interviews.create("i1", interview_mode="m", persona="p")
+    await interviews.checkpoint(
+        "i1",
+        [
+            {"role": "user", "text": "I built a CRM.", "state": "CORE_QUEST"},
+            {"role": "user", "text": "Slower, please.", "state": META_STATE},
+            {"role": "agent", "text": "Sure, slowing down.", "state": META_STATE},
+        ],
+        {},
+    )
+    await reviews.create("r1", source_interview_id="i1", persona="rf")
+    await reviews.checkpoint("r1", [{"role": "agent", "text": "Q1 was strong."}], {})
+    llm = ScriptedLlm([[json.dumps(VALID)]])
+
+    await _service(llm, db, prompts).generate_full("i1", "r1")
+
+    sent = llm.calls[0][1]["content"]
+    assert "I built a CRM." in sent  # содержательное на месте
+    assert "Slower, please." not in sent
+    assert "Sure, slowing down." not in sent
 
 
 async def test_invalid_json_retries_with_error_hint(prompts: PromptLibrary) -> None:

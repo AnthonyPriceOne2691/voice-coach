@@ -30,16 +30,17 @@ class PiperTts:
             config_path=str(self._voice_path.with_suffix(".onnx.json")),
         )
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, *, length_scale: float | None = None) -> bytes:
         voice = await self._ensure_loaded()
-        return await asyncio.to_thread(self._synthesize_blocking, voice, text)
+        scale = self._length_scale if length_scale is None else length_scale
+        return await asyncio.to_thread(self._synthesize_blocking, voice, text, scale)
 
-    def _synthesize_blocking(self, voice: Any, text: str) -> bytes:
+    def _synthesize_blocking(self, voice: Any, text: str, length_scale: float) -> bytes:
         from piper import SynthesisConfig
 
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:
             voice.synthesize_wav(
-                text, wav_file, syn_config=SynthesisConfig(length_scale=self._length_scale)
+                text, wav_file, syn_config=SynthesisConfig(length_scale=length_scale)
             )
         return buffer.getvalue()

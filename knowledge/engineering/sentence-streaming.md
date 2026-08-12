@@ -7,6 +7,7 @@ tags: [voice, latency, tts]
 implementation:
   - backend/app/voice/turn_runner.py
   - backend/app/voice/tts_piper.py
+  - backend/app/voice/tts_paced.py
   - backend/app/voice/interview_flow.py
   - backend/app/voice/review_flow.py
   - backend/app/contracts/enforcer.py
@@ -29,6 +30,12 @@ implementation:
   это провал latency-гейта, а не «немного медленнее».
 - Изменение схемы стриминга = смена инварианта → нужна spec и human OK
   (`delivery/CONSTITUTION.md` §9).
+- **Темп речи — параметр каждого синтеза, а не константа процесса.** `length_scale`
+  живёт на шве `TextToSpeech` и приходит от сессии (`PacedTts`), потому что
+  пользователь меняет его голосом на лету (doc 04, мета-ходы). Голосовая модель
+  при этом остаётся одна на процесс: меняется число, а не загрузка ONNX.
+  Любое расширение коридора темпа требует **перезамера** latency-гейта: медленный
+  синтез удлиняет путь до первого звука, а порог 3.0 s — продуктовое требование.
 
 # Related
 
@@ -41,6 +48,7 @@ implementation:
 |---|---|
 | Цикл хода (сборка предложений) | `backend/app/voice/turn_runner.py` |
 | Синтез | `backend/app/voice/tts_piper.py` |
+| Темп сессии | `backend/app/voice/tts_paced.py` |
 | Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py` |
 | Per-sentence контракты | `backend/app/contracts/enforcer.py` |
 | Проигрывание на клиенте | `frontend/src/lib/audioQueue.ts` |

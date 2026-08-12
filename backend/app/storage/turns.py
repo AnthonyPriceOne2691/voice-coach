@@ -41,3 +41,28 @@ class TranscriptBuffer:
 
     def to_json_list(self) -> list[dict[str, Any]]:
         return [t.to_dict() for t in self.turns]
+
+
+#: Значение `state` для мета-ходов — просьб о темпе речи и ответа на них (doc 12).
+#: Такой ход попадает в транскрипт (он был, и пользователь его слышал), но не
+#: относится ни к какому вопросу: `question_id=None` уже исключает его из
+#: `build_segments`, а `is_meta` — из промпта суммаризации.
+META_STATE = "PACE_REQUEST"
+
+
+def append_meta(buffer: TranscriptBuffer, user_text: str, agent_text: str) -> None:
+    """Record a meta exchange: it happened, but it answers no question."""
+    buffer.append("user", user_text, state=META_STATE)
+    buffer.append("agent", agent_text, state=META_STATE)
+
+
+def is_meta(turn: dict[str, Any]) -> bool:
+    return turn.get("state") == META_STATE
+
+
+def last_agent_text(buffer: TranscriptBuffer) -> str:
+    """The agent's last spoken line — what "say that again" has to repeat."""
+    for turn in reversed(buffer.turns):
+        if turn.role == "agent":
+            return turn.text
+    return ""

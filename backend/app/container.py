@@ -54,7 +54,9 @@ def build_container(settings: Settings) -> Container:
         interviews=InterviewRepository(db),
         reviews=ReviewRepository(db),
         vocabulary=VocabularyRepository(db),
-        user_settings=SettingsRepository(db),
+        user_settings=SettingsRepository(
+            db, defaults={"speech_length_scale": settings.piper_length_scale}
+        ),
         interview_enforcer=ContractEnforcer(
             load_contract(settings.contracts_dir / "interview.contract.yaml")
         ),
