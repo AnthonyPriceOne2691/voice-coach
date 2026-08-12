@@ -1,67 +1,32 @@
-<style>
-@page {
-  margin: 0.55in 0.65in;
-}
-body {
-  color: #111;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10pt;
-  line-height: 1.25;
-}
-h1 {
-  font-size: 20pt;
-  margin-bottom: 0.1rem;
-}
-h2 {
-  border-bottom: 1px solid #ddd;
-  font-size: 12pt;
-  margin: 0.75rem 0 0.25rem;
-  padding-bottom: 0.1rem;
-}
-h3 {
-  font-size: 10.5pt;
-  margin: 0.55rem 0 0.15rem;
-}
-p {
-  margin: 0.2rem 0 0.35rem;
-}
-ul {
-  margin: 0.15rem 0 0.35rem;
-  padding-left: 1.1rem;
-}
-li {
-  margin-bottom: 0.12rem;
-}
-p, li, h1, h2, h3 {
-  -webkit-hyphens: none;
-  hyphens: none;
-  overflow-wrap: normal;
-  word-break: normal;
-}
-</style>
+<!-- Копия CV от 2026-08-11 из Other:Another/ANTON_ASPIDOV_CV_EN.md.
+     Обновляется вручную (docs/05). Блок <style> для PDF срезан.
+     ⚠ Часть цифр здесь ЗАНИЖЕНА против замера по репозиториям
+     (LinkBuilder 4,200+ против 7,393; Local Web Agent 380 против 409).
+     В промпт идёт profile_condensed.md с измеренными числами. -->
 
 # Anton Aspidov
 
-**LLM Application Engineer · AI Agent / Automation Engineer · Fullstack Internal Tools Builder**
+**AI / Fullstack Product Engineer (Builder) · LLM Applications · Internal Tools**
 
-Saint Petersburg, Russia · Open to remote / contract  
+Saint Petersburg, Russia · Fully remote · MSK daytime overlap  
 Telegram: `@AnthonyPriceOne` · Email: `anthonypriceone@gmail.com` · LinkedIn: `linkedin.com/in/anton-aspidov/` · English B2 · Russian Native
 
 ## Profile
 
-Fullstack engineer building **production LLM applications** and **internal B2B SaaS**: domain AI agents, tool-calling loops, workflow automation, CRM platforms, async Python backends, React operator UIs, job queues, and third-party integrations. I ship **applied AI systems** — not chat wrappers or ML research — with human-in-the-loop, structured outputs, evals, audit trails, and measurable business impact.
+Sole builder shipping **AI products from idea to production** — not “I know Cursor,” but systems operators use every day. Production LLM apps and internal B2B SaaS: tool-calling agents, HITL workflows, CRM platforms, async Python backends, React UIs, queues, and integrations.
 
-**Core practice:** modular **domain agents** inside a monolith — OpenAI **function calling** / tool-use loops (read + action tools), **agent orchestration** with bounded autonomy (`propose` → `auto`), **Agent Behavioral Contracts** (YAML runtime guardrails on every action), deterministic scoring cores with LLM only at pipeline gates, and **4,200+ tests** on internal products.
+**How I build with AI:** plan → agent (Cursor + Claude Code) → automated gates → live scenario → human merge. I own architecture, priorities, and production; the agent accelerates implementation under mechanical checks (style, types, size, secrets, tests). Red blocks merge.
 
-**Best-fit roles:** AI Automation Engineer, LLM Application Engineer, Applied AI Engineer, AI Workflow Engineer, Internal Tools Developer, Agentic AI Engineer (production systems).
+**Best-fit roles:** AI / fullstack product engineer (builder), LLM Application Engineer, AI Automation Engineer, Applied AI Engineer, Internal Tools Developer.
 
 ## Highlights
 
-- Built a production internal SaaS that reduced a **5-person outreach team to 1 operator** with CRM, queues, domain AI agents, and AI-assisted email workflows.
-- Shipped **production module agents** (Competitors, Mass Outreach) with tool catalogs, ABC gates, autonomous scheduled runs, and operator chat surfaces — beyond email bots.
-- Cut content preparation time **~5×** (10 min → 2 min per unit); **~120 hours saved monthly** at ~900 units/month.
-- **4,200+ backend tests**, contract/replay/golden scenarios, strict typing, CI/CD — engineering discipline on AI-powered internal products.
-- Designed reusable **Agent Behavioral Contracts** engine (preconditions, invariants, governance, recovery, drift) for safe LLM autonomy in production.
+- **Sole builder** of a production outreach SaaS: **5-person team → 1 operator** in ~**5 months** from zero to daily use; **~16k donors / ~15k links** under monitoring; **4,200+ tests**, diff-coverage ≥70%, red blocks merge.
+- Shipped **production domain agents** (prospecting, competitors, mass outreach, email AI) with tool catalogs, behavioral gates, scheduled autonomy, and HITL on deal-critical steps.
+- **Local Web Agent** (~3 weeks): multi-site research agent on-device — tool-calling + browser actions, HITL on CAPTCHA/login, **380 tests**, live-site findings turned into fixtures.
+- **Voice Interview Coach** (~2 weeks): local ASR → LLM → TTS loop under a **~3 s/turn** latency budget; exam + review modes.
+- **Lash Try-On** (~1 month, iOS): custom **Metal** renderer after SceneKit hit an image-quality ceiling; accepted with salon master on device.
+- Cut content preparation **~5×** (10 → 2 min/unit); **~120 hours/month** saved at ~900 units/month.
 
 ## Professional Experience
 
@@ -71,81 +36,76 @@ Fullstack engineer building **production LLM applications** and **internal B2B S
 *(within SEO & Content Project Manager role)*  
 August 2021 — Present · Remote
 
-Primary focus since 2024–2025: designing and shipping internal products for outreach, content, and SEO operations. Most tools are live MVPs in daily use.
+Primary focus since 2024–2025: designing and shipping internal products for outreach, content, and SEO operations. Most tools are live in daily operator use.
 
-- Architected and built **LinkBuilder SaaS** — end-to-end B2B platform with **multi-module AI agents**: SERP prospecting → outreach → payment tracking → placement monitoring (see Selected Projects).
-- Built **domain AI agents** (Competitors, Mass Outreach): OpenAI tool-calling loops, read/action tool catalogs, ABC behavioral gates per action, operator memory, autonomous scheduler runs.
-- Built **Event Content System** — Node.js pipeline + React CMS for sports/event content: match ingest, visual generation, AI image QA, run logs, operator workflows.
-- Built **SEO:Content Automation Toolkit** — plugin-style CLI pipelines for Google Workspace, SEO metadata, editorial QA, and Telegram notifications.
-- Implemented **LLM application workflows**: classification, structured JSON extraction, reply generation, hybrid rules+LLM pipeline gates, self-check quality gates, draft/autosend, prompt injection defense.
-- Stack: Python/FastAPI, **asyncio**/async SQLAlchemy, PostgreSQL, Redis/RQ, Node.js, React/TypeScript, Vite, Mantine, Docker, GitLab CI/CD.
-- Integrated OpenAI API, SendGrid (outbound + inbound webhooks), DataForSEO, Hunter, Ahrefs, Google Workspace APIs, SofaScore, Telegram Bot API.
-- Documented production policies: AI autonomy rules, deployment checklists, security notes, runbooks, replay/golden scenarios, and agent design specs.
+- **Sole builder** of **LinkBuilder** (internal outreach SaaS): architecture, HITL design, refactor waves (V1→V3), production ownership — SERP prospecting → outreach CRM → payments → placement monitoring.
+- Built **domain AI agents** (Competitors, Mass Outreach, Email AI): OpenAI tool-calling loops, read/action tools, behavioral contracts per action, operator memory, autonomous scheduler; ambiguous / money cases → human.
+- Enforced agent-friendly code discipline: hard **~500-line file limit**, feature modules, ratchet quality — so agents do not sprawl across the monolith.
+- Built **Event Content System** — Node.js pipeline + React CMS for sports/event content: match ingest, visual generation, AI image QA, run logs.
+- Built **SEO:Content Automation Toolkit** — plugin-style CLI pipelines for Google Workspace, SEO metadata, editorial QA, Telegram notifications.
+- Stack: Python/FastAPI, asyncio/async SQLAlchemy, PostgreSQL, Redis/RQ, Node.js, React/TypeScript, Vite, Mantine, Docker, GitLab CI/CD. Daily build tools: **Cursor + Claude Code**; production LLM: OpenAI API.
+- Integrations: OpenAI, SendGrid, DataForSEO, Hunter, Ahrefs, Google Workspace APIs, SofaScore, Telegram Bot API.
 
 **Measurable impact**
 
-- Link building ops: **5 FTE → 1 specialist** with internal SaaS and automation layer.
-- Content pipelines: **~80% less manual work** per unit; **~120 hours/month** saved at current volume.
-- SEO (domain context): grew organic traffic from ~30–40K to ~180K monthly visits (Ahrefs) for Brazil/Portugal markets.
+- Link building ops: **5 FTE → 1 specialist** with internal SaaS + automation.
+- Content pipelines: **~80% less manual work** per unit; **~120 hours/month** saved.
+- SEO (domain context): organic traffic ~30–40K → ~180K monthly visits (Ahrefs) for Brazil/Portugal markets.
 
 ## Selected Projects
 
-### LinkBuilder SaaS — Outreach & Link-Building Automation Platform
+### LinkBuilder — Internal Outreach Platform *(production · sole builder · ~5 mo · NDA code)*
 
-Production internal B2B SaaS. Goal: complete outreach-to-placement cycle with minimal human involvement (approval, not manual execution). Deployed on VPS with Docker; feature-layered backend (`features/{api,services,repository,models}`), service layer, strict typing, pre-commit hooks.
+End-to-end B2B SaaS: prospecting, CRM threads/campaigns, email AI, monitoring. Operators run the portfolio from one screen instead of inbox + spreadsheet chaos.
 
-**Stack:** Python 3.14, FastAPI, async SQLAlchemy, Alembic, Pydantic, React/TypeScript (Vite, Mantine), PostgreSQL, Redis/RQ, Docker. **Quality:** 4,200+ backend tests (~74% coverage), 280+ frontend tests, mypy strict, ruff/eslint.
+**Stack / quality:** Python/FastAPI, React/TypeScript, PostgreSQL, Redis/RQ, OpenAI · **4,200+** backend tests, 280+ frontend tests, mypy strict, CI gates, diff-coverage ≥70%.
 
-**Modules:**
-- **Core** — CRM: projects, donors, links, contacts, stop-lists, campaigns, incidents, Excel import, dashboard.
-- **Prospecting** — SERP via DataForSEO, mass RQ jobs, scoring gates (stop-list, purchase history, Ahrefs), keyword-cluster base collection.
-- **Monitoring** — placement checks (anchor, HTTP, noindex, canonical, sponsored, sitemap); mass runs up to 5,000 links (dedicated queue, browser pool, cancel/progress in CMS).
-- **Competitors** — auto-discovery, crawl, donor gap analysis; hybrid rules + LLM classification gates; **production domain agent** (tool-use loop, autonomous review/crawl orchestration).
-- **Mass Outreach** — campaign lifecycle, bulk sends, analytics; **operator copilot agent** (read-tools Q&A + action-tools via ABC gate).
-- **Email AI** — outbound/inbound outreach: letter generation, reply classification, condition extraction, payment requests, scheduled follow-ups; 30+ versioned prompts; multilingual threads.
+**Scale & modules:** ~16k donors · ~15k links monitored · auto prospecting (up to ~600 keywords / hundreds of candidates per run) · placement monitoring · competitor gap analysis · mass outreach copilot · email AI (draft / classify / HITL / autosend with injection defense).
 
-**Domain agent architecture (Pattern B — LLM as operator over deterministic core):**
-- **Tool calling / ReAct-style loops:** OpenAI function calling, read-tools (DB-grounded facts) + action-tools (mutations via same APIs as UI), multi-hop agent loop, numeric grounding verifier (model cannot invent stats).
-- **Agent orchestration:** Q&A mode, operator chat, scheduled autonomous runs (`propose` / `auto`), money-actions behind confirmation, operator preference memory.
-- **Agent Behavioral Contracts (ABC):** reusable YAML contract engine — preconditions, hard/soft invariants, governance budgets (Ahrefs/tokens), recovery loop, drift detection, audit trail on every agent action.
-- **LLM-in-pipeline gates (Pattern A):** site-type classifier, hybrid anchor classifier (rules → LLM batch → lexicon fallback); deterministic niche/affiliate scoring ($0 embeddings) in the core.
+**Agent pattern:** deterministic core + LLM at boundaries; tool-calling loops; bounded autonomy (`propose` → `auto`); Agent Behavioral Contracts (YAML guardrails, budgets, audit trail).
 
-**Email AI layer:** classify → generate → ABC evaluator → draft / autosend / HITL; prompt injection defense on inbound mail.
+### Local Web Agent — On-device research agent *(~3 weeks)*
 
-**Integrations:** DataForSEO, Hunter, SendGrid, Ahrefs, OpenAI, payment/CRM handoff.
+URLs + plain-language task → agent browses, compares, reports. **Zero data egress** — runs on Mac with local LLMs.
 
-**Portfolio (open):** `private-ai-knowledge-assistant` — RAG, tool calling, LangGraph labs, evals, tracing, ABC patterns (shareable demo codebase).
+- **6** research tools + browser actions (tool-calling, not one giant prompt); HITL on CAPTCHA and login.
+- Live-site bugs → tests: **7/9** findings closed with fixtures; **380 tests**.
+- **Stack:** FastAPI, React, Playwright, local LLMs.
+
+### Voice Interview Coach *(~2 weeks)*
+
+Local voice interview trainer: **ASR → LLM → TTS** under a **~3 s** turn budget (~0.7 s ASR + ~1.8 s LLM + ~0.5 s TTS). Exam mode + review-together mode; recordings and models stay on machine.
+
+- **Stack:** FastAPI, React, Ollama, whisper, Piper. Verified via latency benchmark + e2e smoke.
+
+### Lash Try-On — iOS salon try-on *(~1 month)*
+
+Client sees lashes on her own face before the procedure. Off-the-shelf SceneKit hit a quality ceiling (MSAA, transparency, custom passes) → **custom Metal** pipeline for try-on realism; acceptance with salon master on iPhone.
+
+- **Stack:** Swift, ARKit, Metal. Same AI-assisted delivery loop (plan → implement → on-device smoke).
 
 ### Event Content System
 
-Sports/event content automation: match data → prediction covers → news image selection → AI QA → operator CMS.
-
-- Node.js pipeline, Express API, React/Vite/Tailwind CMS; Google Docs/Sheets, SofaScore, OpenAI, Puppeteer, Sharp, Docker, GitLab CI/CD.
-- OpenAI image relevance checks with strict mode, confidence thresholds, and documented QA contract.
-- **Impact:** ~5× faster content prep; reproducible, auditable operator workflows.
+Sports/event content automation: match data → covers → AI image QA → operator CMS. Node.js + React; **~5×** faster content prep.
 
 ### SEO:Content Automation Toolkit
 
-Node.js toolkit: Google Workspace automation, SEO metadata collection, editorial QA, sports visuals, Telegram bots.
-
-- Plugin-style actions, presets, retry/backoff; rule-based + AI hybrid QA for editorial documents.
-- Foundation that evolved into Event Content System and LinkBuilder modules.
+Node.js plugin-style CLI for Google Workspace, SEO metadata, editorial QA, Telegram bots — foundation for later Event Content and LinkBuilder modules.
 
 ## Technical Skills
 
-**Backend & Automation:** Python, FastAPI, asyncio, SQLAlchemy 2.0 async, Pydantic, Alembic, PostgreSQL, Redis/RQ, Node.js, Express, REST API, CLI pipelines, background workers, job queues.  
+**Backend & Automation:** Python, FastAPI, asyncio, SQLAlchemy 2.0 async, Pydantic, Alembic, PostgreSQL, Redis/RQ, Node.js, Express, REST, CLI pipelines, background workers.  
 **Frontend:** React, TypeScript, Vite, Mantine, Tailwind, TanStack Query/Table, React Router.  
-**AI / LLM / Agents:** OpenAI API, LLM application development, agent orchestration, AI agents, tool calling, function calling, structured outputs, JSON Schema tools, prompt engineering, human-in-the-loop (HITL), quality gates, evals, golden/replay scenarios, Agent Behavioral Contracts, guardrails, prompt injection defense, workflow automation, business process automation.  
-**Agent patterns (production):** domain agents, read/action tool catalogs, ReAct-style multi-hop loops, bounded autonomy, deterministic core + LLM at boundaries, audit/tracing of agent decisions.  
-**AI / LLM (portfolio & learning):** RAG, embeddings, vector search, LangGraph, multi-agent workflows, tool-use primitives.  
-**Architecture:** OOP, SOLID, service layer, feature modules, design patterns, internal tools, B2B SaaS, CRM platforms.  
-**Infrastructure:** Docker, Docker Compose, GitLab CI/CD, VPS deploy, nginx, runbooks.  
-**Testing:** pytest, pytest-asyncio, Vitest, API tests, contract tests, agent QA eval harnesses, httpx.  
+**AI / LLM / Agents:** OpenAI API, local LLMs (Ollama), tool calling / function calling, agent orchestration, HITL, structured outputs, evals, golden/replay scenarios, Agent Behavioral Contracts, prompt injection defense, voice loops (ASR/TTS).  
+**AI-assisted delivery:** Cursor, Claude Code — plan / implement / gates / live / human merge.  
+**Browser & mobile:** Playwright, Swift, ARKit, Metal.  
+**Architecture:** service layer, feature modules, internal tools, B2B SaaS, CRM.  
+**Infrastructure & quality:** Docker, GitLab CI/CD, VPS, pytest, Vitest, contract/replay tests, diff-coverage gates.  
 **Integrations:** SendGrid, DataForSEO, Hunter, Ahrefs, Google Workspace APIs, SofaScore, Telegram Bot API.
 
 ## Domain Expertise (secondary)
 
-SEO strategy, keyword clustering, technical/on-page SEO, GA4, GSC, Ahrefs, editorial ops, multilingual team coordination (up to 20 writers), Brazil/Portugal/LATAM markets, competitive content niches.
+SEO strategy, keyword clustering, technical/on-page SEO, GA4, GSC, Ahrefs, editorial ops, multilingual team coordination (up to 20 writers), Brazil/Portugal/LATAM markets.
 
 ## Education
 
