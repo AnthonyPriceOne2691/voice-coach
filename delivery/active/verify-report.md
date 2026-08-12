@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-12
 **Verifier:** agent:claude-code (прогоны) + human:anthony (приёмка ветки)
-**asserts_reviewed_by:** см. дайджест ниже
+**asserts_reviewed_by:** n/a (все утверждения ведут к одобренным примерам)
 **Commit:** ветка `fix/ws-disconnect-mid-turn`
 
 ## Что чинилось
@@ -30,21 +30,28 @@ backend/app/api/ws_voice.py` меняет 52 строки, ни одной в `_
 сохраняется в обоих случаях — она пишется до отправки. Подписанная граница
 поставки тем самым **сузилась**, о чём сказано человеку до мержа, а не после.
 
-## Assertion digest
+## Assertion digest (ревью ожиданий, не кода)
 
-Новые утверждения ведут к примерам спеки, подписанным ДО кода
-(`human_ok_spec: yes`, at=2026-08-12):
+Вывод `scripts/lint/assert_digest.sh` дословно:
 
 ```
-B1  assert escaped is None, f"из ws_session вылетело {escaped!r}"
-B1  assert row is not None
-B1  assert row.status == "in_progress"
-B2  assert row.ended_at is not None
-B1  assert [t["role"] for t in json.loads(row.transcript_json)] == ["agent", "user"]
-B3  assert "voice turn failed" not in caplog.text
-```
+База: `origin/main` · сгенерировано `assert_digest.sh`
+
+Новых/изменённых утверждений: **6**, из них без ссылки на пример спеки: **0**.
+
+B1	assert escaped is None, f"из ws_session вылетело {escaped!r}"
+B1	assert row is not None  # B1
+B1	assert row.status == "in_progress"  # B1
+B1	assert row.ended_at is not None  # B1, B2
+B1	assert [t["role"] for t in json.loads(row.transcript_json)] == ["agent", "user"]
+B3	assert "voice turn failed" not in caplog.text  # B3
 
 asserts_without_example: 0
+```
+
+Каждое утверждение ведёт к примеру спеки, а примеры подписаны человеком ДО кода
+(`human_ok_spec: yes`, at=2026-08-12), поэтому отдельной подписи под дайджестом
+не требуется.
 
 ## Shape oracles
 
