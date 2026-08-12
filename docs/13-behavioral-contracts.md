@@ -61,11 +61,32 @@ Orchestrator (hard structure)  →  LLM (wording)  →  Contract Enforcer  →  
 | ID | Rule | Enforcement |
 |----|------|-------------|
 | I1-H1 | **English only** — no Cyrillic, no RU phrases | regex / lang detect on output |
-| I1-H2 | **No coaching** — no advice how to answer | pattern list (see below) |
-| I1-H3 | **No scoring / debrief** — no rubric, grades, «your weakness» | pattern list |
-| I1-H4 | **No praise as coach** — not *Great answer!*, *Well done!*, *Perfect!* | pattern list |
-| I1-H5 | **Role = interviewer** — не переключаться в mentor/recruiter-friend | mode flag in prompt + reject mentor phrases |
+| ~~I1-H2~~ | ~~No coaching~~ — **СНЯТ 2026-08-12**, см. «Пересмотр» ниже | — |
+| I1-H3 | **No scoring / debrief** — no rubric, grades, overall assessment | pattern list |
+| ~~I1-H4~~ | ~~No praise as coach~~ — **СНЯТ 2026-08-12** вместе с I1-H2 | — |
+| I1-H5 | **Role = supportive coach** — не переключаться в экзаменатора или рекрутёра-оценщика | mode flag in prompt |
 | I1-H6 | **Structure from orchestrator** — LLM не выбирает следующий topic/question | orchestrator owns `question_id`, state |
+
+#### Пересмотр 2026-08-12: помощь разрешена, оценка — нет
+
+Решение человека: Генри — **добрый тренер-помощник**, задача снять барьер, а не
+проверять. `I1-H2` (no coaching) и `I1-H4` (no praise) **сняты**: подсказка,
+предложенная форма ответа, похвала по делу и переформулировка — теперь работа
+агента, а не нарушение.
+
+**Почему это была именно контрактная правка, а не промптовая.** Енфорсер
+режет фразу ДО озвучки: модель могла согласиться помогать, а пользователь
+этого не слышал. Барьер держала машина.
+
+**Что осталось в `I1-H3` и почему.** Баллы, рубрики и итоговый разбор внутри
+интервью запрещены: оценка — работа Mode 2 и debrief, иначе тренировка и
+разбор сливаются. Граница проходит по конкретным конструкциям
+(«i'd score», «overall your», «the rubric»), а не по тону — тон машиной не
+проверяется, это честно записано у I1-S1.
+
+**Оракул границы:** `backend/tests/test_contract_coach_boundary.py` проверяет
+обе стороны: подсказка и похвала проходят, баллы и итоговый разбор режутся.
+Односторонний тест был бы зелёным и на пустом контракте.
 
 ### Hard governance (G_hard)
 
@@ -138,6 +159,27 @@ thanks, thank you, clear, alright
 | I2-H3 | **No new mock interview** — не задавать interview questions как Mode 1 | reject turns matching interview-only patterns without review framing |
 | I2-H4 | **Role = recruiter friend / reviewer** — coaching **allowed** | mode flag |
 | I2-H5 | **Non-empty after `strip_thinking()`** — thinking-модель не съела весь num_predict | empty check до TTS → hard fail → regenerate с бóльшим num_predict → template (урок Phase 0, doc 19/20) |
+
+#### Пересмотр 2026-08-12: помощь разрешена, оценка — нет
+
+Решение человека: Генри — **добрый тренер-помощник**, задача снять барьер, а не
+проверять. `I1-H2` (no coaching) и `I1-H4` (no praise) **сняты**: подсказка,
+предложенная форма ответа, похвала по делу и переформулировка — теперь работа
+агента, а не нарушение.
+
+**Почему это была именно контрактная правка, а не промптовая.** Енфорсер
+режет фразу ДО озвучки: модель могла согласиться помогать, а пользователь
+этого не слышал. Барьер держала машина.
+
+**Что осталось в `I1-H3` и почему.** Баллы, рубрики и итоговый разбор внутри
+интервью запрещены: оценка — работа Mode 2 и debrief, иначе тренировка и
+разбор сливаются. Граница проходит по конкретным конструкциям
+(«i'd score», «overall your», «the rubric»), а не по тону — тон машиной не
+проверяется, это честно записано у I1-S1.
+
+**Оракул границы:** `backend/tests/test_contract_coach_boundary.py` проверяет
+обе стороны: подсказка и похвала проходят, баллы и итоговый разбор режутся.
+Односторонний тест был бы зелёным и на пустом контракте.
 
 ### Hard governance (G_hard)
 
@@ -295,7 +337,8 @@ invariants:
   hard:
     - id: en_only
       check: no_cyrillic
-    - id: no_coaching
+    # no_coaching снят 2026-08-12; остался только no_scoring
+    - id: no_scoring
       check: forbid_patterns
       patterns_file: interview_forbidden.txt
     - id: interviewer_role
@@ -363,7 +406,7 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 | Requirement | Contract |
 |-------------|----------|
 | FR-1.5 EN only mid-session | I1-H1, I2-H1 |
-| FR-4.9 no coaching in interview | I1-H2–H4 |
+| FR-4.9 → **пересмотрено**: no scoring in interview | I1-H3 |
 | Mode 2 grounded review | I2-H2 |
 | Persona separation | I1-H5, I2-H4 |
 | FR-6.3 translation_ru | Vocabulary pass hard |

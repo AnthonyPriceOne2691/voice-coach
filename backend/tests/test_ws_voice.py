@@ -99,8 +99,14 @@ def test_full_orchestrated_turn_persists_to_sqlite(tmp_path: Path) -> None:
     assert metadata["hard_violations"] == 0
 
 
-def test_enforcer_blocks_coaching_in_live_turn(tmp_path: Path) -> None:
-    llm = FakeLlm(["Why queues? ", "Great answer, well done! "])
+def test_enforcer_blocks_scoring_in_live_turn(tmp_path: Path) -> None:
+    """Оценка режется до озвучки; похвала и подсказка — нет (граница 2026-08-12).
+
+    Тест раньше назывался ...blocks_coaching... и сторожил ровно обратное:
+    «Great answer, well done!» обрезалось. По решению человека помощь и похвала
+    разрешены, а баллы и итоговый разбор остались работой Mode 2 и debrief.
+    """
+    llm = FakeLlm(["Why queues? ", "I'd score that a four. "])
     container = make_container(tmp_path, llm, FakeStt(LONG_ANSWER))
     with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
         ws.send_json({"type": "start_interview", "payload": {}})
@@ -110,7 +116,7 @@ def test_enforcer_blocks_coaching_in_live_turn(tmp_path: Path) -> None:
         while turn[-1]["payload"]["value"] != "listening":
             turn += _collect_until(ws, "state")
         agent = [m for m in turn if m["type"] == "transcript" and m["payload"]["role"] == "agent"]
-        assert agent[0]["payload"]["text"] == "Why queues?"  # praise truncated before TTS
+        assert agent[0]["payload"]["text"] == "Why queues?"  # G3 — балл срезан до TTS
         ws.send_json({"type": "end_session", "payload": {"reason": "user"}})
         _collect_until(ws, "session_ended")
 

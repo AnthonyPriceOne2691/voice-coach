@@ -1,36 +1,44 @@
-# Forbidden patterns — Mode 1 hard invariants I1-H2/H3/H4 (case-insensitive substring/regex)
+# Forbidden patterns — Mode 1 (case-insensitive substring/regex)
 # One pattern per line; lines starting with # are comments.
+#
+# ⚠ 2026-08-12: помощь и похвала ОТСЮДА УБРАНЫ по решению человека.
+# Генри — добрый тренер-помощник: подсказать направление, переформулировать,
+# похвалить по делу и наталкнуть — это его работа, а не нарушение. Раньше здесь
+# лежали «you should», «try saying», «great answer», «well done» — и енфорсер
+# резал их ДО озвучки, то есть барьер держала машина, а не промпт.
+#
+# Что осталось: ОЦЕНКА внутри интервью. Баллы, рубрики и итоговый разбор —
+# работа Mode 2 «Review Together» и debrief. Смешать их значит превратить
+# тренировку в разбор, и тренироваться станет негде (docs 09, 13).
 
-# Coaching / advice (I1-H2)
-you should
-try saying
-here's a better
-here is a better
-i'd recommend
-i would recommend
-let me coach
-a tip for you
-tip for you
-next time, say
-you could improve
-to sound more
-
-# Praise as coach (I1-H4)
-great answer
-well done
-perfect answer
-good job
-excellent answer
-that was a strong answer
-
-# Scoring / debrief leakage (I1-H3)
-your score
-rating
+# Баллы и рубрики (I1-H3)
 out of 5
-out of five
-your weakness
-improve your
-vocabulary to learn
-rephrase your
-let's review your performance
-feedback on your answer
+out of 10
+out of ten
+score for that
+i'd score
+i would score
+i'd rate
+i would rate
+rate that answer
+on a scale of
+your score
+scoring you
+
+# Итоговый разбор внутри интервью (I1-H3)
+overall your
+overall you did
+overall performance
+to summarize your performance
+summing up your answers
+my overall assessment
+final assessment
+in summary, you
+you passed
+you failed
+
+# Раскрытие рубрики оценивания (I1-H3)
+the rubric
+grading criteria
+i am grading
+i'm grading

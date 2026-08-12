@@ -48,7 +48,7 @@ async def test_clean_turn_passes_enforcer(enforcer: ContractEnforcer) -> None:
 
 
 async def test_violation_mid_turn_truncates_but_keeps_prefix(enforcer: ContractEnforcer) -> None:
-    llm = FakeLlm(["Why queues? ", "Great answer by the way! ", "More text. "])
+    llm = FakeLlm(["Why queues? ", "I'd score that a four. ", "More text. "])
     tts = FakeTts()
     runner = TurnRunner(llm, tts)
     events = await _run(
@@ -56,9 +56,9 @@ async def test_violation_mid_turn_truncates_but_keeps_prefix(enforcer: ContractE
     )
     completed = events[-1]
     assert isinstance(completed, AgentCompleted)
-    assert completed.text == "Why queues?"  # praise sentence truncated, prefix kept
-    assert "Great answer" not in " ".join(tts.synthesized)
-    assert completed.violations[0]["constraint_id"] == "I1-H2_no_coaching"
+    assert completed.text == "Why queues?"  # G3 — фраза с баллом обрезана, префикс сохранён
+    assert "score" not in " ".join(tts.synthesized)  # G3
+    assert completed.violations[0]["constraint_id"] == "I1-H3_no_scoring"  # G3
     assert completed.violations[0]["recovery"] == "truncate"
 
 
@@ -83,7 +83,7 @@ async def test_violation_on_first_sentence_regenerates(enforcer: ContractEnforce
 
 
 async def test_double_failure_falls_back_to_seed(enforcer: ContractEnforcer) -> None:
-    llm = ScriptedLlm([["Great answer! "], ["Well done! "]])
+    llm = ScriptedLlm([["I'd score that a four. "], ["Overall your performance was fine. "]])
     tts = FakeTts()
     runner = TurnRunner(llm, tts)
     events = await _run(
