@@ -6,7 +6,7 @@
 - **kind:** feature
 - **repro_test:** n/a (kind=feature)
 - **diagnosis:** n/a reason=не багфикс; предмет известен из спеки, гипотез не требовалось
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-12) reason=три решения предъявлены ДО кода и подтверждены: чередование в одном интервью вместо отдельного режима; своя ветка политики follow-up для behavioral (иначе «нет цифр» истинно всегда); три soft-вопроса из шести
