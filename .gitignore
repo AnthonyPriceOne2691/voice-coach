@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 .venv/
 backend/.venv/
+# Без слэша — иначе шаблон ловит только КАТАЛОГ, а симлинк на него нет.
+# Прогон в git worktree одалживает окружение симлинками (как merge_guard), и
+# дважды подряд они уезжали в коммит, роняя CI: «failed to create directory
+# backend/.venv: File exists».
+.venv
+backend/.venv
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
@@ -12,12 +18,14 @@ htmlcov/
 
 # Node
 frontend/node_modules/
+frontend/node_modules
 frontend/dist/
 
 # Env & local data
 .env
 data/sessions/
 data/models/
+data/models
 
 # OS / IDE
 .DS_Store

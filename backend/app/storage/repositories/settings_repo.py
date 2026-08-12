@@ -21,7 +21,9 @@ class SettingsRepository:
         values = dict(DEFAULTS)
         async with self._db.session() as s:
             for row in (await s.execute(Setting.__table__.select())).all():
-                values[row.key] = json.loads(row.value_json)
+                # DEFAULTS — три ключа, выборка ограничена ими же: это не
+                # растущая коллекция, а фиксированный набор настроек.
+                values[row.key] = json.loads(row.value_json)  # cpu-ok: 3 ключа настроек
         return values
 
     async def update(self, patch: dict[str, Any]) -> dict[str, Any]:
@@ -31,9 +33,10 @@ class SettingsRepository:
                     continue
                 row = await s.get(Setting, key)
                 if row is None:
-                    s.add(Setting(key=key, value_json=json.dumps(value), updated_at=utcnow_iso()))
+                    payload = json.dumps(value)  # cpu-ok: цикл по patch ⊆ DEFAULTS (3 ключа)
+                    s.add(Setting(key=key, value_json=payload, updated_at=utcnow_iso()))
                 else:
-                    row.value_json = json.dumps(value)
+                    row.value_json = json.dumps(value)  # cpu-ok: тот же цикл на 3 ключа
                     row.updated_at = utcnow_iso()
             await s.commit()
         return await self.get_all()

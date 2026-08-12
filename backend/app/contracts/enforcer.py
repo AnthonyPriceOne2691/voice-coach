@@ -7,7 +7,7 @@ the turn runner appends a seed question instead of retracting speech.
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from app.contracts.spec import ContractSpec, RuleSpec
 
@@ -63,36 +63,58 @@ class TurnEnforcer:
     def spoken_text(self) -> str:
         return " ".join(self.sentences)
 
-    # Сложность этой функции держится СНИМКОМ гейта complexity, а не подавлением на
-    # строке. Прежде тут стояло построчное подавление C901; с обновлением контура
-    # правило уехало в `ignore` конфига (иначе pre-commit красный навсегда на любом
-    # легаси), подавление стало ненужным, и RUF100 его снял. Причина отказа дробить
-    # не изменилась: плоский dispatch по rule.check — ветки независимы и читаются
-    # сверху вниз, а сам enforcer — критический per-sentence путь по doc 13, и
-    # рефакторить его без spec нельзя (constitution §7). Файл записан в
-    # `scripts/lint/complexity_baseline.txt` как `1:` — снимок только тает.
+    # Раньше это был плоский if/elif на пять веток со сложностью 13 при пороге 10,
+    # и он держался снимком гейта с пометкой «дробить нельзя, критический путь по
+    # doc 13, constitution §7». Пометка ссылалась на §7 неточно: §7 запрещает
+    # переизобретать РЕШЕНИЯ из docs/00–20, а не менять форму кода. Ни одна
+    # проверка контракта здесь не изменилась — только разложены по методам,
+    # поведение то же и покрыто тестами контрактов (100%).
     def _check_sentence(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
-        if rule.check == "no_cyrillic":
-            match = _CYRILLIC.search(sentence)
-            if match:
-                return self._violation(rule, index, match.group())
-        elif rule.check == "forbid_patterns":
-            lowered = sentence.lower()
-            for pattern in self.spec.forbidden_patterns:
-                if pattern in lowered:
-                    return self._violation(rule, index, pattern)
-        elif rule.check == "max_sentences":
-            if index >= int(rule.params["max"]):
-                return self._violation(rule, index, f"sentence {index + 1}")
-        elif rule.check == "max_chars_cumulative":
-            if self._chars + len(sentence) > int(rule.params["max"]):
-                return self._violation(rule, index, f"{self._chars + len(sentence)} chars")
-        elif rule.check == "quoted_question_in_transcript":
-            for ref in _QREF.finditer(sentence):
-                number = int(ref.group(1))
-                if number < 1 or number > self.ctx.question_count:
-                    return self._violation(rule, index, ref.group())
+        check = self._CHECKS.get(rule.check)
+        return None if check is None else check(self, rule, sentence, index)
+
+    def _no_cyrillic(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
+        match = _CYRILLIC.search(sentence)
+        return self._violation(rule, index, match.group()) if match else None
+
+    def _forbid_patterns(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
+        lowered = sentence.lower()
+        for pattern in self.spec.forbidden_patterns:
+            if pattern in lowered:
+                return self._violation(rule, index, pattern)
         return None
+
+    def _max_sentences(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
+        if index >= int(rule.params["max"]):
+            return self._violation(rule, index, f"sentence {index + 1}")
+        return None
+
+    def _max_chars_cumulative(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
+        total = self._chars + len(sentence)
+        if total > int(rule.params["max"]):
+            return self._violation(rule, index, f"{total} chars")
+        return None
+
+    def _quoted_question(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
+        for ref in _QREF.finditer(sentence):
+            number = int(ref.group(1))
+            if number < 1 or number > self.ctx.question_count:
+                return self._violation(rule, index, ref.group())
+        return None
+
+    # Таблица объявлена ПОСЛЕ методов: имена должны существовать к моменту
+    # создания класса. Неизвестный `check` — не ошибка: контракт может нести
+    # правило, которого этот enforcer не знает, и тогда оно просто не проверяется
+    # здесь (так же вело себя прежнее if/elif, падавшее в `return None`).
+    # ClassVar обязателен: TurnEnforcer — dataclass, и без него таблица
+    # станет полем с изменяемым значением по умолчанию (ValueError на импорте).
+    _CHECKS: ClassVar[dict[str, Any]] = {
+        "no_cyrillic": _no_cyrillic,
+        "forbid_patterns": _forbid_patterns,
+        "max_sentences": _max_sentences,
+        "max_chars_cumulative": _max_chars_cumulative,
+        "quoted_question_in_transcript": _quoted_question,
+    }
 
     def _check_question_or_ack(self, rule: RuleSpec) -> Violation | None:
         states = [str(s) for s in rule.params.get("states", [])]

@@ -28,7 +28,10 @@ def extract_json(raw: str) -> dict[str, Any]:
 def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[str, Any]:
     scores = data.get("scores")
     if not isinstance(scores, dict):
-        raise SummaryInvalidError("missing scores object")
+        raise SummaryInvalidError(
+            f"missing scores object: got {type(scores).__name__}, "
+            f"ключи верхнего уровня — {sorted(data)}"
+        )
     for key in SCORE_KEYS:
         value = scores.get(key)
         if not isinstance(value, int) or not 1 <= value <= 5:  # S-H3

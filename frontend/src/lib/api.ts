@@ -8,12 +8,24 @@ import type {
   VocabularyItem,
 } from "../types/api";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status}`);
   }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  if (response.status === 204) return undefined as T;
+  // Успешный ответ с HTML — это не «бэкенд сломался», а «до бэкенда не дошли»:
+  // dev-сервер отдал страницу приложения, потому что префикс не проксируется.
+  // Без этой проверки ошибка выглядела как `Unexpected token '<'`, и вкладки
+  // History и Words молчали об истинной причине 38 дней (delivery diagnosis.md).
+  const kind = response.headers.get("content-type") ?? "";
+  if (!kind.includes("json")) {
+    throw new Error(
+      `${init?.method ?? "GET"} ${path}: ответ не JSON (${kind || "без content-type"}) — ` +
+        `похоже, префикс не проксируется dev-сервером, проверь server.proxy в vite.config.ts`,
+    );
+  }
+  return (await response.json()) as T;
 }
 
 // Отдельно от request<T>: `void` как аргумент generic'а запрещён
