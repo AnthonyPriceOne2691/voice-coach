@@ -89,14 +89,27 @@ asserts_without_example: 0
 
 ## Ревью рисковых мест (§12.5)
 
-0. **Что смотрел:** дифф целиком — контракт, список паттернов, системный
-   промпт, docs 09 и 13, четыре тест-файла.
+0. **Что смотрел:** дифф целиком —
+   `data/contracts/interview.contract.yaml` (снят `I1-H2_no_coaching`, персона
+   `senior_colleague` → `supportive_coach`, версия 1.0 → 2.0),
+   `data/contracts/interview_forbidden.txt` (26 паттернов вместо прежних, все
+   про оценку), `data/prompts/interviewer_system.txt` (раздел
+   `HELP HIM — THIS IS YOUR WORK`), `docs/09-agent-persona-and-tone.md`,
+   `docs/13-behavioral-contracts.md`, новый
+   `backend/tests/test_contract_coach_boundary.py` и четыре переведённых
+   тест-файла (`test_contracts.py`, `test_turn_runner.py`, `test_ws_voice.py`).
 
 1. **Контракт стал слабее — это цель, но и риск.** Худший исход: в интервью
    просочится разбор. Закрыто G3/G4 и расширенным списком: добавлены
    «overall your», «final assessment», «the rubric», «you passed», которых
    раньше не было вовсе — до правки «Overall your performance…» проходило.
 2. **Шесть тестов переписаны — риск потерять покрытие.** Ни один не удалён:
+   `test_coaching_pattern_rejected_case_insensitive` →
+   `test_scoring_pattern_rejected_case_insensitive`,
+   `test_enforcer_blocks_coaching_in_live_turn` →
+   `test_enforcer_blocks_scoring_in_live_turn`, плюс
+   `test_violation_event_schema`, `test_violation_mid_turn_truncates_but_keeps_prefix`,
+   `test_double_failure_falls_back_to_seed`, `test_real_contract_files_load`.
    каждый проверял механику (обрезание, схема события, откат на seed, живой
    ws-ход) на примере coaching и переведён на пример со счётом. Покрытие
    93.01% не изменилось.
