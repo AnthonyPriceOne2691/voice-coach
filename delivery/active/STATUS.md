@@ -18,7 +18,7 @@
 - **worktree:** ../voice-coach-wt-speech-pace (ветка feat/speech-pace)
 - **hooks:** claude (scripts/hooks/)
 - **blockers:** none
-- **waivers:** max_files_touched=30 reason=перебор дают 9 тестовых файлов, 4 шаблона реплик и 4 дока; blast radius продукта узкий — одна подсистема, два новых модуля, остальные правки по 2–20 строк. Разрез (два варианта с ценой в active/escalation.md) стоил бы поставки из мёртвого кода и девятого окна наблюдения by=human:anthony
+- **waivers:** max_files_touched=32 max_loc_diff=850 reason=исходный перебор дают 9 тестовых файлов, 4 шаблона реплик и 4 дока при узком blast radius продукта (разбор двух вариантов с ценой — active/escalation.md); поднято с 30/800 до 32/850 после того, как ГЕЙТЫ потребовали ещё два файла: session_flow.py (консолидация дублей, снимок 1→0) и test_tts_piper.py (diff-coverage 48%→87%). Оба выросли из уже подписанных решений и улучшили код by=human:anthony
 - **new_dependency:** none reason=темп — уже существующий параметр Piper (`SynthesisConfig.length_scale`), новых пакетов не требуется
 - **runtime_paths:** backend/app/voice/tts_piper.py
   <!-- §12.6: слышимость темпа платформа подтверждает звуком, а не кодом ошибки.
