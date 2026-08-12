@@ -25,3 +25,26 @@ export function turnTimestamp(ms: number): string {
   const seconds = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
+
+/** Строка «когда шла сессия» для History.
+ *
+ * Различает закрытую сессию и брошенную по `ended_at`, а НЕ по длительности:
+ * `duration_sec` пишется при каждом flush хода, то есть заполнен и у сессии,
+ * которую бросили посреди ответа. До 2026-08-12 строка показывала начало и
+ * длительность, и эти два состояния были на экране неотличимы.
+ *
+ * У брошенной сессии длительность не показывается совсем: число есть, но
+ * итогом оно не является, а пустое место читалось бы как «данных нет».
+ *
+ * Текст английский, как весь остальной интерфейс: комментарии в коде русские,
+ * строки на экране — нет. Поймано снимком экрана, а не тестом.
+ */
+export function formatSessionSpan(
+  startedAt: string | null | undefined,
+  endedAt: string | null | undefined,
+  durationSec: number | null | undefined,
+): string {
+  const start = formatDate(startedAt);
+  if (!endedAt) return `${start} · not finished`;
+  return `${start} → ${formatDate(endedAt)} · ${formatDuration(durationSec)}`;
+}
