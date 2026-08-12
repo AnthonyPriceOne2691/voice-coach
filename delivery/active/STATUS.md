@@ -6,7 +6,7 @@
 - **kind:** feature
 - **repro_test:** n/a (kind=feature)
 - **diagnosis:** n/a reason=не багфикс; причины ровности измерены спайком до спеки, гипотез не требовалось
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-13) reason=вариант озвучен образцами и выбран на слух (D: интонация + ритм + паузы, тот же голос); отдельно подтверждено, что пауза ставится перед каждым чанком кроме первого (без задержки перед микрофоном) и что параметры живут в конфиге, а не в REST
@@ -24,7 +24,7 @@
   <!-- §12.6: слышимость платформа подтверждает звуком, а не кодом ошибки.
        Тест увидит нужное число нулевых сэмплов и останется зелёным при любом
        качестве звучания — значит нужен живой прогон и уши (E6, E7). -->
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** knowledge/engineering/model-split.md reason=в config.py добавлены три параметра просодии (piper_noise_scale, piper_noise_w, sentence_pause_ms); разделение моделей D-8 не менялось. Путь config.py в implementation оставлен СОЗНАТЕЛЬНО: он держит ollama_model_interview/review, и подмена модели там обязана заставлять перечитать инвариант — цена этого сторожа в ложных срабатываниях на любой новой настройке by=human:anthony
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** E6 и E7 подтверждены в живой сессии — Генри слышимо живее
