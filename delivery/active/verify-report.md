@@ -119,7 +119,7 @@ LinkBuilder и упоминание Event Content System — **четырёх п
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — backend/tests/test_knowledge_profile.py (новый оракул), delivery/active/spec.md (новый оракул) |
 | implement_retries | **1** — новый заголовок позиционирования уронил существующий `test_real_repo_prompts_load`, который закреплял строку `AI Automation Engineer`. Тест не ослаблялся: роль возвращена в профиль строкой best-fit roles, она есть в CV дословно |
-| verify_fails_before_green | заполняется после первого прогона CI |
+| verify_fails_before_green | **0** — три джобы зелёные с первого прогона; одна правка формы (непривязанный assert) поймана `assert_digest.sh` локально |
 | est_token_or_cost | n/a — не измерялось; локальные модели |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
