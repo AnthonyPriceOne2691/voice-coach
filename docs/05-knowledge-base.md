@@ -10,9 +10,14 @@
 
 | Файл | Содержание | Использование |
 |------|------------|---------------|
-| `ANTON_ASPIDOV_CV_EN.md` | Positioning, опыт, skills | System prompt, resume walkthrough |
-| `PORTFOLIO_LINKBUILDER_CASE.md` | Architecture, metrics, HITL | Technical & system design questions |
+| `ANTON_ASPIDOV_CV_EN.md` | Positioning, опыт, skills | Источник для профиля; в промпт НЕ инжектится |
+| `PORTFOLIO_LINKBUILDER_CASE.md` | Architecture, metrics, HITL | То же: источник, не инжектится |
 | `FOREIGN_MARKET_OUTREACH_PLAN.md` | Target roles, keywords | Question framing, debrief consistency |
+| `Documents/PORTFOLIO_SITE_DESIGN.md` §5 | Аудит четырёх репозиториев 2026-07-20 | Источник цифр по проектам вне LinkBuilder |
+
+**Что реально попадает в промпт (2026-08-12):** только `profile_condensed.md`
+через плейсхолдер `{{profile_condensed}}` (`app/knowledge/prompts.py`). Остальные
+файлы — исходники, из которых профиль поддерживается вручную.
 
 **Статус (2026-07-02):** копии CV и case study **закоммичены** в `data/knowledge/` вместе с готовым `profile_condensed.md`. Решение: хранить в git (репозиторий приватный) — версионирование нужно для воспроизводимости debrief; gitignore здесь вредит.
 
@@ -39,6 +44,30 @@
 - Known interview weak spots
 
 **Причина:** полный CV + case в каждый prompt = медленно и дорого по context; condensed version обновляется вручную после правок CV.
+
+### Портфолио: индекс в профиле, глубина — за оркестратором (2026-08-12)
+
+Проектов пять (LinkBuilder, Voice Coach, Local Web Agent, Lash Try-On, Event
+Content System). Пять полных кейсов — ~5000 токенов сверх бюджета: при
+`num_ctx` 8192 они вытеснили бы транскрипт и удлинили prefill КАЖДОГО хода,
+то есть ударили бы по latency-инварианту ~3.0 s (doc 20).
+
+**Решение:** в профиле — индекс с цифрами (≤1500 токенов, проверяется
+`backend/tests/test_knowledge_profile.py`). Слот `case study ≤ 1000` остаётся
+пустым до тех пор, пока оркестратор не научится выбирать проект: чей кейс
+подставить — решение о структуре интервью, а структурой владеет оркестратор
+(I1-H6, doc 04), не промпт.
+
+### Источник цифр — замер, а не CV (решение человека 2026-08-12)
+
+Числа в профиле измерены по репозиториям, дата замера указана в шапке файла.
+Где CV расходится — прав замер, а CV попадает в список правок для человека.
+Замер 2026-08-12: LinkBuilder 7,393 тест-функции (CV говорит 4,200+),
+Local Web Agent 409 (CV — 380). Агент не правит CV сам: это заявление
+человека о себе.
+
+**Цена решения:** агент может спросить про цифру, которой в текущем CV нет.
+Принято сознательно — кандидат обязан знать свои системы лучше, чем резюме.
 
 ## Positioning rules (for agent & debrief)
 

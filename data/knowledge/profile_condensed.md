@@ -1,47 +1,58 @@
 # Candidate Profile (condensed — injected into system prompts)
 
-<!-- Spec: docs/05-knowledge-base.md. Budget: <= 1500 tokens. -->
-<!-- Maintain manually: refresh after editing ANTON_ASPIDOV_CV_EN.md or PORTFOLIO_LINKBUILDER_CASE.md (copies in this folder). -->
+<!-- Spec: docs/05-knowledge-base.md. Budget: <= 1500 tokens (doc 20), enforced by
+     backend/tests/test_knowledge_profile.py. Numbers are MEASURED against the
+     repositories on 2026-08-12 unless marked "(audit 2026-07-20)". Where the CV
+     disagrees, the measurement wins and the CV is the thing to update. -->
 
-## Positioning (one-liner)
+## Who
 
-Anton Aspidov — **AI Automation Engineer / LLM Application Engineer / Fullstack Internal Tools Builder**. Ships production LLM applications and internal B2B SaaS: domain AI agents with tool-calling loops, HITL workflows, behavioral contracts, async Python backends, React operator UIs. NOT a chat-wrapper builder, NOT ML research. English B2, targeting remote/contract roles abroad.
+Anton Aspidov — **AI / Fullstack Product Engineer (builder)**: ships production LLM applications and internal B2B SaaS end to end, alone. Tool-calling agents, HITL workflows, async Python backends, React operator UIs, queues, integrations. Saint Petersburg, fully remote, English B2. At a sports-media company since Aug 2021; primary focus since 2024 — internal AI products in daily operator use. **Not** a chat-wrapper builder, **not** ML research.
 
-## Flagship projects (with metrics)
+Delivery loop he owns: plan → agent (Cursor + Claude Code) → automated gates → live scenario → human merge. Red blocks merge.
 
-1. **LinkBuilder SaaS** — internal B2B outreach automation platform (sole builder). SERP prospecting → AI-assisted email negotiation → placement monitoring. Reduced a **5-person team to 1 operator**. Stack: Python/FastAPI, async SQLAlchemy, PostgreSQL, Redis/RQ, React/TS. **4,200+ backend tests (~74% coverage)**, mypy strict. Separate RQ queues for inbound mail, OpenAI calls, and monitoring (isolate latency-heavy work from API). Monitoring: mass checks up to 5,000 links per run; prospecting: 1,000+ donors per batch.
+**Best-fit roles he targets:** AI / Fullstack Product Engineer (builder), LLM Application Engineer, **AI Automation Engineer**, Applied AI Engineer, Internal Tools Developer. Frame the interview for one of these.
 
-2. **Inbound AI pipeline** (part of LinkBuilder) — orchestrated, not chat: SendGrid webhook → donor matching → LLM classification (structured JSON) → condition extraction → reply generation → quality self-check → **ABC evaluator → draft OR autosend**. Safety: confidence thresholds, `needs_human` flag, prompt injection defense on untrusted email bodies, payment whitelist, max auto-rounds before mandatory human review. Idempotent webhook processing.
+## Signature story — "I put LLMs under contract"
 
-3. **Agent Behavioral Contracts (ABC)** — reusable YAML guardrail engine for LLM autonomy in production: preconditions, hard/soft invariants, governance budgets, recovery, drift detection, audit trail on every agent action. Golden/replay scenarios for regression; canary → enforce rollout. The differentiator: **controlled autonomy**, not "GPT writes emails."
+One pattern, four systems: every LLM action passes a **runtime behavioral contract** (ABC, arXiv:2602.22302) *before* it reaches the world — not prompt-only. Controlled autonomy, not "GPT writes emails". Second layer: **local-first** — three of four personal projects run inference 100% on-device.
 
-Secondary: Event Content System (~5x faster content prep, ~120 hours/month saved); domain agents (Competitors, Mass Outreach) with read/action tool catalogs and bounded autonomy (`propose` → `auto`).
+## Portfolio — probe any of these, not just the first
 
-## Tech stack keywords
+**1. LinkBuilder — outreach SaaS** *(production, NDA code, sole builder, ~5 months)*
+SERP prospecting → CRM → AI email negotiation → payments → placement monitoring. Impact: **5-person team → 1 operator**. **7,393 test functions in 1,454 files**; ~30 Docker services (~24 RQ workers); 102 DB migrations; **17 YAML contracts** (payment whitelist, governance caps ≤25 campaigns, kill-switch, injection defense); 12,200+ emails, **97.9% delivery** on a 5,471-recipient campaign; **1,371 of 1,373 commits by one author** (audit 2026-07-20). Python/FastAPI, PostgreSQL, Redis/RQ, React/TS, OpenAI. AI drafts + human approval — not autonomous sending.
 
-Python, FastAPI, asyncio, SQLAlchemy 2.0 async, Pydantic, PostgreSQL, Redis/RQ, Node.js, React, TypeScript, OpenAI function calling, structured outputs, ReAct-style loops, HITL, evals, golden scenarios, prompt injection defense, Docker, GitLab CI/CD, pytest.
+**2. Voice Interview Coach — this very tool** *(local, ~2 weeks)*
+Offline voice interview: whisper.cpp → Qwen2.5 14B → Piper, **~3.0 s per turn**; buffering the full answer measured 4.8 s, so TTS streams per sentence. **93 backend + 20 frontend tests, 93% coverage**, mypy strict, ≤500 LOC/file. Contract enforcer gates **every sentence before it is spoken**; orchestrator owns interview structure, the LLM owns wording only. DeepSeek-R1 14B runs the offline summary and vocabulary bank; the two models are never loaded together (32 GB budget).
+
+**3. Local Web Agent — on-device research agent** *(~3 weeks)*
+URLs + a plain-language task → the agent browses real sites, compares them, returns a ranked report with quote evidence. **409 test functions in 116 files**, 24 design docs. Contract shield validates every action before the browser (**<10 ms**, audit 2026-07-20). Anti-hallucination: a claim must fuzzy-match a real quote (≥0.85) or it is dropped — honest `not_found` over invention. Anti-bot is **HITL**: the agent pauses, a human passes the challenge, no spoofing. Playwright + Qwen3 14B + Qwen2.5-VL.
+
+**4. Lash Try-On — iOS AR consultation** *(~1 month, PoC, real salon in the loop)*
+The client sees lash extensions on **her own live 3D face mesh** before the procedure. ARKit mesh + MediaPipe landmarks; SceneKit scene graph with **custom Metal shaders** after SceneKit hit an image-quality ceiling. **59 fps on an iPhone 11** (audit 2026-07-20); 48 Swift files, 24 design docs. A local vision-LLM critic under contract proposes bounded parameter tweaks — **a human applies them**. No automated tests: validated by an expert rubric with the salon master.
+
+**5. Event Content System + SEO:Content Toolkit** *(work, Node.js/React)*
+Match ingest → cover generation → AI image QA → operator CMS. **~5× faster** content prep, **~120 hours/month** saved at ~900 units/month.
+
+## Stack keywords
+
+Python, FastAPI, asyncio, SQLAlchemy 2.0 async, Pydantic, PostgreSQL, Redis/RQ, Node.js, React, TypeScript, Playwright, Swift, ARKit, Metal, OpenAI function calling, local LLMs (Ollama), structured outputs, HITL, evals, golden/replay scenarios, prompt injection defense, Docker, GitLab CI/CD, GitHub Actions, pytest, Vitest.
 
 ## Positioning rules
 
 | Do | Don't |
 |----|-------|
-| Automation engineer, internal tools, LLM apps | "SEO lead", "link building manager" |
-| Measurable impact: 5 FTE → 1, ~120 h/month saved, 4,200+ tests | Vague "improved efficiency" |
-| HITL, queues, behavioral contracts, bounded autonomy | Buzzwords without architecture |
-| Trade-offs and failures (why HITL first, why separate queues) | Only success stories |
+| Builder / automation engineer, internal tools, LLM apps | "SEO lead", "link building manager" |
+| Measurable impact: 5 FTE → 1, ~120 h/month, 97.9% delivery | Vague "improved efficiency" |
+| HITL, queues, contracts, bounded autonomy, trade-offs | Buzzwords without architecture |
+| Name what failed and why (SceneKit ceiling, 4.8 s buffering) | Only success stories |
 
-SEO/content background is **secondary domain expertise**, mention only as the business domain the tools serve.
+SEO/content is **secondary domain expertise** — the business the tools serve, never the identity.
 
-## Weak spots to probe (interviewer: push on these)
+## Weak spots to probe
 
 1. Live system design in English — structure under pressure.
-2. Long monologues without a conclusion; missing metrics in openings.
-3. Slipping into "SEO lead" framing instead of builder/automation angle.
+2. Long monologues without a conclusion; openings that omit the metric.
+3. Slipping into "SEO lead" framing instead of builder/automation.
 4. Pauses and fillers under follow-up pressure.
-
-## Trade-off stories worth probing
-
-- Why separate RQ queues for inbound vs OpenAI vs monitoring.
-- HITL by default vs autosend behind flags — safe LLM autonomy rollout.
-- Donor matching design (Message-ID → thread → subject → contact) and how it avoids wrong-site placements.
-- Deterministic scoring core with LLM only at pipeline gates ($0 embeddings decision).
+5. **Defending his own numbers.** His CV understates LinkBuilder (says 4,200+ tests; the repository has 7,393) and Local Web Agent (380 vs 409). Ask what the number is and how he counts it — a builder should know his own systems better than his résumé does.
