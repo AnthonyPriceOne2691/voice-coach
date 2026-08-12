@@ -3,7 +3,7 @@ import { ListState } from "../components/ListState";
 import { SummaryCard } from "../components/SummaryCard";
 import { TranscriptView } from "../components/TranscriptView";
 import { api } from "../lib/api";
-import { formatDate, formatDuration } from "../lib/format";
+import { formatSessionSpan } from "../lib/format";
 import type { InterviewDetail, InterviewListItem, ReviewDetail } from "../types/api";
 
 interface Props {
@@ -99,9 +99,7 @@ function DetailPanel({
       <button className="btn btn-ghost" onClick={onBack}>
         ← Back to History
       </button>
-      <h2>
-        {formatDate(detail.started_at)} · {formatDuration(detail.duration_sec)}
-      </h2>
+      <h2>{formatSessionSpan(detail.started_at, detail.ended_at, detail.duration_sec)}</h2>
       {error && <div className="error-banner">{error}</div>}
 
       <nav className="subtabs">
@@ -150,7 +148,7 @@ function HistoryRow({
   return (
     <div className="history-item">
       <div>
-        <strong>{formatDate(item.started_at)}</strong> · {formatDuration(item.duration_sec)} ·{" "}
+        <strong>{formatSessionSpan(item.started_at, item.ended_at, item.duration_sec)}</strong> ·{" "}
         {item.status}
         <div className="muted">
           Interview ✓ · Review {item.has_review ? "✓" : "—"} · Summary {item.summary_kind ?? "—"}
