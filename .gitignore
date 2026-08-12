@@ -14,6 +14,10 @@ backend/.venv
 .pytest_cache/
 htmlcov/
 .coverage
+# coverage.json — отчёт diff-coverage; `.coverage` его НЕ ловит (разные имена),
+# и он уехал в мерж 2026-08-12. Тот же класс, что симлинк venv (L13).
+coverage.json
+backend/coverage.json
 *.egg-info/
 
 # Node
