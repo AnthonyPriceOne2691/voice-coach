@@ -15,15 +15,15 @@ describe("dev-proxy покрывает все префиксы api.ts (C5)", () 
   it("каждый префикс клиента есть в прокси", () => {
     const client = apiPrefixes(apiSource);
     const proxied = proxiedPrefixes(viteConfigSource);
-    expect(client.length).toBeGreaterThan(0); // регулярка не разучилась читать пути
-    expect(client.filter((p) => !proxied.includes(p))).toEqual([]);
+    expect(client.length).toBeGreaterThan(0); // C5 — регулярка не разучилась читать пути
+    expect(client.filter((p) => !proxied.includes(p))).toEqual([]); // C5
   });
 
   it("сторож не всегда-зелёный: выдуманный префикс он замечает", () => {
     const client = apiPrefixes(`request<T>("/reports/weekly")`);
     const proxied = proxiedPrefixes(viteConfigSource);
-    expect(client).toEqual(["/reports"]);
-    expect(client.filter((p) => !proxied.includes(p))).toEqual(["/reports"]);
+    expect(client).toEqual(["/reports"]); // C5
+    expect(client.filter((p) => !proxied.includes(p))).toEqual(["/reports"]); // C5
   });
 });
 
@@ -35,12 +35,12 @@ describe("ошибка отличает «не JSON» от «бэкенд мол
       headers: { "content-type": "text/html" },
     });
     globalThis.fetch = () => Promise.resolve(html);
-    await expect(request("/sessions/interviews")).rejects.toThrow(/не JSON.*прокси/i);
+    await expect(request("/sessions/interviews")).rejects.toThrow(/не JSON.*прокси/i); // C4
   });
 
   it("настоящая ошибка бэкенда остаётся собой", async () => {
     const { request } = await import("./api");
     globalThis.fetch = () => Promise.resolve(new Response("nope", { status: 500 }));
-    await expect(request("/sessions/interviews")).rejects.toThrow(/500/);
+    await expect(request("/sessions/interviews")).rejects.toThrow(/500/); // C4
   });
 });
