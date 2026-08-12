@@ -24,7 +24,8 @@ def test_real_contract_files_load(interview: ContractEnforcer, review: ContractE
     assert interview.spec.mode == "interview"
     assert interview.spec.enforcement == "per_sentence"
     assert interview.spec.max_retries == 1
-    assert "great answer" in interview.spec.forbidden_patterns
+    assert "i'd score" in interview.spec.forbidden_patterns  # оценки остались
+    assert "great answer" not in interview.spec.forbidden_patterns  # похвала разрешена 2026-08-12
     assert "got it" in interview.spec.ack_whitelist
     assert review.spec.mode == "review"
 
@@ -54,11 +55,18 @@ def test_cyrillic_rejected(interview: ContractEnforcer) -> None:
     assert turn.sentences == []  # rejected sentence is never spoken
 
 
-def test_coaching_pattern_rejected_case_insensitive(interview: ContractEnforcer) -> None:
+def test_scoring_pattern_rejected_case_insensitive(interview: ContractEnforcer) -> None:
+    """Регистр не спасает оценку. Похвала при этом проходит — граница 2026-08-12."""
     turn = interview.start_turn(TurnContext(state="CORE_QUEST"))
-    violation = turn.feed("Great ANSWER, that was impressive!")
+    violation = turn.feed("I'D SCORE that at four.")
     assert violation is not None and violation.check == "forbid_patterns"
-    assert violation.matched == "great answer"
+    assert violation.matched == "i'd score"
+    assert (
+        interview.start_turn(TurnContext(state="CORE_QUEST")).feed(
+            "Great ANSWER, that was impressive!"
+        )
+        is None
+    )
 
 
 def test_max_three_sentences(interview: ContractEnforcer) -> None:
@@ -136,7 +144,7 @@ def test_review_allows_five_sentences(review: ContractEnforcer) -> None:
 
 def test_violation_event_schema(interview: ContractEnforcer) -> None:
     turn = interview.start_turn(TurnContext(state="CORE_QUEST"))
-    violation = turn.feed("Great answer!")
+    violation = turn.feed("I'd score that a four.")
     assert violation is not None
     event = interview.violation_event(
         violation, turn_index=7, state="CORE_QUEST", recovery="regenerate", recovered=True
@@ -144,10 +152,10 @@ def test_violation_event_schema(interview: ContractEnforcer) -> None:
     assert event == {
         "turn_index": 7,
         "state": "CORE_QUEST",
-        "constraint_id": "I1-H2_no_coaching",
+        "constraint_id": "I1-H3_no_scoring",
         "severity": "hard",
         "sentence_index": 0,
-        "matched": "great answer",
+        "matched": "i'd score",
         "recovery": "regenerate",
         "recovered": True,
     }

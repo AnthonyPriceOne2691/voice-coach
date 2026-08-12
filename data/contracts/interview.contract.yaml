@@ -1,7 +1,7 @@
 # Mode 1 — Mock Interview behavioral contract (ABC-lite)
 # Spec: docs/13-behavioral-contracts.md · checks map to modules in backend/app/contracts/rules/
 mode: interview
-version: "1.0"
+version: "2.0"   # 2.0 — инверсия: тренер-помощник вместо экзаменатора
 enforcement: per_sentence   # sentence-gated streaming, see doc 13 "Runtime pipeline"
 
 preconditions:
@@ -15,15 +15,15 @@ invariants:
   hard:
     - id: I1-H1_en_only
       check: no_cyrillic          # regex [Ѐ-ӿ], per sentence
-    - id: I1-H2_no_coaching
-      check: forbid_patterns
-      patterns_file: interview_forbidden.txt
+    # I1-H2 (no_coaching) СНЯТ 2026-08-12 решением человека: помощь, подсказка
+    # и похвала — работа тренера, а не нарушение. Раньше енфорсер резал их до
+    # озвучки, и барьер держала машина. История — docs/09, docs/13.
     - id: I1-H3_no_scoring
       check: forbid_patterns
-      patterns_file: interview_forbidden.txt   # scoring/debrief patterns included there
+      patterns_file: interview_forbidden.txt   # только баллы, рубрики, итоговый разбор
     - id: I1-H5_interviewer_role
       check: mode_persona
-      persona: senior_colleague
+      persona: supportive_coach
   soft:
     - id: I1-S2_no_preamble
       check: preamble_before_question
@@ -33,6 +33,9 @@ invariants:
       recovery: prepend_template
       template: "Got it."
     # I1-S1 (tone) — prompt-level only, NOT runtime-enforced in MVP (doc 13)
+    # I1-S4 (готовность помочь, когда кандидат встал) — тоже prompt-level:
+    # «доброту» машиной не проверить, проверяемо лишь отсутствие конкретных
+    # конструкций. Живёт в data/prompts/interviewer_system.txt.
 
 governance:
   hard:
