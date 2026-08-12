@@ -30,8 +30,19 @@ class FakeVoice:
         wav_file.writeframes(b"\x00\x00" * len(text))
 
 
-def _loaded(voice: FakeVoice, *, length_scale: float) -> PiperTts:
-    tts = PiperTts(Path("/nonexistent/voice.onnx"), length_scale=length_scale)
+def _loaded(
+    voice: FakeVoice,
+    *,
+    length_scale: float,
+    noise_scale: float | None = None,
+    noise_w: float | None = None,
+) -> PiperTts:
+    tts = PiperTts(
+        Path("/nonexistent/voice.onnx"),
+        length_scale=length_scale,
+        noise_scale=noise_scale,
+        noise_w=noise_w,
+    )
     tts._voice = voice
     return tts
 
@@ -67,3 +78,34 @@ async def test_result_is_a_readable_wav() -> None:
     with wave.open(io.BytesIO(data)) as wav:
         assert wav.getframerate() == 16000
         assert wav.getnframes() > 0
+
+
+@pytest.mark.asyncio
+async def test_prosody_reaches_synthesis_config() -> None:
+    """E1: интонация и ритм приходят ИЗ КОНФИГА, а не паспортом голоса.
+
+    Паспорт `en_US-hfc_male-medium` содержит `noise_scale: 0.333` — вдвое ниже
+    остальных голосов репозитория. Пока код передавал только `length_scale`,
+    эта ровность применялась молча, и никакой тест её не видел.
+    """
+    voice = FakeVoice()
+    tts = _loaded(voice, length_scale=1.15, noise_scale=0.667, noise_w=1.0)
+
+    await tts.synthesize("Say it with feeling.")
+
+    config = voice.configs[0]
+    assert config.noise_scale == 0.667
+    assert config.noise_w_scale == 1.0
+    assert config.length_scale == 1.15
+
+
+@pytest.mark.asyncio
+async def test_unset_prosody_falls_back_to_the_voice_passport() -> None:
+    """Красная сторона E1: None — это «взять паспорт», и оно остаётся возможным."""
+    voice = FakeVoice()
+    tts = _loaded(voice, length_scale=1.0)
+
+    await tts.synthesize("Neutral.")
+
+    assert voice.configs[0].noise_scale is None
+    assert voice.configs[0].noise_w_scale is None

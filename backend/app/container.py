@@ -47,7 +47,12 @@ def build_container(settings: Settings) -> Container:
     return Container(
         settings=settings,
         stt=WhisperCppStt(settings.whisper_cpp_bin, settings.whisper_model_path),
-        tts=PiperTts(settings.piper_voice_path, length_scale=settings.piper_length_scale),
+        tts=PiperTts(
+            settings.piper_voice_path,
+            length_scale=settings.piper_length_scale,
+            noise_scale=settings.piper_noise_scale,
+            noise_w=settings.piper_noise_w,
+        ),
         llm=ollama,
         decoder=FfmpegDecoder(),
         prompts=PromptLibrary(settings.prompts_dir, settings.knowledge_dir),

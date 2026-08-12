@@ -19,6 +19,44 @@ class FakeStt:
         return self.text
 
 
+#: Частота двойника — настоящая частота Piper: длительности в тестах считаются
+#: по ней, и подмена частоты сделала бы ассерты про паузу бессмысленными.
+FAKE_TTS_RATE = 22050
+
+
+def fake_wav(frames: int, *, rate: int = FAKE_TTS_RATE) -> bytes:
+    """Настоящий WAV из тишины: двойник обязан быть ПОДСТАНОВОЧНЫМ.
+
+    До 2026-08-13 здесь возвращалось `b"WAV:" + text` — байты, которые не читает
+    ни один потребитель аудио. Пока никто их не разбирал, это сходило с рук;
+    первый же код, читающий WAV (дыхание между предложениями), уронил шесть
+    тестов на `file does not start with RIFF id`.
+    """
+    import io
+    import wave
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(rate)
+        wav_file.writeframes(b"\x00\x00" * frames)
+    return buffer.getvalue()
+
+
+def fake_tts_duration_s(text: str) -> float:
+    """Сколько секунд двойник отдаст на этот текст — считаем, а не синтезируем."""
+    return (FAKE_TTS_RATE // 10 * max(1, len(text) // 10)) / FAKE_TTS_RATE
+
+
+def wav_duration_s(wav: bytes) -> float:
+    import io
+    import wave
+
+    with wave.open(io.BytesIO(wav)) as reader:
+        return reader.getnframes() / reader.getframerate()
+
+
 class FakeTts:
     def __init__(self) -> None:
         self.synthesized: list[str] = []
@@ -30,7 +68,9 @@ class FakeTts:
     async def synthesize(self, text: str, *, length_scale: float | None = None) -> bytes:
         self.synthesized.append(text)
         self.scales.append(length_scale)
-        return b"WAV:" + text.encode()
+        # Длительность пропорциональна тексту — тогда «чанк вырос на паузу»
+        # отличимо от «чанк просто другой».
+        return fake_wav(frames=FAKE_TTS_RATE // 10 * max(1, len(text) // 10))
 
 
 class FakeLlm:
