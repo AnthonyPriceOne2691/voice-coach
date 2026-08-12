@@ -3,6 +3,9 @@
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from fastapi import WebSocketDisconnect
+from starlette.websockets import WebSocketState
+
 from app.common.interfaces import ChatMessage
 
 
@@ -68,6 +71,71 @@ class ScriptedLlm:
         script = self._scripts[min(len(self.calls) - 1, len(self._scripts) - 1)]
         for token in script:
             yield token
+
+
+class GoneClientWebSocket:
+    """Транспорт, повторяющий starlette ПОСЛЕ ухода клиента посреди хода.
+
+    Почему поддельный, а не `TestClient`: тест-клиент на закрытии **отменяет**
+    задачу приложения (замер: внутрь STT прилетает `CancelledError`), а uvicorn
+    задачу не трогает и сообщает об уходе только на отправке. Тест на
+    `TestClient` проверял бы поведение тест-клиента, а не сервера.
+
+    Воспроизводятся ОБЕ ступени `starlette/websockets.py::send`, снятые с
+    настоящего прогона: первая отправка после ухода даёт
+    `WebSocketDisconnect(1006)` и переводит `application_state` в DISCONNECTED,
+    каждая следующая — `RuntimeError('Cannot call "send" once a close message
+    has been sent.')`. Вторая ступень и уносила уборку мимо
+    `except WebSocketDisconnect`.
+
+    `client_state` остаётся CONNECTED: он переключается только на приёме
+    `websocket.disconnect`, которого посреди хода никто не читает.
+    """
+
+    def __init__(self, app: object, script: list[dict[str, object]]) -> None:
+        self.app = app
+        self.client_state = WebSocketState.CONNECTED
+        self.application_state = WebSocketState.CONNECTED
+        self.sent: list[dict[str, object]] = []
+        self.client_gone = False
+        self._script = list(script)
+
+    async def accept(self) -> None:
+        return None
+
+    async def receive_json(self) -> dict[str, object]:
+        if self.client_gone or not self._script:
+            self.client_state = WebSocketState.DISCONNECTED
+            raise WebSocketDisconnect(code=1006)
+        return self._script.pop(0)
+
+    async def send_json(self, message: dict[str, object]) -> None:
+        if not self.client_gone:
+            self.sent.append(message)
+            return
+        if self.application_state is WebSocketState.CONNECTED:
+            self.application_state = WebSocketState.DISCONNECTED
+            raise WebSocketDisconnect(code=1006)
+        raise RuntimeError('Cannot call "send" once a close message has been sent.')
+
+
+class TabClosingStt:
+    """STT, во время которого пользователь закрывает вкладку.
+
+    Момент выбран не случайно: следующая за STT операция — отправка распознанной
+    реплики, то есть первый контакт с уже мёртвым сокетом. Ровно там дефект и
+    жил в браузере.
+    """
+
+    def __init__(
+        self, ws: GoneClientWebSocket, text: str = "I built an inbound pipeline for our team"
+    ) -> None:
+        self.ws = ws
+        self.text = text
+
+    async def transcribe(self, wav_path: Path) -> str:
+        self.ws.client_gone = True
+        return self.text
 
 
 class FakeDecoder:
