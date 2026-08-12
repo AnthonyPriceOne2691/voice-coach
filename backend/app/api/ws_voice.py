@@ -240,6 +240,14 @@ class _SessionHandler:
         except OllamaError:
             await self._error("PIPELINE_FAILURE", "LLM unavailable", recoverable=False)
             await self._on_end_session(reason="pipeline_failure")
+        except WebSocketDisconnect:
+            # Разрыв — НЕ отказ хода, а штатный конец сессии, и он обязан дойти
+            # до `ws_session`: уборка живёт в его `except`. Без этой ветки
+            # `WebSocketDisconnect` (он же `Exception`) попадал ниже, ход
+            # объявлялся упавшим, и попытка сказать об этом ушедшему клиенту
+            # роняла сессию мимо всякой уборки — `ended_at` оставался пустым
+            # навсегда (repro: test_disconnect_during_turn_finishes_session).
+            raise
         except Exception:
             logger.exception("voice turn failed")
             await self._error("INTERNAL", "turn failed — please repeat", recoverable=True)
@@ -371,6 +379,11 @@ class _SessionHandler:
             logger.warning("LLM warmup failed", exc_info=True)
 
     async def _send(self, msg_type: str, payload: dict[str, Any]) -> None:
+        # Проверки «а жив ли клиент» здесь СОЗНАТЕЛЬНО нет, и это замер, а не
+        # упущение: с ней сьют такой же зелёный, но сервер доигрывает весь ход
+        # (LLM + TTS) в пустоту, а без неё первая же отправка роняет
+        # `WebSocketDisconnect`, ход обрывается и сессия закрывается. Реплика
+        # пользователя сохраняется в обоих случаях — она пишется до отправки.
         await self._ws.send_json({"type": msg_type, "payload": payload})
 
     async def _state(self, value: str) -> None:

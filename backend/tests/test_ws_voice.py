@@ -1,14 +1,17 @@
 """WebSocket contract tests (doc 15) — orchestrated Mode 1 with mocked AI."""
 
+import asyncio
 import base64
 import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
+from app.api.ws_voice import ws_session
 from app.main import create_app
-from tests.fakes import FakeLlm, FakeStt
+from tests.fakes import FakeLlm, FakeStt, GoneClientWebSocket, TabClosingStt
 from tests.helpers import fetch_interview, fetch_review, make_container, seed_finished_interview
 
 LONG_ANSWER = "I built an internal CRM tool with separate queues and cut the team from 5 to 1"
@@ -236,3 +239,56 @@ def test_disconnect_without_end_session_finishes_flow(tmp_path: Path) -> None:
     assert row.ended_at is not None  # B1, B3
     # B1: транскрипт интро уже на диске, flush per turn, а не в конце сессии
     assert json.loads(row.transcript_json)[0]["role"] == "agent"  # B1
+
+
+def test_disconnect_during_turn_finishes_session(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Инвариант тот же, но вход другой: разрыв ПОСЕРЕДИНЕ хода.
+
+    Repro этой поставки, найденный ручным прогоном в браузере (2 из 2). Тест
+    выше рвёт соединение в состоянии ожидания — там разрыв приходит в
+    `receive_json`, штатным путём. Здесь он приходит ВНУТРЬ `_run_turn`, на
+    отправке уже распознанной реплики, и до фикса срабатывала цепочка:
+    широкий `except Exception` принимал разрыв за отказ хода -> `_error` слал
+    в мёртвый сокет -> `RuntimeError` уходил мимо `except WebSocketDisconnect`
+    -> уборка не запускалась вовсе и `ended_at` оставался пустым НАВСЕГДА.
+
+    Транспорт поддельный (`GoneClientWebSocket`), и это не упрощение, а
+    необходимость: `TestClient` на закрытии отменяет задачу приложения, чего
+    uvicorn не делает, — на нём проверялось бы поведение тест-клиента.
+    Приложение при этом настоящее, вместе с lifespan: его выход ждёт живые
+    уборки, как в проде.
+    """
+    container = make_container(tmp_path, FakeLlm(["Ok? "]), FakeStt())
+    app = create_app(container)
+    script: list[dict[str, Any]] = [
+        {"type": "start_interview", "payload": {}},
+        {"type": "utterance_end", "payload": {"audio_base64": base64.b64encode(b"webm").decode()}},
+    ]
+    ws = GoneClientWebSocket(app, script)
+    container.stt = TabClosingStt(ws)
+
+    async def scenario() -> BaseException | None:
+        async with app.router.lifespan_context(app):
+            try:
+                await ws_session(ws)
+            except BaseException as exc:  # предмет проверки: что именно вылетело
+                return exc
+            return None
+
+    escaped = asyncio.run(scenario())
+
+    # B1: разрыв не выносит исключение из обработчика. До фикса здесь был
+    # RuntimeError('Cannot call "send" once a close message has been sent.')
+    assert escaped is None, f"из ws_session вылетело {escaped!r}"
+
+    row = fetch_interview(container.settings.database_url, str(ws.sent[0]["payload"]["session_id"]))
+    assert row is not None  # B1
+    assert row.status == "in_progress"  # B1
+    # B2: ровно это оставалось пустым до фикса — и оставалось навсегда
+    assert row.ended_at is not None  # B1, B2
+    # B1: реплика пользователя записана — ход дошёл до транскрипта, а не упал раньше
+    assert [t["role"] for t in json.loads(row.transcript_json)] == ["agent", "user"]
+    # B3: разрыв — не отказ хода
+    assert "voice turn failed" not in caplog.text  # B3
