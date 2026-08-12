@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # максимум качества: en_US-ryan-high (~0.81 s/предложение) через PIPER_VOICE_PATH в .env
     piper_voice_path: Path = REPO_ROOT / "data" / "models" / "piper" / "en_US-hfc_male-medium.onnx"
     piper_length_scale: float = 1.15  # темп речи: 1.0 = нативный, больше = медленнее
+    # Просодия. У hfc_male в паспорте `noise_scale: 0.333` — ВДВОЕ ниже, чем у
+    # остальных голосов репозитория, и это главная причина, по которой Генри
+    # звучал ровно. Значения выбраны на слух по образцам спайка (2026-08-13);
+    # они привязаны к этому голосу — меняя PIPER_VOICE_PATH, переслушай.
+    piper_noise_scale: float = 0.667  # вариативность интонации
+    piper_noise_w: float = 1.0  # вариативность длительностей = живость ритма
+    sentence_pause_ms: int = 350  # дыхание МЕЖДУ предложениями (не после последнего)
 
     database_url: str = f"sqlite+aiosqlite:///{REPO_ROOT / 'data' / 'sessions' / 'app.db'}"
 

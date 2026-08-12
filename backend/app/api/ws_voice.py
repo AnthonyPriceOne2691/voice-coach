@@ -27,6 +27,7 @@ from app.orchestrator.question_bank import pick_session_pool
 from app.orchestrator.review import ReviewOrchestrator, build_segments, render_segments
 from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
+from app.voice.prosody import lead_in
 from app.voice.review_flow import ReviewFlow
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
 from app.voice.tts_paced import PacedTts
@@ -117,6 +118,9 @@ class _SessionHandler:
         # Темп — свойство СЕССИИ, поэтому обёртка своя у каждого обработчика;
         # голосовая модель под ней остаётся общей и грузится один раз.
         self._tts = PacedTts(container.tts, scale=container.settings.piper_length_scale)
+        #: Сколько чанков уже прозвучало в текущей реплике: первому дыхание не
+        #: нужно, оно нужно ПЕРЕД следующими. Сбрасывается на `final=True`.
+        self._spoken_chunks = 0
         self._runner = TurnRunner(container.llm, self._tts)
 
     # -- dispatch --------------------------------------------------------------
@@ -469,6 +473,20 @@ class _SessionHandler:
         await self._send("transcript", {"role": role, "text": text, "final": True})
 
     async def _send_audio(self, wav: bytes, *, final: bool) -> None:
+        """Второму и последующим чанкам реплики предпосылается дыхание.
+
+        Счётчик живёт здесь, а не в `TurnRunner`, потому что одним местом
+        закрываются ВСЕ пути, где подряд идут несколько чанков: ход интервью,
+        подтверждение темпа с повтором, разбор в Mode 2. Два места вставки
+        неизбежно разъехались бы (L11).
+
+        ⚠ Корректность держится на сбросе: `final=True` заканчивает реплику, и
+        без сброса пауза уехала бы в НАЧАЛО следующей — то есть в задержку
+        перед первым словом Генри.
+        """
+        if wav and self._spoken_chunks:
+            wav = lead_in(wav, self._c.settings.sentence_pause_ms / 1000)
+        self._spoken_chunks = 0 if final else self._spoken_chunks + 1
         await self._send(
             "audio",
             {
