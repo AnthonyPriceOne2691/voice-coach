@@ -7,12 +7,26 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from starlette.testclient import TestClient, WebSocketTestSession
+from starlette.testclient import TestClient
 
 from app.api.ws_voice import ws_session
 from app.main import create_app
 from tests.fakes import FakeLlm, FakeStt, GoneClientWebSocket, TabClosingStt
-from tests.helpers import fetch_interview, fetch_review, make_container, seed_finished_interview
+from tests.helpers import (
+    collect_until as _collect_until,
+)
+from tests.helpers import (
+    drain_intro as _drain_intro,
+)
+from tests.helpers import (
+    fetch_interview,
+    fetch_review,
+    make_container,
+    seed_finished_interview,
+)
+from tests.helpers import (
+    send_utterance as _send_utterance,
+)
 
 LONG_ANSWER = "I built an internal CRM tool with separate queues and cut the team from 5 to 1"
 
@@ -23,33 +37,6 @@ LONG_ANSWER = "I built an internal CRM tool with separate queues and cut the tea
 # оставалось вне пула, SQLAlchemy добивал его задачей, а закрытие цикла ждало её
 # вечно — падал ВЕСЬ прогон, а не тест. Подавление снято вместе с починкой;
 # разбор — delivery/archive/<этой поставки>/diagnosis.md.
-
-
-def _collect_until(ws: WebSocketTestSession, msg_type: str) -> list[dict[str, Any]]:
-    messages = []
-    while True:
-        message = ws.receive_json()
-        messages.append(message)
-        if message["type"] == msg_type:
-            return messages
-
-
-def _drain_intro(ws: WebSocketTestSession) -> str:
-    started = ws.receive_json()
-    assert started["type"] == "session_started"
-    messages = _collect_until(ws, "state")  # speaking ... listening
-    while messages[-1]["payload"]["value"] != "listening":
-        messages += _collect_until(ws, "state")
-    return str(started["payload"]["session_id"])
-
-
-def _send_utterance(ws: WebSocketTestSession, payload: bytes = b"webm") -> None:
-    ws.send_json(
-        {
-            "type": "utterance_end",
-            "payload": {"audio_base64": base64.b64encode(payload).decode()},
-        }
-    )
 
 
 def test_hello_ready(tmp_path: Path) -> None:

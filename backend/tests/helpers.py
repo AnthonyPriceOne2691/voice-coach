@@ -1,9 +1,12 @@
 """Shared test container wiring (real contracts/questions/DB, fake AI)."""
 
 import asyncio
+import base64
 import json
 from pathlib import Path
 from typing import Any
+
+from starlette.testclient import WebSocketTestSession
 
 from app.config import Settings
 from app.container import Container
@@ -21,6 +24,16 @@ from app.summary.service import SummaryService
 from tests.fakes import FakeDecoder, FakeStt, FakeTts
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Реплики подтверждения темпа. В тестовом контейнере они СВОИ, а не копия
+#: настоящих: тест мета-хода проверяет механику, а не текст. Что настоящие
+#: файлы существуют и не задевают запретов, сторожит test_prompts.py.
+PACE_TEMPLATES = {
+    "pace_slower": "Sure, slowing down. Here it is again.",
+    "pace_faster": "Sure, speeding up. Here it is again.",
+    "pace_slowest": "That's the slowest I can go, but let me repeat it.",
+    "pace_fastest": "That's as fast as I can go, but let me repeat it.",
+}
 
 MINIMAL_SUMMARY = {
     "overall_summary": "Short but focused session.",
@@ -55,6 +68,8 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     (prompts / "templates" / "interview_wrap_up.txt").write_text(
         "That's all from my side. Do you have any questions for us?"
     )
+    for name, line in PACE_TEMPLATES.items():
+        (prompts / "templates" / f"{name}.txt").write_text(line)
     knowledge = tmp_path / "knowledge"
     knowledge.mkdir()
     (knowledge / "profile_condensed.md").write_text("profile")
@@ -96,6 +111,38 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
             settings,
         ),
         ollama=None,
+    )
+
+
+def collect_until(ws: WebSocketTestSession, msg_type: str) -> list[dict[str, Any]]:
+    messages = []
+    while True:
+        message = ws.receive_json()
+        messages.append(message)
+        if message["type"] == msg_type:
+            return messages
+
+
+def drain_until_listening(ws: WebSocketTestSession) -> list[dict[str, Any]]:
+    messages = collect_until(ws, "state")
+    while messages[-1]["payload"]["value"] != "listening":
+        messages += collect_until(ws, "state")
+    return messages
+
+
+def drain_intro(ws: WebSocketTestSession) -> str:
+    started = ws.receive_json()
+    assert started["type"] == "session_started"
+    drain_until_listening(ws)  # speaking ... listening
+    return str(started["payload"]["session_id"])
+
+
+def send_utterance(ws: WebSocketTestSession, payload: bytes = b"webm") -> None:
+    ws.send_json(
+        {
+            "type": "utterance_end",
+            "payload": {"audio_base64": base64.b64encode(payload).decode()},
+        }
     )
 
 

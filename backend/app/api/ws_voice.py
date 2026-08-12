@@ -21,18 +21,34 @@ from app import __version__
 from app.container import Container
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.llm.ollama_client import OllamaError
+from app.orchestrator import pace
 from app.orchestrator.interview import InterviewOrchestrator
 from app.orchestrator.question_bank import pick_session_pool
 from app.orchestrator.review import ReviewOrchestrator, build_segments, render_segments
+from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
 from app.voice.review_flow import ReviewFlow
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
+from app.voice.tts_paced import PacedTts
 from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
 
 logger = logging.getLogger(__name__)
 
 QUESTIONS_PER_SESSION = 6
 TERMINAL_STATES = {"DEBRIEF", "END"}
+
+#: Настройка, в которой живёт темп речи между сессиями (doc 15).
+PACE_SETTING = "speech_length_scale"
+
+#: Какую реплику подтверждения произнести. Ключ — (просьба, уже на границе):
+#: на границе Генри обязан сказать, что дальше некуда, иначе «Sure» прозвучит
+#: обещанием изменения, которого не будет.
+_PACE_TEMPLATES = {
+    (pace.PaceRequest.SLOWER, False): "pace_slower",
+    (pace.PaceRequest.SLOWER, True): "pace_slowest",
+    (pace.PaceRequest.FASTER, False): "pace_faster",
+    (pace.PaceRequest.FASTER, True): "pace_fastest",
+}
 
 VoiceFlow = InterviewFlow | ReviewFlow
 
@@ -93,7 +109,10 @@ class _SessionHandler:
         self._kind = "interview"
         self._started_at = 0.0
         self._warmup_task: asyncio.Task[None] | None = None
-        self._runner = TurnRunner(container.llm, container.tts)
+        # Темп — свойство СЕССИИ, поэтому обёртка своя у каждого обработчика;
+        # голосовая модель под ней остаётся общей и грузится один раз.
+        self._tts = PacedTts(container.tts, scale=container.settings.piper_length_scale)
+        self._runner = TurnRunner(container.llm, self._tts)
 
     # -- dispatch --------------------------------------------------------------
 
@@ -149,8 +168,15 @@ class _SessionHandler:
 
     # -- session starts ----------------------------------------------------------
 
+    def _restore_pace(self, user_settings: dict[str, Any]) -> None:
+        """Темп, о котором попросили в прошлый раз, — не значение по умолчанию."""
+        stored = user_settings.get(PACE_SETTING)
+        if isinstance(stored, int | float) and pace.in_range(float(stored)):
+            self._tts.set_scale(float(stored))
+
     async def _on_start_interview(self) -> None:
         user_settings = await self._c.user_settings.get_all()
+        self._restore_pace(user_settings)
         duration = int(user_settings.get("interview_duration_min", 15))
         pool = pick_session_pool(
             self._c.question_bank,
@@ -176,7 +202,7 @@ class _SessionHandler:
         )
         intro = self._c.prompts.template("interview_intro")
         await self._state("speaking")
-        await self._send_audio(await self._c.tts.synthesize(intro), final=False)
+        await self._send_audio(await self._tts.synthesize(intro), final=False)
         await flow.start(intro)
         self._warmup_task = asyncio.create_task(self._warmup())
         await self._transcript("agent", intro)
@@ -184,6 +210,7 @@ class _SessionHandler:
         await self._state("listening")
 
     async def _on_start_review(self, interview_id: str) -> None:
+        self._restore_pace(await self._c.user_settings.get_all())
         row = await self._c.interviews.get(interview_id)
         if row is None:
             await self._error("SESSION_NOT_FOUND", "interview not found", recoverable=True)
@@ -258,12 +285,21 @@ class _SessionHandler:
             self._c.decoder, self._c.stt, audio, min_words=self._c.settings.min_transcript_words
         )
         logger.info("user said: %r", text)
+
+        # Просьба о темпе перехватывается ДО оркестратора. Иначе она уходит в
+        # `on_user_answer` как ответ, тратит follow-up или целый вопрос из шести
+        # и оседает в транскрипте против чужого question_id.
+        request = pace.detect(text)
+        if request is not None:
+            await self._handle_pace_request(flow, text, request)
+            return
+
         plan = await flow.on_user(text)
         await self._transcript("user", text)
 
         if plan.state.value in TERMINAL_STATES:
             await self._state("speaking")
-            await self._send_audio(await self._c.tts.synthesize(plan.seed), final=False)
+            await self._send_audio(await self._tts.synthesize(plan.seed), final=False)
             await flow.on_agent(plan.seed, violations=[], fallback_used=False)
             await self._transcript("agent", plan.seed)
             await self._send_audio(b"", final=True)
@@ -271,6 +307,32 @@ class _SessionHandler:
             return
 
         await self._agent_generation(flow, plan)
+
+    async def _handle_pace_request(
+        self, flow: VoiceFlow, text: str, request: pace.PaceRequest
+    ) -> None:
+        """Мета-ход: сменить темп, подтвердить УЖЕ им и повторить сказанное дословно.
+
+        LLM здесь не участвует вовсе — ни вызова, ни истории. Решение о темпе
+        структурное, а структурой владеет код (I1-H6); повтор дословный, потому
+        что просьба «медленнее» почти всегда означает «я не расслышал».
+        """
+        new_scale, at_limit = pace.apply(self._tts.scale, request)
+        self._tts.set_scale(new_scale)  # ДО синтеза: подтверждение звучит новым темпом
+        await self._c.user_settings.update({PACE_SETTING: new_scale})
+
+        ack = self._c.prompts.template(_PACE_TEMPLATES[request, at_limit])
+        repeat = last_agent_text(flow.buffer)
+        spoken = [line for line in (ack, repeat) if line]
+
+        await self._transcript("user", text)
+        await self._state("speaking")
+        for line in spoken:
+            await self._send_audio(await self._tts.synthesize(line), final=False)
+        await flow.on_meta(text, " ".join(spoken))
+        await self._transcript("agent", " ".join(spoken))
+        await self._send_audio(b"", final=True)
+        await self._state("listening")
 
     async def _agent_generation(self, flow: VoiceFlow, plan: Any) -> None:
         params, enforcer = self._mode_params()

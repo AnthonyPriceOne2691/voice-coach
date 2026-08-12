@@ -17,6 +17,7 @@ from app.llm.strip_thinking import strip_thinking
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
+from app.storage.turns import is_meta
 from app.summary.validate import SummaryInvalidError, extract_json, validate_summary
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,12 @@ SCHEMA_HINT = (
 
 
 def _render_transcript(turns: list[dict[str, Any]]) -> str:
-    return "\n".join(f"{t['role']}: {t['text']}" for t in turns)
+    """Мета-ходы отброшены: просьба «speak slower» — не реплика кандидата.
+
+    Она произошла и осталась в транскрипте, но в разборе выглядела бы ответом
+    и попала бы в оценку словарного запаса и в evidence.
+    """
+    return "\n".join(f"{t['role']}: {t['text']}" for t in turns if not is_meta(t))
 
 
 class SummaryService:

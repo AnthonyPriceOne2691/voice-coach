@@ -12,8 +12,14 @@ class SpeechToText(Protocol):
 
 
 class TextToSpeech(Protocol):
-    async def synthesize(self, text: str) -> bytes:
-        """Return WAV bytes for the given sentence."""
+    async def synthesize(self, text: str, *, length_scale: float | None = None) -> bytes:
+        """Return WAV bytes for the given sentence.
+
+        `length_scale` is the speaking tempo (1.0 = the voice's native rate,
+        larger = slower); None means "use whatever this implementation was
+        configured with". It lives on the seam because tempo is decided per
+        utterance — the user can ask for it mid-session (docs 15/17).
+        """
         ...
 
 

@@ -5,8 +5,11 @@ from pathlib import Path
 
 from starlette.testclient import TestClient
 
+from app.config import Settings
 from app.main import create_app
+from app.orchestrator.pace import in_range
 from app.storage.db import Database
+from app.storage.repositories.settings_repo import DEFAULTS
 from app.storage.repositories.vocabulary import VocabularyRepository
 from tests.fakes import FakeLlm, FakeStt, ScriptedLlm
 from tests.helpers import make_container, minimal_summary_tokens, seed_finished_interview
@@ -101,3 +104,29 @@ def test_settings_roundtrip(tmp_path: Path) -> None:
         updated = client.patch("/settings", json={"interview_duration_min": 30}).json()
         assert updated["interview_duration_min"] == 30
         assert client.get("/settings").json()["interview_duration_min"] == 30
+
+
+def test_speech_pace_setting_is_exposed_and_validated(tmp_path: Path) -> None:
+    """P5 + P6: темп виден в настройках, значение вне коридора ОТВЕРГАЕТСЯ."""
+    container = make_container(tmp_path, FakeLlm(["x. "]), FakeStt())
+    with TestClient(create_app(container)) as client:
+        assert client.get("/settings").json()["speech_length_scale"] == 1.15
+
+        assert client.patch("/settings", json={"speech_length_scale": 1.45}).status_code == 200
+        assert client.get("/settings").json()["speech_length_scale"] == 1.45
+
+        # P6: молчаливый зажим неотличим от принятого значения — поэтому 422
+        for bad in (2.5, 0.1, "fast", True, None):
+            assert client.patch("/settings", json={"speech_length_scale": bad}).status_code == 422
+        assert client.get("/settings").json()["speech_length_scale"] == 1.45  # не тронуто
+
+
+def test_settings_defaults_agree_with_the_config() -> None:
+    """L11: два файла, каждый со своей половиной правды, — уже случившийся дефект.
+
+    `DEFAULTS` и `Settings.piper_length_scale` описывают ОДНО значение. Разъезд
+    ничего не сломает громко: Генри просто заговорит не тем темпом, с которого
+    начинается коридор, и понять это можно будет только на слух.
+    """
+    assert DEFAULTS["speech_length_scale"] == Settings().piper_length_scale
+    assert in_range(DEFAULTS["speech_length_scale"])

@@ -6,6 +6,7 @@ status: accepted
 tags: [orchestrator, llm, determinism]
 implementation:
   - backend/app/orchestrator/interview.py
+  - backend/app/orchestrator/pace.py
   - backend/app/orchestrator/review.py
   - backend/app/orchestrator/question_bank.py
   - data/prompts/
@@ -24,6 +25,12 @@ implementation:
   переходить к wrap-up — решает оркестратор, а не модель.
 - **Follow-up — детерминированная политика** (doc 04), не «модель решила спросить ещё».
 - **LLM отвечает только за формулировку** уже принятого решения.
+- **Что считать ответом — тоже структура.** Просьба сменить темп речи («speak
+  slower») адресована инструменту, а не интервьюеру: она распознаётся
+  детерминированно (`pace.py`), обрабатывается мета-ходом и **не двигает**
+  состояние. Отдать эту классификацию модели — та же ошибка, что отдать ей выбор
+  следующего вопроса, только цена выше: ошибка стоит пользователю вопроса из
+  шести и портит транскрипт, по которому строится Mode 2.
 - Промпты и банк вопросов живут в `data/`, не в коде: перечитываются на каждой
   сессии, рестарт не нужен (и гейт `inline-prompt` не даст вписать их в `.py`).
 
@@ -41,6 +48,7 @@ implementation:
 | Area | Path |
 |---|---|
 | Оркестратор интервью | `backend/app/orchestrator/interview.py` |
+| Политика темпа речи | `backend/app/orchestrator/pace.py` |
 | Оркестратор review | `backend/app/orchestrator/review.py` |
 | Банк вопросов | `backend/app/orchestrator/question_bank.py` |
 | Промпты / вопросы (данные) | `data/prompts/`, `data/questions/` |
@@ -48,3 +56,4 @@ implementation:
 # Sources
 
 - `docs/04-interview-orchestrator.md`, `docs/11-two-modes-review-dialogue.md`, `docs/16-prompts-library.md`
+- Мета-ходы и темп речи: `docs/04-interview-orchestrator.md`, `docs/15-api-websocket-spec.md`

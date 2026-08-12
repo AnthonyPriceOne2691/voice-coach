@@ -186,7 +186,14 @@ Loading review model… (~10s)
 | Show live transcript | toggle | **ON** |
 | Interview duration | 15 / 30 / 45 min | 15 |
 | Silence before end-of-turn | slider 0.8–2.0 s | 1.2 s |
+| Speech pace | slider 0.85–1.60 | 1.15 |
 | Microphone device | dropdown | system default |
+
+**Speech pace** уже существует как настройка (`speech_length_scale`, doc 15) и
+меняется голосом внутри сессии — «speak slower» (doc 04). Регулятор здесь ещё
+**не нарисован**: экрана Settings во фронте нет вовсе, и он появится вместе с
+переработкой интерфейса. До тех пор единственный способ задать темп руками —
+`PATCH /settings`.
 
 Diagnostics section (read-only):
 - Ollama status
