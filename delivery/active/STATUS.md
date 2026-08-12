@@ -17,7 +17,7 @@
 - **ci-oracles:** tooling
 - **worktree:** ../voice-coach-proxy (ветка fix/dev-proxy)
 - **hooks:** claude (scripts/hooks/)
-- **blockers:** none
+- **blockers:** none reason=escalation.md разрешён человеком в пользу варианта B (drift-waiver ниже); файл оставлен в поставке как запись о том, как решение принималось
 - **waivers:** none
 - **new_dependency:** none reason=правка конфига и одна проверка в существующем клиенте; новых пакетов не требуется
 - **runtime_paths:** frontend/vite.config.ts
@@ -25,7 +25,7 @@
        тестам: сборка зелёная, юнит-тесты зелёные, а в браузере две вкладки
        мертвы. Ровно так дефект и прожил незамеченным. Проверяется исполнением
        в настоящем браузере, не рассуждением. -->
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** reason=таяние долга задело три концепта, но ни один инвариант не изменился и это проверяется диффом: в llm/ollama_client.py (model-split) — только комментарии и пометка `# cpu-ok` на строке json.loads, модели и разбор стрима не тронуты; в orchestrator/interview.py (orchestrator-owns-structure) — одна строка raise получила контекст, логика выбора вопросов та же; в contracts/enforcer.py (sentence-streaming) — if/elif заменён таблицей методов без единого изменённого условия, per-sentence семантика прежняя, тесты контрактов держат 100%. Правка самих концептов была бы ложным «обновлено» by=human:anthony at=2026-08-12
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** C1–C4 подтверждены; в браузере вкладки History и Useful
