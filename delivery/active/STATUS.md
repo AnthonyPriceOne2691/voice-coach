@@ -6,7 +6,7 @@
 - **kind:** bugfix
 - **repro_test:** frontend/src/lib/format.test.ts::формат строки History отличает закрытую сессию от брошенной
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-12) reason=примеры D1–D5 предъявлены ДО кода с тремя оговорками: модель состояний не меняется (status остаётся in_progress), duration_sec не трогается, стенд в CI не ставится

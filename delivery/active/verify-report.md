@@ -120,7 +120,7 @@ asserts_without_example: 0
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — delivery/active/spec.md (новый оракул), delivery/evals/browser/.gitignore, delivery/evals/browser/README.md, delivery/evals/browser/run.sh |
 | implement_retries | **1** — отметка «не завершена» была написана по-русски посреди английского интерфейса; тест этого не видел, поймал снимок экрана. Сам форматтер и перенос стенда переделке не подвергались |
-| verify_fails_before_green | заполняется после первого прогона CI на ветке |
+| verify_fails_before_green | **0** — все три джобы зелёные с первого прогона. Одна правка формы (непривязанное утверждение D1) поймана `assert_digest.sh` локально, до CI |
 | est_token_or_cost | n/a — не измерялось; локальный инструмент, внешних платных вызовов нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
