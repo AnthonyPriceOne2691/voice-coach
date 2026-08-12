@@ -6,8 +6,10 @@ import pytest
 
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import ContractError, load_contract
+from app.orchestrator.question_bank import load_bank
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "data" / "contracts"
+QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "data" / "questions"
 
 
 @pytest.fixture(scope="module")
@@ -166,3 +168,25 @@ def test_spoken_text_joins_accepted_sentences(interview: ContractEnforcer) -> No
     turn.feed("Got it.")
     turn.feed("Why separate queues?")
     assert turn.spoken_text() == "Got it. Why separate queues?"
+
+
+def test_behavioral_seeds_are_speakable(interview: ContractEnforcer) -> None:
+    """Вопрос, который енфорсер режет, пользователь НЕ УСЛЫШИТ (L24).
+
+    Seed'ы банка используются дословно как запасная реплика при нарушении
+    контракта, поэтому обязаны проходить его сами.
+    """
+    bank = load_bank(QUESTIONS_DIR / "behavioral.yaml")
+    assert len(bank) == 8
+
+    for question in bank:
+        turn = interview.start_turn(TurnContext(state="CORE_QUEST"))
+        assert turn.feed(question.seed) is None, f"{question.id} режется контрактом"
+
+    # запасная реплика behavioral follow-up — оттуда же
+    turn = interview.start_turn(TurnContext(state="FOLLOW_UP"))
+    assert turn.feed("What did you do next, and how did it turn out?") is None
+
+    # красная сторона (L25): будь в вопросе оценка, сторож обязан покраснеть
+    red = interview.start_turn(TurnContext(state="CORE_QUEST"))
+    assert red.feed("Tell me about a time you failed. I'd rate that answer 3 out of 5.") is not None

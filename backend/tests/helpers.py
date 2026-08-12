@@ -102,6 +102,7 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
         question_bank=load_bank(
             REPO_ROOT / "data" / "questions" / "technical_project_walkthrough.yaml"
         ),
+        behavioral_bank=load_bank(REPO_ROOT / "data" / "questions" / "behavioral.yaml"),
         summaries=SummaryService(
             llm,
             prompt_library,

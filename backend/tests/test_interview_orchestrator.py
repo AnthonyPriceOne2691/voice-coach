@@ -6,14 +6,16 @@ from pathlib import Path
 import pytest
 
 from app.orchestrator.interview import InterviewOrchestrator, Phase
-from app.orchestrator.question_bank import Question, load_bank, pick_session_pool
-
-BANK_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "data"
-    / "questions"
-    / "technical_project_walkthrough.yaml"
+from app.orchestrator.question_bank import (
+    Question,
+    QuestionKind,
+    load_bank,
+    pick_session_pool,
 )
+
+QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "data" / "questions"
+TECHNICAL_BANK = QUESTIONS_DIR / "technical_project_walkthrough.yaml"
+BEHAVIORAL_BANK = QUESTIONS_DIR / "behavioral.yaml"
 
 LONG_WITH_METRIC = " ".join(["word"] * 50) + " reduced from 5 to 1"
 LONG_NO_METRIC = " ".join(["word"] * 50)
@@ -32,20 +34,8 @@ class FakeClock:
         return self.now
 
 
-def test_bank_loads_and_pool_starts_with_first() -> None:
-    bank = load_bank(BANK_PATH)
-    assert len(bank) == 8
-    pool = pick_session_pool(bank, count=6, rng=random.Random(42))
-    assert pool[0].id == "project_overview"  # marked first: true
-    assert len(pool) == 6
-    assert len({q.id for q in pool}) == 6
-
-
-def test_empty_bank_raises(tmp_path: Path) -> None:
-    empty = tmp_path / "empty.yaml"
-    empty.write_text("mode: x\nquestions: []\n")
-    with pytest.raises(ValueError, match="empty question bank"):
-        load_bank(empty)
+# Загрузка банков и сборка пула переехали в test_question_bank.py вместе с
+# чередованием классов (2026-08-13): здесь остаётся только машина состояний.
 
 
 def test_intro_plan_uses_first_question() -> None:
@@ -159,3 +149,117 @@ def test_instructions_mention_seed_for_core_quest() -> None:
 def test_empty_pool_rejected() -> None:
     with pytest.raises(ValueError):
         InterviewOrchestrator([], clock=FakeClock())
+
+
+# -- политика follow-up зависит от КЛАССА вопроса (spec S3-S6) ------------------
+
+GENERIC_ANSWER = (
+    "I always try to communicate clearly and keep everyone in the loop, because "
+    "in my experience most problems in a team come from people not knowing what "
+    "the others are doing, so I make sure to write things down and share context "
+    "with everybody involved as early as possible in the process"
+)
+
+STORY_ANSWER = (
+    "Our PM wanted to ship without the review queue. I showed him two false "
+    "positives from the week before, and we agreed to keep it behind a flag. "
+    "In the end we shipped a week later with the queue on."
+)
+
+
+def behavioral_pool(n: int = 3) -> list[Question]:
+    return [
+        Question(
+            id=f"b{i}",
+            theme=f"Theme {i}",
+            seed=f"Tell me about a time {i}?",
+            kind=QuestionKind.BEHAVIORAL,
+        )
+        for i in range(n)
+    ]
+
+
+def test_generic_behavioral_answer_gets_a_second_follow_up() -> None:
+    """S3: длинный, но без эпизода и исхода — это ещё не история."""
+    assert len(GENERIC_ANSWER.split()) >= 40, "иначе сработало бы правило длины, а не класса"
+    orch = InterviewOrchestrator(behavioral_pool(), clock=FakeClock())
+    orch.on_user_answer(SHORT)
+
+    plan = orch.on_user_answer(GENERIC_ANSWER)
+
+    assert plan.state == Phase.FOLLOW_UP
+    assert plan.follow_up_count == 2
+
+
+def test_behavioral_story_with_an_ending_moves_on() -> None:
+    """S4: конкретный эпизод и исход — допрашивать больше не о чем."""
+    assert len(STORY_ANSWER.split()) >= 40
+    orch = InterviewOrchestrator(behavioral_pool(), clock=FakeClock())
+    orch.on_user_answer(SHORT)
+
+    plan = orch.on_user_answer(STORY_ANSWER)
+
+    assert plan.state == Phase.CORE_QUEST
+    assert plan.question_id == "b1"
+
+
+def test_technical_rule_did_not_move() -> None:
+    """S5: тот же текст на ТЕХНИЧЕСКОМ вопросе — цифр в нём нет, значит допрос."""
+    assert not any(ch.isdigit() for ch in STORY_ANSWER)
+    orch = InterviewOrchestrator(make_pool(), clock=FakeClock())
+    orch.on_user_answer(SHORT)
+
+    plan = orch.on_user_answer(STORY_ANSWER)
+
+    assert plan.state == Phase.FOLLOW_UP
+
+
+def test_behavioral_follow_up_asks_about_actions_not_trade_offs() -> None:
+    """S6: инструкция для рассказа о людях — своя."""
+    orch = InterviewOrchestrator(behavioral_pool(), clock=FakeClock())
+
+    plan = orch.on_user_answer(SHORT)
+
+    assert plan.state == Phase.FOLLOW_UP
+    lowered = plan.instruction.lower()
+    assert "personally did" in lowered
+    assert "turned out" in lowered
+    assert "trade-off" not in lowered
+    assert "measurable impact" not in lowered
+    assert plan.seed == "What did you do next, and how did it turn out?"
+
+
+def test_question_kind_travels_in_the_plan() -> None:
+    """S7 (половина в оркестраторе): класс доезжает до плана, а из него в транскрипт."""
+    orch = InterviewOrchestrator(behavioral_pool(), clock=FakeClock())
+    assert orch.intro_plan().question_kind == "behavioral"
+    assert InterviewOrchestrator(make_pool(), clock=FakeClock()).intro_plan().question_kind == (
+        "technical"
+    )
+
+
+STRONG_BOTH_WAYS = (
+    "Our PM wanted to ship without the review queue. I showed him two false "
+    "positives from the week before, and we agreed to keep it behind a flag. "
+    "In the end we shipped a week later and cut manual checks by 40 percent."
+)
+
+
+def test_a_real_session_actually_asks_behavioral_questions() -> None:
+    """L22: «банк загружен» и «вопрос задан» — разные утверждения.
+
+    Ответ здесь силён по ОБОИМ критериям (есть цифра, есть эпизод с исходом),
+    поэтому допросов не будет и оркестратор пройдёт весь пул.
+    """
+    pool = pick_session_pool(
+        load_bank(TECHNICAL_BANK), load_bank(BEHAVIORAL_BANK), count=6, rng=random.Random(42)
+    )
+    orch = InterviewOrchestrator(pool, clock=FakeClock())
+
+    asked = [orch.intro_plan().question_kind]
+    for _ in range(4):
+        orch.on_user_answer(STRONG_BOTH_WAYS)  # первый follow-up — всегда
+        asked.append(orch.on_user_answer(STRONG_BOTH_WAYS).question_kind)
+
+    assert "behavioral" in asked, asked
+    assert "technical" in asked, asked

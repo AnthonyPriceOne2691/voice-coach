@@ -82,6 +82,11 @@ def test_full_orchestrated_turn_persists_to_sqlite(tmp_path: Path) -> None:
     assert [t["role"] for t in turns] == ["agent", "user", "agent"]
     assert turns[1]["state"] == "INTRO" and turns[1]["question_id"] == "project_overview"
     assert turns[2]["state"] == "FOLLOW_UP"
+    # S7: класс вопроса записан вместе с ходом — по одному question_id через
+    # полгода уже не сказать, техническим был вопрос или behavioral
+    assert [t["question_kind"] for t in turns] == ["technical"] * 3
+    # S8: сессия больше не «technical project walkthrough», и запись это называет
+    assert row.interview_mode == "technical_and_behavioral"
     metadata = json.loads(row.metadata_json)
     assert metadata["hard_violations"] == 0
 

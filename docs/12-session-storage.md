@@ -26,7 +26,8 @@
   "timestamp_ms": 12500,
   "turn_index": 3,
   "state": "CORE_QUEST",
-  "question_id": "llm_pipeline"
+  "question_id": "llm_pipeline",
+  "question_kind": "technical"
 }
 ```
 
@@ -35,6 +36,11 @@
 записывается (он произошёл, и пользователь его слышал), но `question_id` у него
 `null`, поэтому он не попадает ни в `build_segments` для Mode 2, ни в промпт
 суммаризации: это не реплика по существу, и в разборе она выглядела бы ответом.
+
+`question_kind` — класс вопроса (`technical` | `behavioral`, doc 04). Пишется
+рядом с `question_id`, потому что банк вопросов — **данные**: они меняются, и по
+одному `question_id` через полгода уже не сказать, каким был вопрос. У мета-ходов
+и у ходов без вопроса — `null`.
 
 `state` и `question_id` пишет orchestrator (он владеет структурой — doc 04). **Зачем обязательно в MVP:** Mode 2 grounding (I2-H2: «quoted Q index ∈ transcript») и evidence в summary («Q3, ~04:15») требуют знать, какой turn относится к какому вопросу. Восстанавливать это post-hoc из текста — ненадёжно; на записи это бесплатно. Для user-turns `question_id` = вопрос, на который отвечает; в review-сессиях `question_id` = разбираемый вопрос интервью.
 
@@ -47,7 +53,7 @@
 | id | UUID | PK |
 | started_at | ISO8601 | |
 | ended_at | ISO8601 | |
-| interview_mode | TEXT | e.g. `technical_project_walkthrough` |
+| interview_mode | TEXT | `technical_and_behavioral` с 2026-08-13; раньше `technical_project_walkthrough` — старые записи так и остаются, они описывают другую сессию |
 | persona | TEXT | `senior_colleague` |
 | transcript_json | TEXT | JSON array of turns |
 | metadata_json | TEXT | `{duration_sec, question_count, ...}` |

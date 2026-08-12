@@ -35,6 +35,11 @@ from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, Turn
 logger = logging.getLogger(__name__)
 
 QUESTIONS_PER_SESSION = 6
+
+#: Сессия перестала быть чисто технической: с 2026-08-13 она чередует технические
+#: и behavioral вопросы (doc 04), и имя в записи обязано это называть — иначе
+#: транскрипт врёт о том, чем была сессия.
+INTERVIEW_MODE = "technical_and_behavioral"
 TERMINAL_STATES = {"DEBRIEF", "END"}
 
 #: Настройка, в которой живёт темп речи между сессиями (doc 15).
@@ -180,6 +185,7 @@ class _SessionHandler:
         duration = int(user_settings.get("interview_duration_min", 15))
         pool = pick_session_pool(
             self._c.question_bank,
+            self._c.behavioral_bank,
             count=QUESTIONS_PER_SESSION,
             # Подавление стоит на строке, а не в ignore конфига: выбор вопросов
             # интервью — не крипто, и это видно на месте. Токены/соли брать
@@ -193,7 +199,7 @@ class _SessionHandler:
             orchestrator,
             self._c.prompts.interviewer_system(),
             self._c.interviews,
-            interview_mode="technical_project_walkthrough",
+            interview_mode=INTERVIEW_MODE,
         )
         self._flow, self._kind = flow, "interview"
         self._started_at = time.monotonic()

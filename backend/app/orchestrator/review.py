@@ -33,6 +33,9 @@ class ReviewPlan:
     question_number: int  # 1-based; 0 when not applicable
     instruction: str
     seed: str
+    #: Разбор идёт по сегментам интервью, своего класса у хода Mode 2 нет —
+    #: поле есть ради общего кода записи транскрипта (`SessionFlow`).
+    question_kind: str | None = None
 
 
 def build_segments(turns: list[dict[str, Any]]) -> list[QASegment]:
