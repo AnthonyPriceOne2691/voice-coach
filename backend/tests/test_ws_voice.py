@@ -116,7 +116,7 @@ def test_enforcer_blocks_scoring_in_live_turn(tmp_path: Path) -> None:
         while turn[-1]["payload"]["value"] != "listening":
             turn += _collect_until(ws, "state")
         agent = [m for m in turn if m["type"] == "transcript" and m["payload"]["role"] == "agent"]
-        assert agent[0]["payload"]["text"] == "Why queues?"  # scoring truncated before TTS
+        assert agent[0]["payload"]["text"] == "Why queues?"  # G3 — балл срезан до TTS
         ws.send_json({"type": "end_session", "payload": {"reason": "user"}})
         _collect_until(ws, "session_ended")
 

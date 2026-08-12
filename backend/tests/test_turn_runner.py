@@ -56,9 +56,9 @@ async def test_violation_mid_turn_truncates_but_keeps_prefix(enforcer: ContractE
     )
     completed = events[-1]
     assert isinstance(completed, AgentCompleted)
-    assert completed.text == "Why queues?"  # scoring sentence truncated, prefix kept
-    assert "score" not in " ".join(tts.synthesized)
-    assert completed.violations[0]["constraint_id"] == "I1-H3_no_scoring"
+    assert completed.text == "Why queues?"  # G3 — фраза с баллом обрезана, префикс сохранён
+    assert "score" not in " ".join(tts.synthesized)  # G3
+    assert completed.violations[0]["constraint_id"] == "I1-H3_no_scoring"  # G3
     assert completed.violations[0]["recovery"] == "truncate"
 
 

@@ -60,7 +60,7 @@ def test_scoring_pattern_rejected_case_insensitive(interview: ContractEnforcer) 
     turn = interview.start_turn(TurnContext(state="CORE_QUEST"))
     violation = turn.feed("I'D SCORE that at four.")
     assert violation is not None and violation.check == "forbid_patterns"
-    assert violation.matched == "i'd score"
+    assert violation.matched == "i'd score"  # G3
     assert (
         interview.start_turn(TurnContext(state="CORE_QUEST")).feed(
             "Great ANSWER, that was impressive!"
