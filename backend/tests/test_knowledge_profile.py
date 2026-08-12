@@ -68,7 +68,7 @@ def test_profile_reaches_the_interviewer_prompt(tmp_path: Path) -> None:
 def test_profile_has_no_personal_contacts(profile_text: str) -> None:
     """Промпт уезжает в транскрипты на диск; контакты агенту для интервью не нужны."""
     for secret in ("@gmail.com", "AnthonyPriceOne", "linkedin.com"):
-        assert secret not in profile_text, f"в промпте личный контакт: {secret}"
+        assert secret not in profile_text, f"в промпте личный контакт: {secret}"  # F7
 
 
 def _block_for(text: str, name: str) -> str:
