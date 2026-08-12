@@ -21,7 +21,7 @@
 - **waivers:** none
 - **new_dependency:** none reason=банк вопросов — данные, политика — код; новых пакетов не требуется
 - **runtime_paths:** none reason=подумали и нет: ни экрана, ни прав, ни железа, ни миграций. Единственное, что видно только человеку, — уместность самих вопросов, и это оракул S9 (живая сессия), а не рисковый путь платформы
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** knowledge/engineering/sentence-streaming.md reason=тронут interview_flow.py — в buffer.append добавлен аргумент question_kind; ни темп стриминга, ни sentence-gating, ни latency не затронуты by=human:anthony
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** S1, S2, S9 подтверждены в живой сессии — в разговоре звучат
