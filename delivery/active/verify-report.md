@@ -145,13 +145,13 @@ asserts_without_example: 0
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 0 code (+0 process docs) / +0/-0 (net +0) |
-| commits | 0 |
-| time_to_accepted_spec | n/a (no spec.md in history — class S?) |
+| files_touched / loc_diff | 3 code (+6 process docs) / +138/-1 (net +137) |
+| commits | 1 |
+| time_to_accepted_spec | 0.0h |
 | rework_after_done | 0 (handoff not declared yet) |
-| harness_hardened | no |
-| implement_retries | MANUAL — fills from session log |
-| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
-| est_token_or_cost | MANUAL / n/a |
+| harness_hardened | yes — delivery/active/spec.md (новый оракул) |
+| implement_retries | **2** — обе переделки касались ТЕСТА, не правки: (1) `TestClient` отменяет задачу приложения, и первый вариант ловил `CancelledError` вместо разрыва; (2) хелпер ожидания стал мёртвым после перехода на поддельный транспорт и уронил ruff. Сам фикс переписан 0 раз |
+| verify_fails_before_green | заполняется после первого прогона CI на ветке |
+| est_token_or_cost | n/a — не измерялось; локальный инструмент, внешних платных вызовов нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
