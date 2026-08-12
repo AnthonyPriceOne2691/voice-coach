@@ -53,11 +53,7 @@ class InterviewOrchestrator:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if not pool:
-            raise ValueError(
-                f"question pool is empty: duration_min={duration_min}, "
-                f"проверь data/questions/ — оркестратор владеет структурой "
-                f"интервью и без вопросов вести его не может"
-            )
+            raise ValueError("question pool is empty")
         self._pool = pool
         self._index = 0
         self._follow_ups = 0
