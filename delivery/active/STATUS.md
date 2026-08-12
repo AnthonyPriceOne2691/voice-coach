@@ -6,7 +6,7 @@
 - **kind:** bugfix
 - **repro_test:** n/a reason=предмет — условие в YAML workflow; оракул здесь прогон самой джобы на ветке без активной поставки, а не unit-тест (§3.1c)
 - **diagnosis:** n/a reason=причина найдена сразу и однозначна — `if [ -f delivery/active/STATUS.md ]` в quality.yml; гипотез не перебиралось
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** process:ci
 - **human_ok_spec:** n/a
