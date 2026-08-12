@@ -6,10 +6,10 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_ws_voice.py::test_disconnect_without_end_session_finishes_flow
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred reason=спека написана по факту воспроизведения; примеры B1–B5 сформулированы ДО фикса и от задачи, но подписи ещё не получали (§2.2b)
+- **human_ok_spec:** yes (by=human:anthony, at=2026-08-12) reason=примеры B1–B5 предъявлены человеку целиком, вместе с двумя оговорками: B5 без машинного оракула и B1 с намеренно противоречивой парой `in_progress` + непустой `ended_at`. Подпись дана на handoff, а не до implement (§2.2b): спека написана по факту воспроизведения
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present

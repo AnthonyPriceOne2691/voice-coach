@@ -128,7 +128,9 @@ asserts_without_example: 0
 - [ ] NEED CONVERGE
 - [ ] BLOCKED
 
-Долг до мержа: `human_ok_spec: yes` (сейчас `deferred`) и мерж через
+Долг до мержа закрыт **2026-08-12**: `human_ok_spec: yes`
+(by=human:anthony) — примеры B1–B5 предъявлены с обеими оговорками (B5 без
+машинного оракула, B1 с парой `in_progress` + `ended_at`). Остаётся мерж через
 `bash scripts/merge_guard.sh fix/ws-disconnect`.
 
 ## Harness metrics (this shipment)
