@@ -4,5 +4,4 @@
 # [exemption] не тает (швов нет); лимит = снимок+50, рост сверх — пере-ревью в PR.
 # Вне обоих списков (в т.ч. любой новый файл) — hard 500/1000.
 [baseline]
-573:scripts/spike/benchmark_turn.py
 [exemption]

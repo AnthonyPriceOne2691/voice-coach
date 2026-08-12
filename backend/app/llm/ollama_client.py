@@ -60,7 +60,10 @@ class OllamaClient:
                 async for line in response.aiter_lines():
                     if not line:
                         continue
-                    data = json.loads(line)
+                    # NDJSON-стрим Ollama: один крошечный объект на ТОКЕН.
+                    # Унести в поток нельзя — это и есть sentence-streaming, ради
+                    # которого стоит latency-инвариант ~3.0 s на ход.
+                    data = json.loads(line)  # cpu-ok: один токен NDJSON
                     token = data.get("message", {}).get("content", "")
                     if token:
                         yield token

@@ -6,7 +6,7 @@
 - **kind:** bugfix
 - **repro_test:** frontend/src/lib/api.test.ts::dev-proxy покрывает все префиксы api.ts
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-12) reason=примеры C1–C6 предъявлены ДО кода вместе с тремя оговорками: правка шире одной строки намеренно (сторож + громкая ошибка), правится строка канона doc 15, из прокси убирается неиспользуемое правило /api

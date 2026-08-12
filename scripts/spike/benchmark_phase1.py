@@ -41,7 +41,12 @@ def build_interview_prompt() -> list[dict[str, str]]:
     system = system_tpl.replace("{{profile_condensed}}", profile)
     messages: list[dict[str, str]] = [{"role": "system", "content": system}]
     for i in range(6):  # 12-turn tail per doc 20
-        messages.append({"role": "assistant", "content": f"Question {i + 1}: tell me more about the architecture and trade-offs."})
+        messages.append(
+            {
+                "role": "assistant",
+                "content": f"Question {i + 1}: tell me more about the architecture and trade-offs.",
+            }
+        )
         messages.append({"role": "user", "content": FAKE_ANSWER})
     return messages
 
@@ -50,14 +55,18 @@ def build_review_prompt() -> list[dict[str, str]]:
     system_tpl = (REPO_ROOT / "data/prompts/review_system.txt").read_text()
     profile = (REPO_ROOT / "data/knowledge/profile_condensed.md").read_text()
     segments = "\n".join(
-        f"Q{i + 1}: Walk me through the system.\nA{i + 1}: {FAKE_ANSWER[:400]}" for i in range(5)
+        f"Q{i + 1}: Walk me through the system.\nA{i + 1}: {FAKE_ANSWER[:400]}"
+        for i in range(5)
     )
     system = system_tpl.replace("{{interview_qa_segments}}", segments).replace(
         "{{profile_condensed}}", profile
     )
     return [
         {"role": "system", "content": system},
-        {"role": "user", "content": "What about my queue answer on question 2? Was it strong enough?"},
+        {
+            "role": "user",
+            "content": "What about my queue answer on question 2? Was it strong enough?",
+        },
     ]
 
 
@@ -76,16 +85,23 @@ def run_chat(
     ttft: float | None = None
     first_sentence: float | None = None
     chunks: list[str] = []
-    with httpx.Client(timeout=600.0) as client, client.stream(
-        "POST",
-        f"{OLLAMA}/api/chat",
-        json={
-            "model": model,
-            "messages": messages,
-            "stream": True,
-            "options": {"temperature": temperature, "num_predict": num_predict, "num_ctx": 8192},
-        },
-    ) as response:
+    with (
+        httpx.Client(timeout=600.0) as client,
+        client.stream(
+            "POST",
+            f"{OLLAMA}/api/chat",
+            json={
+                "model": model,
+                "messages": messages,
+                "stream": True,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": num_predict,
+                    "num_ctx": 8192,
+                },
+            },
+        ) as response,
+    ):
         response.raise_for_status()
         for line in response.iter_lines():
             if not line:
@@ -125,17 +141,27 @@ def main() -> None:
     print("=== A) Mode 1 (Qwen) on production-size prompt ===")
     interview = build_interview_prompt()
     print(f"prompt ~{approx_tokens(interview)} tokens")
-    run_chat(QWEN, interview, num_predict=220, temperature=0.75)  # warmup (model load + prefill)
-    runs = [run_chat(QWEN, interview, num_predict=220, temperature=0.75) for _ in range(5)]
+    run_chat(
+        QWEN, interview, num_predict=220, temperature=0.75
+    )  # warmup (model load + prefill)
+    runs = [
+        run_chat(QWEN, interview, num_predict=220, temperature=0.75) for _ in range(5)
+    ]
     for i, r in enumerate(runs):
-        print(f"  run {i + 1}: ttft={r['ttft_s']}s first_sentence={r['first_sentence_s']}s total={r['total_s']}s")
+        print(
+            f"  run {i + 1}: ttft={r['ttft_s']}s first_sentence={r['first_sentence_s']}s total={r['total_s']}s"
+        )
     totals = [float(r["total_s"]) for r in runs]
     firsts = [float(r["first_sentence_s"]) for r in runs]
     stt, tts = 0.73, 0.55  # Phase 0 warm measurements
     projected_full = pctl(totals, 95) + stt + tts
     projected_perceived = statistics.median(firsts) + stt + tts
-    print(f"  LLM total p50={statistics.median(totals):.2f}s p95={pctl(totals, 95):.2f}s")
-    print(f"  Projected full turn p95 (STT+LLM+TTS): {projected_full:.2f}s  (gate < 4 s)")
+    print(
+        f"  LLM total p50={statistics.median(totals):.2f}s p95={pctl(totals, 95):.2f}s"
+    )
+    print(
+        f"  Projected full turn p95 (STT+LLM+TTS): {projected_full:.2f}s  (gate < 4 s)"
+    )
     print(f"  Projected perceived (STT+first sentence+TTS): {projected_perceived:.2f}s")
     print(f"  GATE: {'PASS' if projected_full < 4.0 else 'FAIL'}")
     results["mode1_prod_prompt"] = {
@@ -152,15 +178,23 @@ def main() -> None:
     print(f"prompt ~{approx_tokens(review)} tokens")
 
     print("  R1 (num_predict=2048, strip_thinking):")
-    r1_runs = [run_chat(R1, review, num_predict=2048, temperature=0.6) for _ in range(3)]
+    r1_runs = [
+        run_chat(R1, review, num_predict=2048, temperature=0.6) for _ in range(3)
+    ]
     for i, r in enumerate(r1_runs):
-        print(f"    run {i + 1}: ttft={r['ttft_s']}s total={r['total_s']}s output_chars={r['output_chars']}")
+        print(
+            f"    run {i + 1}: ttft={r['ttft_s']}s total={r['total_s']}s output_chars={r['output_chars']}"
+        )
         print(f"      head: {r['output_head']!r}")
 
     print("  Qwen (num_predict=300):")
-    qwen_runs = [run_chat(QWEN, review, num_predict=300, temperature=0.6) for _ in range(3)]
+    qwen_runs = [
+        run_chat(QWEN, review, num_predict=300, temperature=0.6) for _ in range(3)
+    ]
     for i, r in enumerate(qwen_runs):
-        print(f"    run {i + 1}: ttft={r['ttft_s']}s total={r['total_s']}s output_chars={r['output_chars']}")
+        print(
+            f"    run {i + 1}: ttft={r['ttft_s']}s total={r['total_s']}s output_chars={r['output_chars']}"
+        )
         print(f"      head: {r['output_head']!r}")
 
     results["d8_review"] = {"r1": r1_runs, "qwen": qwen_runs}
