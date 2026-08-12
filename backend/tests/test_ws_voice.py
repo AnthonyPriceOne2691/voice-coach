@@ -2,11 +2,9 @@
 
 import base64
 import json
-import os
 from pathlib import Path
 from typing import Any
 
-import pytest
 from starlette.testclient import TestClient, WebSocketTestSession
 
 from app.main import create_app
@@ -15,30 +13,13 @@ from tests.helpers import fetch_interview, fetch_review, make_container, seed_fi
 
 LONG_ANSWER = "I built an internal CRM tool with separate queues and cut the team from 5 to 1"
 
-# TODO(phase-2-acceptance): снять подавление вместе с починкой инварианта
-# «отключение клиента завершает сессию» — оно первой строкой в spec следующей
-# поставки (`delivery/archive/2026-07-28-phase-2-acceptance/spec.md`).
-#
-# Что подавляется и почему ТОЧЕЧНО. Виснут ровно те тесты, что выходят из
-# `with TestClient(...) as client, ... as ws` при ЖИВОЙ сессии, не послав
-# `end_session`: тогда `on_disconnect()` пишет `flow.finish(status="in_progress")`
-# в БД, а `TestClient.__exit__` в это же время закрывает lifespan с
-# `db.dispose()`. Гонка записи с закрытием движка — на ubuntu портал не
-# дожидается своего треда (`thread.join()` в `anyio.start_blocking_portal`), и
-# `pytest-timeout` убивает ПРОЦЕСС, то есть падает весь прогон, а не тест.
-# Соседний `test_enforcer_blocks_coaching_in_live_turn`, который `end_session`
-# шлёт, зелёный всегда.
-#
-# Подавление ограничено CI и двумя тестами сознательно: локально сьют их гоняет
-# и покрытие не падает (замер: 92.56% при пороге 85, 0 красных из 60 прогонов на
-# macOS). Дефект ПРЕДШЕСТВУЕТ контуру (прогоны main от 2026-07-05 висели по 6 ч),
-# и bootstrap контура его не чинит — Delivery §7.2 шаг 6: глобальное ослабление
-# запрещено, стояние хуже всего, откладывать можно только точечно и с адресом.
-_HANGS_ON_UBUNTU = pytest.mark.skipif(
-    os.getenv("CI") == "true",
-    reason="вис на ubuntu: гонка db.dispose() с записью on_disconnect — долг "
-    "phase-2-acceptance, локально тест гоняется",
-)
+# ⚠ Эти два теста выходят из `with TestClient(...) as ws` при ЖИВОЙ сессии, не
+# послав `end_session`, — то есть исполняют инвариант «отключение клиента
+# завершает сессию». До 2026-08-12 они висели на linux (6 прогонов из 10) и
+# были подавлены `skipif(CI)`: отмена приходила внутрь записи статуса, соединение
+# оставалось вне пула, SQLAlchemy добивал его задачей, а закрытие цикла ждало её
+# вечно — падал ВЕСЬ прогон, а не тест. Подавление снято вместе с починкой;
+# разбор — delivery/archive/<этой поставки>/diagnosis.md.
 
 
 def _collect_until(ws: WebSocketTestSession, msg_type: str) -> list[dict[str, Any]]:
@@ -135,7 +116,6 @@ def test_enforcer_blocks_coaching_in_live_turn(tmp_path: Path) -> None:
     assert json.loads(row.metadata_json)["hard_violations"] == 1
 
 
-@_HANGS_ON_UBUNTU
 def test_stt_empty_recoverable(tmp_path: Path) -> None:
     container = make_container(tmp_path, FakeLlm(["x? "]), FakeStt("[BLANK_AUDIO]"))
     with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
@@ -153,7 +133,6 @@ class _ExplodingDecoder:
         raise RuntimeError("ffmpeg blew up")
 
 
-@_HANGS_ON_UBUNTU
 def test_decode_failure_is_recoverable(tmp_path: Path) -> None:
     container = make_container(tmp_path, FakeLlm(["Ok? "]), FakeStt())
     container.decoder = _ExplodingDecoder()
@@ -228,3 +207,32 @@ def test_start_review_unknown_interview_errors(tmp_path: Path) -> None:
         ws.send_json({"type": "start_review", "payload": {"interview_id": "missing"}})
         reply = ws.receive_json()
         assert reply["payload"]["code"] == "SESSION_NOT_FOUND"
+
+
+def test_disconnect_without_end_session_finishes_flow(tmp_path: Path) -> None:
+    """Инвариант: отключение клиента ЗАВЕРШАЕТ сессию, а не бросает её на середине.
+
+    Repro этой поставки. До фикса путь `WebSocketDisconnect -> flow.finish()`
+    отменялся гашением приложения посередине записи: соединение оставалось вне
+    пула, SQLAlchemy добивал его отдельной задачей, и закрытие цикла ждало её
+    вечно — виснул ВЕСЬ прогон (замер: 6 из 10 на linux, 0 из 60 на macOS).
+
+    Тест утверждает наблюдаемое следствие, а не внутренности: клиент ушёл молча,
+    и в БД у сессии стоит `in_progress` со временем окончания. Если уборку снова
+    оборвут, строка останется без статуса — и это упадёт как обычный красный
+    тест, не как вис.
+    """
+    container = make_container(tmp_path, FakeLlm(["Ok? "]), FakeStt())
+    with TestClient(create_app(container)) as client:
+        with client.websocket_connect("/ws/session") as ws:
+            ws.send_json({"type": "start_interview", "payload": {}})
+            session_id = _drain_intro(ws)
+            # выходим из ws-контекста БЕЗ end_session — браузер закрыли, сеть упала
+
+    row = fetch_interview(container.settings.database_url, session_id)
+    assert row is not None  # B1
+    assert row.status == "in_progress"  # B1
+    # B1/B3: ровно это падало до фикса — уборку обрывали, ended_at оставался пустым
+    assert row.ended_at is not None  # B1, B3
+    # B1: транскрипт интро уже на диске, flush per turn, а не в конце сессии
+    assert json.loads(row.transcript_json)[0]["role"] == "agent"  # B1

@@ -1,5 +1,7 @@
 """FastAPI application entrypoint — wiring only."""
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,14 +16,42 @@ from app.api.ws_voice import ws_session
 from app.config import get_settings
 from app.container import Container, build_container
 
+logger = logging.getLogger(__name__)
+
+
+#: Сколько гашение ждёт незакрытые ws-сессии. Тот же порядок, что таймаут уборки
+#: в `ws_voice`, плюс запас: здесь их может быть несколько.
+SHUTDOWN_DRAIN_TIMEOUT_S = 10.0
+
+
+async def _drain(tasks: set[asyncio.Task[None]]) -> None:
+    """Дождаться уборок ws-сессий перед закрытием движка.
+
+    Молча бросить их нельзя: незавершённая уборка оставляет соединение вне пула,
+    SQLAlchemy добивает его отдельной задачей, и закрытие цикла ждёт её вечно.
+    Таймаут здесь — предохранитель, а не политика: если уборка не уложилась,
+    честнее отпустить гашение и сказать об этом, чем висеть.
+    """
+    if not tasks:
+        return
+    _, pending = await asyncio.wait(set(tasks), timeout=SHUTDOWN_DRAIN_TIMEOUT_S)
+    if pending:
+        logger.warning("shutdown: %d ws cleanup(s) did not finish in time", len(pending))
+
 
 def create_app(container: Container | None = None) -> FastAPI:
     resolved = container or build_container(get_settings())
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await resolved.db.create_all()
+        # Уборки отключившихся ws-сессий регистрируются здесь: гасить движок
+        # раньше, чем они дописали статус, значит рвать соединение на середине —
+        # именно так прогон и висел (delivery diagnosis.md).
+        app.state.live_ws_cleanups = set()
         yield
+        await _drain(app.state.live_ws_cleanups)
+        await resolved.summaries.aclose()
         if resolved.ollama is not None:
             await resolved.ollama.aclose()
         await resolved.db.dispose()
