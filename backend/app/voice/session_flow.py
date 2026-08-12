@@ -52,7 +52,13 @@ class SessionFlow[RepoT: SessionRepository]:
         self, text: str, *, violations: list[dict[str, Any]], fallback_used: bool
     ) -> None:
         plan = self.current_plan
-        self.buffer.append("agent", text, state=plan.state.value, question_id=plan.question_id)
+        self.buffer.append(
+            "agent",
+            text,
+            state=plan.state.value,
+            question_id=plan.question_id,
+            question_kind=plan.question_kind,
+        )
         self._history.append({"role": "assistant", "content": text})
         for event in violations:
             if event["severity"] == "hard":
@@ -75,7 +81,13 @@ class SessionFlow[RepoT: SessionRepository]:
 
     def _record_user(self, text: str) -> None:
         plan = self.current_plan
-        self.buffer.append("user", text, state=plan.state.value, question_id=plan.question_id)
+        self.buffer.append(
+            "user",
+            text,
+            state=plan.state.value,
+            question_id=plan.question_id,
+            question_kind=plan.question_kind,
+        )
 
     def _remember_user_message(self, content: str) -> None:
         self._history.append({"role": "user", "content": content})

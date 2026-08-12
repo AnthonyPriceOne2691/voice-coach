@@ -36,6 +36,7 @@ class Container:
     interview_enforcer: ContractEnforcer
     review_enforcer: ContractEnforcer
     question_bank: list[Question]
+    behavioral_bank: list[Question]
     summaries: SummaryService
     ollama: OllamaClient | None = None  # concrete handle for health probe / shutdown
 
@@ -64,6 +65,7 @@ def build_container(settings: Settings) -> Container:
             load_contract(settings.contracts_dir / "review.contract.yaml")
         ),
         question_bank=load_bank(settings.questions_dir / "technical_project_walkthrough.yaml"),
+        behavioral_bank=load_bank(settings.questions_dir / "behavioral.yaml"),
         summaries=SummaryService(
             ollama,
             PromptLibrary(settings.prompts_dir, settings.knowledge_dir),

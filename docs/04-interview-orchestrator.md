@@ -64,15 +64,34 @@
 | # | Правило |
 |---|---------|
 | 1 | **Первый follow-up — всегда** (если время позволяет, см. таймер): в тренажёре follow-up почти всегда ценен — это и есть практика давления |
-| 2 | **Второй follow-up** — только если ответ **< 40 слов** ИЛИ не содержит ни одной цифры/метрики (эвристика «нет measurable impact») |
+| 2 | **Второй follow-up** — только если ответ **< 40 слов** ИЛИ лишён признака качества. Признак **зависит от класса вопроса** (2026-08-13), см. ниже |
 | 3 | **Max 2 follow-ups** на core question → `next_question` |
 | 4 | Осталось < 20% времени сессии → follow-ups отключаются, добираем core questions |
 
-**Семантические триггеры** (не решают «задавать ли», а подсказывают LLM формулировку — уходят в prompt-инструкцию):
+**Признак сильного ответа — по классу вопроса:**
+
+| Класс | Сильный ответ | Почему так |
+|---|---|---|
+| `technical` | есть **цифра** | заявление без измерения стоит переспросить |
+| `behavioral` | есть **эпизод** (что произошло) **и** **исход** (чем кончилось) | у behavioral-ответа цифр нет почти никогда, и правило «нет цифр» срабатывало бы ВСЕГДА — каждый soft-вопрос съедал бы максимум допросов независимо от качества. Это выглядело бы придиркой к хорошим ответам |
+
+Оба признака — словари в `orchestrator/interview.py` рядом с политикой, не модель:
+цена ошибки низкая в обе стороны (лишний допрос у доброго тренера — не беда,
+пропущенный тоже), а воспроизводимость нужна тестам.
+
+**Семантические триггеры** (не решают «задавать ли», а подсказывают LLM формулировку — уходят в prompt-инструкцию). Набор **свой на класс**:
+
+*Technical:*
   - Упомянута технология без trade-off → «Why X over Y?»
   - Противоречие с CV → «You mentioned SEO — how does that relate to automation?»
   - Vague claim → «What was the measurable impact?»
   - Иначе generic → «Can you elaborate on…?» / «Help me understand…»
+
+*Behavioral* (у рассказа о людях другие дыры — спрашивать про trade-off здесь мимо):
+  - Описана ситуация, но не свои действия → «What did you personally do?»
+  - Нет реакции другой стороны → «How did that land?»
+  - История без финала → «How did it turn out?»
+  - Иначе → «What would you do differently now?»
 
 ### WRAP_UP (~1 min)
 - «That’s all from my side. Any questions for us?»
@@ -83,7 +102,7 @@
 - Handoff to Debrief Generator — **обязательный** post-session pass (см. [08-post-session-debrief.md](08-post-session-debrief.md))
 - Во время CORE_QUEST / FOLLOW_UP агент **не хвалит и не коучит** — enforced via [13-behavioral-contracts.md](13-behavioral-contracts.md).
 
-## MVP mode: `technical_project_walkthrough`
+## MVP mode: `technical_and_behavioral`
 
 **Duration:** 15 min default  
 **Persona:** supportive senior colleague (см. [09-agent-persona-and-tone.md](09-agent-persona-and-tone.md))  
@@ -101,6 +120,36 @@
 | 6 | Impact | What changed in team size or cycle time? How did you measure it? |
 | 7 | Trade-offs | What would you rebuild if you started today? |
 | 8 | Failure | Tell me about a production issue and how you debugged it. |
+
+### Question bank: behavioral (2026-08-13)
+
+Второй банк — `data/questions/behavioral.yaml`, класс задаётся ключом `kind:`
+**файла**, а не строкой вопроса.
+
+| # | Theme | Example seed question |
+|---|-------|----------------------|
+| 1 | Disagreement | Tell me about a time you disagreed with a stakeholder. How did it end? |
+| 2 | Explaining to non-technical people | How do you explain a technical trade-off to someone non-technical? |
+| 3 | Missed deadline | Describe a deadline you missed. What did you do about it? |
+| 4 | Receiving feedback | Tell me about feedback that stung. What did you change afterwards? |
+| 5 | Competing priorities | Two people needed you at once and both were urgent. |
+| 6 | Async and remote work | Tell me about a time async communication went wrong. |
+| 7 | Pushing back on scope | Tell me about a time you said no to a request. |
+| 8 | Learning something unfamiliar | Describe something you had to learn from scratch under time pressure. |
+
+### Чередование классов
+
+Сессия из шести вопросов — **три технических и три behavioral, строго через
+один**, начиная с технического открывающего (`first: true`):
+
+```
+T (project_overview) → S → T → S → T → S
+```
+
+Случаен только выбор вопросов **внутри** класса. Чередование детерминированное,
+а не «случайно 3 из 6», потому что случайная выборка регулярно даёт три
+behavioral подряд, и сессия перестаёт тренировать **переключение** между
+режимами речи — ровно то, ради чего классы и смешаны.
 
 Orchestrator picks **5–6** из пула per session; порядок может варьироваться; повтор между сессиями — weighted random с penalty на недавно заданные.
 

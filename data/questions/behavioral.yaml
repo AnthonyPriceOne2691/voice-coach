@@ -1,0 +1,34 @@
+# Question bank — behavioral (doc 04). Чередуется с техническим банком в одной сессии.
+# Seeds are speakable as-is (used verbatim as contract fallback lines); LLM adapts wording.
+#
+# Подобраны под профиль: один инженер рядом с бизнесом, удалённая работа по
+# контракту, английский — рабочий, но не родной. Поэтому вопросы про то, что
+# у такого человека реально спрашивают: границы, объяснения нетехническим людям,
+# несогласие без конфликта, сорванные сроки, асинхронная работа.
+mode: behavioral
+kind: behavioral
+questions:
+  - id: disagreement
+    theme: Disagreement
+    seed: "Tell me about a time you disagreed with a stakeholder. How did it end?"
+  - id: explaining_tech
+    theme: Explaining to non-technical people
+    seed: "How do you explain a technical trade-off to someone non-technical? Give me a real example."
+  - id: missed_deadline
+    theme: Missed deadline
+    seed: "Describe a deadline you missed. What did you do about it?"
+  - id: critical_feedback
+    theme: Receiving feedback
+    seed: "Tell me about feedback that stung. What did you change afterwards?"
+  - id: competing_priorities
+    theme: Competing priorities
+    seed: "Two people needed you at once and both were urgent. Walk me through what you did."
+  - id: async_remote
+    theme: Async and remote work
+    seed: "You work across time zones. Tell me about a time async communication went wrong."
+  - id: pushing_back
+    theme: Pushing back on scope
+    seed: "Tell me about a time you said no to a request. How did you handle it?"
+  - id: learning_fast
+    theme: Learning something unfamiliar
+    seed: "Describe something you had to learn from scratch under time pressure."

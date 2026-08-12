@@ -33,6 +33,7 @@ class InterviewFlow(SessionFlow[InterviewRepository]):
             intro_text,
             state=self.current_plan.state.value,
             question_id=self.current_plan.question_id,
+            question_kind=self.current_plan.question_kind,
         )
         self._remember_agent_message(intro_text)
         await self._checkpoint()

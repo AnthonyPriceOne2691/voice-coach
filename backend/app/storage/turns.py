@@ -13,6 +13,7 @@ class Turn:
     turn_index: int
     state: str | None = None
     question_id: str | None = None
+    question_kind: str | None = None  # technical | behavioral (doc 04)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -26,7 +27,13 @@ class TranscriptBuffer:
     turns: list[Turn] = field(default_factory=list)
 
     def append(
-        self, role: str, text: str, *, state: str | None = None, question_id: str | None = None
+        self,
+        role: str,
+        text: str,
+        *,
+        state: str | None = None,
+        question_id: str | None = None,
+        question_kind: str | None = None,
     ) -> Turn:
         turn = Turn(
             role=role,
@@ -35,6 +42,7 @@ class TranscriptBuffer:
             turn_index=len(self.turns),
             state=state,
             question_id=question_id,
+            question_kind=question_kind,
         )
         self.turns.append(turn)
         return turn

@@ -35,8 +35,9 @@
 | FR-2.2 | Follow-up вопросы по ответам пользователя | ✅ | P0 |
 | FR-2.3 | Mode 1 persona: **supportive senior colleague** (interviewer) | ✅ | P0 |
 | FR-2.8 | Mode 2 persona: **experienced recruiter friend** (review together) | ✅ | P0 |
-| FR-2.4 | Режим MVP: **Technical + project walkthrough** | ✅ | P0 |
-| FR-2.5 | Доп. режимы: screening, system design, behavioral only | ❌ | P2 |
+| FR-2.4 | Режим MVP: **Technical + project walkthrough**, с 2026-08-13 чередуется с behavioral (`technical_and_behavioral`) | ✅ | P0 |
+| FR-2.5 | Доп. режимы: screening, system design, behavioral **only** | ❌ | P2 |
+| FR-2.6 | Behavioral-вопросы **внутри** технической сессии (3 из 6, через один) | ✅ | P1 |
 | FR-2.6 | Hard mode: перебивания, «simplify», «trade-off» | partial | P1 |
 | FR-2.7 | Stress personas (skeptical CTO и др.) — **opt-in**, post-MVP | ❌ | P2 |
 
