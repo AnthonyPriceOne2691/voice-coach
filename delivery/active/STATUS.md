@@ -6,7 +6,7 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_ws_voice.py::test_disconnect_during_turn_finishes_session
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-12) reason=примеры B1–B6 предъявлены ДО кода, вместе с двумя оговорками: B4/B5 — про «не сломать» и потому дороже, B6 держится на браузерном стенде, которого в CI нет

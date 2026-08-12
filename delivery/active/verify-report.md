@@ -97,7 +97,8 @@ asserts_without_example: 0
 
 `runtime_paths: backend/app/api/ws_voice.py` — путь завершения ws-сессии. Один
 путь, порог §12.6 не превышен, подпись breaker'а не требуется (проверено до
-работы, урок L6).
+работы, урок L6). Все прогоны ниже исполнены **at=2026-08-12** — дата
+обязательна: прогон без неё неотличим от прогона до правки.
 
 | Что исполнял | Чем | Что увидел | at |
 |---|---|---|---|
@@ -158,7 +159,7 @@ asserts_without_example: 0
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — delivery/active/spec.md (новый оракул) |
 | implement_retries | **2** — обе переделки касались ТЕСТА, не правки: (1) `TestClient` отменяет задачу приложения, и первый вариант ловил `CancelledError` вместо разрыва; (2) хелпер ожидания стал мёртвым после перехода на поддельный транспорт и уронил ruff. Сам фикс переписан 0 раз |
-| verify_fails_before_green | заполняется после первого прогона CI на ветке |
+| verify_fails_before_green | **0** — оба workflow зелёные с первого прогона (`gh run list --branch fix/ws-disconnect-mid-turn`: CI success, quality success). Три ошибки формы гейт поймал на pre-push, до CI: id примеров жирным, вердикты не пунктом списка, отсутствующие eval-smoke.md и decisions.md |
 | est_token_or_cost | n/a — не измерялось; локальный инструмент, внешних платных вызовов нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
