@@ -643,3 +643,98 @@
   font-size: 13px;
   font-style: italic;
 }
+
+/* ---------- настройки ---------- */
+
+.settings {
+  padding: 10px 30px;
+}
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.setting:last-of-type {
+  border-bottom: 0;
+}
+.setting-text {
+  flex: 1;
+}
+.setting-name {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.setting-hint {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.setting-control {
+  flex: 0 0 260px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.setting-value {
+  min-width: 62px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+}
+.setting-value .faint {
+  display: block;
+}
+
+input[type="range"] {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.09);
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8ff0d0, #4fc7ff);
+  box-shadow: 0 4px 12px rgba(79, 199, 255, 0.55);
+  border: 0;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--edge);
+  flex: 1;
+}
+.segmented button {
+  flex: 1;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.segmented button:hover {
+  color: var(--ink);
+}
+.segmented button.on {
+  background: var(--glass-strong);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--edge-bright);
+}

@@ -5,6 +5,7 @@ import type {
   InterviewDetail,
   InterviewListItem,
   ReviewDetail,
+  UserSettings,
   VocabularyItem,
 } from "../types/api";
 
@@ -53,4 +54,11 @@ export const api = {
       query ? `/vocabulary?q=${encodeURIComponent(query)}` : "/vocabulary",
     ).then((r) => r.items),
   deleteVocabulary: (id: string) => requestNoContent(`/vocabulary/${id}`, { method: "DELETE" }),
+  getSettings: () => request<UserSettings>("/settings"),
+  patchSettings: (patch: Partial<UserSettings>) =>
+    request<UserSettings>("/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }),
 };
