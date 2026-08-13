@@ -67,6 +67,12 @@
 }
 
 /* Смена вкладки: содержимое въезжает, а не мигает */
+.subtabs {
+  margin-left: 0;
+  margin-bottom: 16px;
+  display: inline-flex;
+}
+
 .page {
   animation: page-in var(--t-slow) var(--ease) both;
 }
@@ -351,6 +357,9 @@
   max-height: 46vh;
   overflow-y: auto;
 }
+.turns-full {
+  max-height: none;
+}
 .bubble {
   max-width: 82%;
   padding: 12px 15px;
@@ -431,7 +440,206 @@
   margin: 26px 0 12px;
 }
 
-/* ⚠ Временная граница поставки (2026-08-13). Стили History, Useful Words,
- * разбора и настроек ещё живут в legacy-части `styles.css` со старыми именами
- * классов: интерфейс режется по экранам, и каждый переезжает своей поставкой.
- * Промежуточное состояние обязано РАБОТАТЬ, а не «половина без стилей». */
+/* ---------- список сессий ---------- */
+
+.section-title {
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 26px 0 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+}
+.row-when {
+  font-size: 14.5px;
+  font-weight: 600;
+  /* Дата — одна строка: до 2026-08-13 она рвалась посреди фразы */
+  white-space: nowrap;
+}
+.row-sub {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-top: 5px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.row-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Состояние сессии — таблеткой, а не строкой служебных галочек */
+.pill {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 227, 195, 0.35);
+  color: var(--accent-2);
+  background: rgba(125, 227, 195, 0.1);
+  white-space: nowrap;
+}
+.pill-warn {
+  border-color: rgba(255, 184, 107, 0.35);
+  color: var(--warm);
+  background: rgba(255, 184, 107, 0.1);
+}
+.pill-quiet {
+  border-color: var(--edge);
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-icon {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 15px;
+  transition: all var(--t-fast) var(--ease);
+}
+.btn-icon:hover {
+  color: var(--danger);
+  border-color: rgba(255, 157, 144, 0.3);
+  background: rgba(255, 157, 144, 0.08);
+}
+.btn-link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-size: inherit;
+}
+.btn-link:hover {
+  text-decoration: underline;
+}
+.btn-link:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* ---------- разбор ---------- */
+
+.summary {
+  padding: 22px 24px;
+}
+.summary section {
+  margin-top: 18px;
+}
+.summary h3 {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+.summary ul {
+  padding-left: 1.1rem;
+}
+.summary li {
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+.summary-overall {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.score-label {
+  width: 128px;
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+.score-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  transition: width var(--t-slow) var(--ease);
+}
+.score-value {
+  width: 28px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- слова ---------- */
+
+.search {
+  width: 100%;
+  padding: 11px 15px;
+  margin-bottom: 14px;
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color var(--t-base) var(--ease);
+}
+.search::placeholder {
+  color: var(--ink-faint);
+}
+.search:focus {
+  outline: none;
+  border-color: rgba(140, 180, 255, 0.45);
+}
+.word {
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+.word-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.word-term {
+  font-size: 15px;
+  font-weight: 600;
+}
+.word-head .btn-icon {
+  margin-left: auto;
+}
+.word-ru {
+  color: var(--warm);
+  margin: 6px 0;
+  font-size: 14px;
+}
+.word-example {
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-style: italic;
+}

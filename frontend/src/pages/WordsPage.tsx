@@ -6,19 +6,24 @@ import type { VocabularyItem } from "../types/api";
 
 function WordCard({ item, onRemove }: { item: VocabularyItem; onRemove: () => void }) {
   return (
-    <div className="word-card">
+    <div className="glass word">
       <div className="word-head">
-        <strong>{item.term_en}</strong>
-        <span className="muted">
-          {item.category}{" "}
-          {item.times_seen && item.times_seen > 1 ? `· seen ×${item.times_seen}` : ""}
-        </span>
-        <button className="btn-link btn-danger" onClick={onRemove}>
-          delete
+        <span className="word-term">{item.term_en}</span>
+        <span className="pill pill-quiet">{item.category}</span>
+        {item.times_seen && item.times_seen > 1 && (
+          <span className="faint">seen ×{item.times_seen}</span>
+        )}
+        <button
+          className="btn-icon"
+          title="Delete word"
+          aria-label="Delete word"
+          onClick={onRemove}
+        >
+          ✕
         </button>
       </div>
       <div className="word-ru">{item.translation_ru}</div>
-      <div className="muted">“{item.example_en}”</div>
+      <div className="word-example">“{item.example_en}”</div>
     </div>
   );
 }
@@ -46,9 +51,9 @@ export function WordsPage() {
 
   return (
     <div>
-      <h2>Useful Words</h2>
+      <h2 className="section-title">Useful words</h2>
       <input
-        className="search-input"
+        className="search"
         placeholder="Search…"
         value={query}
         onChange={(event) => setQuery(event.target.value)}

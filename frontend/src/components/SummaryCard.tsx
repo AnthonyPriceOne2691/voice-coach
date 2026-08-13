@@ -119,7 +119,7 @@ function NextFocus({ debrief }: { debrief: Debrief }) {
 
 export function SummaryCard({ debrief }: { debrief: Debrief }) {
   return (
-    <div className="summary-card">
+    <div className="glass summary">
       <Overall debrief={debrief} />
       <Scores debrief={debrief} />
       <Strengths debrief={debrief} />
