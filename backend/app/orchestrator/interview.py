@@ -180,6 +180,16 @@ class InterviewOrchestrator:
     def finished(self) -> bool:
         return self.phase == Phase.DEBRIEF
 
+    @property
+    def question_count(self) -> int:
+        """Сколько вопросов в пуле сессии — знаменатель «вопрос N из M»."""
+        return len(self._pool)
+
+    @property
+    def question_number(self) -> int:
+        """Номер текущего вопроса, 1-based."""
+        return self._index + 1
+
     def snapshot(self) -> dict[str, int | str]:
         return {
             "phase": self.phase.value,

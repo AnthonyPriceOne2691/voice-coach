@@ -7,10 +7,8 @@ import contextlib
 import io
 import json
 import logging
-import random
 import tempfile
 import time
-import uuid
 import wave
 from pathlib import Path
 from typing import Any
@@ -22,13 +20,12 @@ from app.container import Container
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.llm.ollama_client import OllamaError
 from app.orchestrator import pace
-from app.orchestrator.interview import InterviewOrchestrator
-from app.orchestrator.question_bank import pick_session_pool
-from app.orchestrator.review import ReviewOrchestrator, build_segments, render_segments
+from app.orchestrator.review import build_segments
 from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
 from app.voice.prosody import lead_in
 from app.voice.review_flow import ReviewFlow
+from app.voice.session_factory import build_interview_flow, build_review_flow
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
 from app.voice.tts_paced import PacedTts
 from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
@@ -37,10 +34,6 @@ logger = logging.getLogger(__name__)
 
 QUESTIONS_PER_SESSION = 6
 
-#: Сессия перестала быть чисто технической: с 2026-08-13 она чередует технические
-#: и behavioral вопросы (doc 04), и имя в записи обязано это называть — иначе
-#: транскрипт врёт о том, чем была сессия.
-INTERVIEW_MODE = "technical_and_behavioral"
 TERMINAL_STATES = {"DEBRIEF", "END"}
 
 #: Настройка, в которой живёт темп речи между сессиями (doc 15).
@@ -187,24 +180,7 @@ class _SessionHandler:
         user_settings = await self._c.user_settings.get_all()
         self._restore_pace(user_settings)
         duration = int(user_settings.get("interview_duration_min", 15))
-        pool = pick_session_pool(
-            self._c.question_bank,
-            self._c.behavioral_bank,
-            count=QUESTIONS_PER_SESSION,
-            # Подавление стоит на строке, а не в ignore конфига: выбор вопросов
-            # интервью — не крипто, и это видно на месте. Токены/соли брать
-            # `secrets`, и тогда правило обязано краснеть.
-            rng=random.Random(),  # noqa: S311 -- выбор вопросов, не крипто
-        )
-        wrap_seed = self._c.prompts.template("interview_wrap_up")
-        orchestrator = InterviewOrchestrator(pool, duration_min=duration, wrap_up_seed=wrap_seed)
-        flow = InterviewFlow(
-            str(uuid.uuid4()),
-            orchestrator,
-            self._c.prompts.interviewer_system(),
-            self._c.interviews,
-            interview_mode=INTERVIEW_MODE,
-        )
+        flow = build_interview_flow(self._c, duration_min=duration)
         self._flow, self._kind = flow, "interview"
         self._started_at = time.monotonic()
         await self._send(
@@ -231,14 +207,7 @@ class _SessionHandler:
                 "SESSION_NOT_FOUND", "interview has no answered questions", recoverable=True
             )
             return
-        orchestrator = ReviewOrchestrator(segments)
-        flow = ReviewFlow(
-            str(uuid.uuid4()),
-            interview_id,
-            orchestrator,
-            self._c.prompts.review_system(render_segments(segments)),
-            self._c.reviews,
-        )
+        flow = build_review_flow(self._c, interview_id=interview_id, segments=segments)
         self._flow, self._kind = flow, "review"
         self._started_at = time.monotonic()
         await flow.start()
@@ -466,8 +435,24 @@ class _SessionHandler:
                 "value": value,
                 "session_kind": self._kind if flow else None,
                 "session_id": flow.session_id if flow else None,
+                **self._question_progress(flow),
             },
         )
+
+    @staticmethod
+    def _question_progress(flow: VoiceFlow | None) -> dict[str, Any]:
+        """Где мы в интервью — клиенту, чтобы показать «вопрос N из M».
+
+        Знать, сколько осталось, снимает тревогу, а это и есть задача тренажёра.
+        У Mode 2 своего счётчика вопросов нет, поэтому там поля пустые.
+        """
+        if not isinstance(flow, InterviewFlow):
+            return {"question_index": None, "question_total": None, "question_kind": None}
+        return {
+            "question_index": flow.orchestrator.question_number,
+            "question_total": flow.orchestrator.question_count,
+            "question_kind": flow.current_plan.question_kind,
+        }
 
     async def _transcript(self, role: str, text: str) -> None:
         await self._send("transcript", {"role": role, "text": text, "final": True})

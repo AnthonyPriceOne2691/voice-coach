@@ -1,0 +1,59 @@
+"""Сборка голосовых сессий: пул вопросов, оркестратор, поток.
+
+Вынесено из `ws_voice`, когда тот перевалил за 500 строк (гейт §18). Граница
+проведена по смыслу, а не по числу строк: здесь — что нужно, чтобы сессия
+СУЩЕСТВОВАЛА, а в обработчике остаётся то, что происходит с ней дальше.
+"""
+
+import random
+import uuid
+
+from app.container import Container
+from app.orchestrator.interview import InterviewOrchestrator
+from app.orchestrator.question_bank import pick_session_pool
+from app.orchestrator.review import QASegment, ReviewOrchestrator, render_segments
+from app.voice.interview_flow import InterviewFlow
+from app.voice.review_flow import ReviewFlow
+
+QUESTIONS_PER_SESSION = 6
+
+#: Сессия перестала быть чисто технической: с 2026-08-13 она чередует технические
+#: и behavioral вопросы (doc 04), и имя в записи обязано это называть — иначе
+#: транскрипт врёт о том, чем была сессия.
+INTERVIEW_MODE = "technical_and_behavioral"
+
+
+def build_interview_flow(container: Container, *, duration_min: int) -> InterviewFlow:
+    pool = pick_session_pool(
+        container.question_bank,
+        container.behavioral_bank,
+        count=QUESTIONS_PER_SESSION,
+        # Подавление стоит на строке, а не в ignore конфига: выбор вопросов
+        # интервью — не крипто, и это видно на месте. Токены/соли брать
+        # `secrets`, и тогда правило обязано краснеть.
+        rng=random.Random(),  # noqa: S311 -- выбор вопросов, не крипто
+    )
+    orchestrator = InterviewOrchestrator(
+        pool,
+        duration_min=duration_min,
+        wrap_up_seed=container.prompts.template("interview_wrap_up"),
+    )
+    return InterviewFlow(
+        str(uuid.uuid4()),
+        orchestrator,
+        container.prompts.interviewer_system(),
+        container.interviews,
+        interview_mode=INTERVIEW_MODE,
+    )
+
+
+def build_review_flow(
+    container: Container, *, interview_id: str, segments: list[QASegment]
+) -> ReviewFlow:
+    return ReviewFlow(
+        str(uuid.uuid4()),
+        interview_id,
+        ReviewOrchestrator(segments),
+        container.prompts.review_system(render_segments(segments)),
+        container.reviews,
+    )

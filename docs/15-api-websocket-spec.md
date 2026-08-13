@@ -255,10 +255,18 @@ User finished speaking (client VAD).
   "payload": {
     "value": "idle|listening|processing|speaking|loading_model",
     "session_kind": "interview|review|null",
-    "session_id": "uuid|null"
+    "session_id": "uuid|null",
+    "question_index": 3,
+    "question_total": 6,
+    "question_kind": "behavioral|technical|null"
   }
 }
 ```
+
+Три последних поля (с 2026-08-13) — «вопрос N из M и какого класса». Нужны
+экрану сессии: знать, сколько осталось, снимает тревогу, а это и есть задача
+тренажёра. У Mode 2 своего счётчика вопросов нет, поэтому там все три `null` —
+**клиент обязан быть готов к `null`**, а не только к числам.
 
 #### `model_loading`
 

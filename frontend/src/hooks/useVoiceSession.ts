@@ -1,6 +1,7 @@
 // WebSocket + mic capture + VAD + playback — the Phase 1 voice loop client side.
 
 import { useCallback, useRef, useState } from "react";
+
 import { AudioQueue } from "../lib/audioQueue";
 import { SilenceDetector, rmsDbfs } from "../lib/vad";
 import { clientMessage, parseServerMessage, type SessionState } from "../types/messages";
@@ -9,6 +10,12 @@ export interface SessionEnded {
   session_kind: "interview" | "review";
   session_id: string;
   next_action: "offer_review" | "generate_summary" | "none";
+}
+
+export interface QuestionProgress {
+  index: number;
+  total: number;
+  kind: string | null;
 }
 
 export interface TranscriptEntry {
@@ -45,6 +52,10 @@ export function useVoiceSession() {
   const [micLevel, setMicLevel] = useState(-Infinity); // dBFS, for the level meter
   const [playingUi, setPlayingUi] = useState(false); // agent audio audible right now
   const [ended, setEnded] = useState<SessionEnded | null>(null);
+  // Проброс, а не логика: где мы в интервью и когда сессия началась. Ни то, ни
+  // другое не участвует в эхо-защите и таймингах — они ниже по файлу нетронуты.
+  const [progress, setProgress] = useState<QuestionProgress | null>(null);
+  const [startedAt, setStartedAt] = useState<number>(0);
   const refs = useRef<SessionRefs>({
     ws: null,
     stream: null,
@@ -144,8 +155,13 @@ export function useVoiceSession() {
       const message = parseServerMessage(raw);
       if (!message) return;
       switch (message.type) {
-        case "state":
+        case "state": {
+          const { question_index: index, question_total: total } = message.payload;
+          setProgress(
+            index && total ? { index, total, kind: message.payload.question_kind ?? null } : null,
+          );
           return onServerState(message.payload.value);
+        }
         case "transcript":
           return setTranscript((prev) => [...prev, message.payload]);
         case "audio":
@@ -192,6 +208,8 @@ export function useVoiceSession() {
         setActive(false);
         setState("idle");
       };
+      setStartedAt(Date.now());
+      setProgress(null);
       setActive(true);
       startVadLoop();
     },
@@ -224,5 +242,16 @@ export function useVoiceSession() {
   // no matter that the server already flipped to "listening".
   const uiState: SessionState = playingUi ? "speaking" : state;
 
-  return { state: uiState, transcript, error, active, micLevel, ended, start, end };
+  return {
+    state: uiState,
+    transcript,
+    error,
+    active,
+    micLevel,
+    ended,
+    progress,
+    startedAt,
+    start,
+    end,
+  };
 }

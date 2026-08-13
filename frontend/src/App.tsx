@@ -1,9 +1,16 @@
 import { useState } from "react";
+
 import { HistoryPage } from "./pages/HistoryPage";
 import { InterviewPage } from "./pages/InterviewPage";
 import { WordsPage } from "./pages/WordsPage";
 
 type Tab = "interview" | "history" | "words";
+
+const TABS: [Tab, string][] = [
+  ["interview", "Interview"],
+  ["history", "History"],
+  ["words", "Useful Words"],
+];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("interview");
@@ -16,16 +23,15 @@ export default function App() {
 
   return (
     <main className="app">
-      <header>
-        <h1>Voice Interview Coach</h1>
+      {/* Бренд — тихая строка, а не заголовок во всю ширину: пользователь знает,
+          где он, и первый визуальный приоритет должен доставаться действию. */}
+      <div className="topbar">
+        <div className="brand">
+          <span className="brand-dot" aria-hidden="true" />
+          Voice Interview Coach
+        </div>
         <nav className="tabs">
-          {(
-            [
-              ["interview", "Interview"],
-              ["history", "History"],
-              ["words", "Useful Words"],
-            ] as [Tab, string][]
-          ).map(([name, label]) => (
+          {TABS.map(([name, label]) => (
             <button
               key={name}
               className={`tab ${tab === name ? "active" : ""}`}
@@ -35,13 +41,19 @@ export default function App() {
             </button>
           ))}
         </nav>
-      </header>
+      </div>
 
-      {tab === "interview" && (
-        <InterviewPage reviewTarget={reviewTarget} onReviewStarted={() => setReviewTarget(null)} />
-      )}
-      {tab === "history" && <HistoryPage onStartReview={startReviewFor} />}
-      {tab === "words" && <WordsPage />}
+      {/* key на обёртке перезапускает анимацию появления при смене вкладки */}
+      <div className="page" key={tab}>
+        {tab === "interview" && (
+          <InterviewPage
+            reviewTarget={reviewTarget}
+            onReviewStarted={() => setReviewTarget(null)}
+          />
+        )}
+        {tab === "history" && <HistoryPage onStartReview={startReviewFor} />}
+        {tab === "words" && <WordsPage />}
+      </div>
     </main>
   );
 }

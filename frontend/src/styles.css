@@ -1,132 +1,13 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-}
+/* Точка входа стилей. Порядок важен: токены → база → экраны.
+ *
+ * Ниже импортов — LEGACY-правила экранов, которые ещё не переехали на новый
+ * визуальный язык (History, Useful Words, разбор). Они удаляются экран за
+ * экраном по мере переезда; см. границу в конце `styles/app.css`. */
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/app.css";
 
-body {
-  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: #0f1117;
-  color: #e6e8ee;
-}
-
-.app {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-header {
-  text-align: center;
-  margin-bottom: 1.5rem;
-}
-.subtitle {
-  color: #8a90a4;
-  margin-top: 0.25rem;
-}
-
-.state-ring {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  margin: 1rem auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 4px solid #2a2f3e;
-  font-weight: 600;
-  transition: border-color 0.3s;
-}
-.state-listening {
-  border-color: #3fb68b;
-  animation: pulse 1.6s infinite;
-}
-.state-processing {
-  border-color: #d9a441;
-}
-.state-speaking {
-  border-color: #4f8ff7;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(63, 182, 139, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 14px rgba(63, 182, 139, 0);
-  }
-}
-
-.mic-meter {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  max-width: 360px;
-  margin: 0 auto 0.75rem;
-  font-size: 0.85rem;
-  color: #8a90a4;
-}
-.mic-meter-track {
-  position: relative;
-  flex: 1;
-  height: 10px;
-  background: #2a2f3e;
-  border-radius: 5px;
-  overflow: hidden;
-}
-.mic-meter-fill {
-  height: 100%;
-  background: #5a6178;
-  border-radius: 5px;
-  transition: width 60ms linear;
-}
-.mic-meter-fill.mic-heard {
-  background: #3fb68b;
-}
-.mic-meter-threshold {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 2px;
-  background: #d9a441;
-}
-.mic-meter-status {
-  min-width: 78px;
-}
-.mic-meter-status.mic-heard {
-  color: #3fb68b;
-}
-
-.controls {
-  text-align: center;
-  margin: 1.25rem 0;
-}
-.btn {
-  padding: 0.75rem 2rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.btn-start {
-  background: #3fb68b;
-  color: #08110d;
-}
-.btn-end {
-  background: #b64a3f;
-  color: #fff;
-}
-
-.error-banner {
-  background: #3d1f1c;
-  border: 1px solid #b64a3f;
-  color: #f0b9b2;
-  padding: 0.6rem 1rem;
-  border-radius: 8px;
-  text-align: center;
-  margin: 0.5rem 0;
-}
-
+/* ================= legacy: ждут своей поставки ================= */
 .transcript {
   background: #161923;
   border: 1px solid #2a2f3e;
@@ -148,50 +29,12 @@ header {
 }
 
 /* --- Phase 2: tabs, history, summary, words --- */
-.tabs {
-  display: flex;
-  gap: 0.4rem;
-  justify-content: center;
-  margin-top: 0.75rem;
-}
-.tab,
-.subtab {
-  background: transparent;
-  border: 1px solid #2a2f3e;
-  color: #8a90a4;
-  padding: 0.4rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-.tab.active,
-.subtab.active {
-  background: #1c2130;
-  color: #e6e8ee;
-  border-color: #4f8ff7;
-}
 .subtabs {
   display: flex;
   gap: 0.4rem;
   margin: 0.75rem 0;
 }
 
-.notice-banner {
-  background: #1c2a1f;
-  border: 1px solid #3fb68b;
-  color: #bfe8d6;
-  padding: 0.6rem 1rem;
-  border-radius: 8px;
-  margin: 0.5rem 0;
-}
-.modal-card {
-  background: #161923;
-  border: 1px solid #4f8ff7;
-  border-radius: 10px;
-  padding: 1rem;
-  margin: 0.75rem 0;
-  text-align: center;
-}
 .btn-ghost {
   background: transparent;
   border: 1px solid #2a2f3e;
