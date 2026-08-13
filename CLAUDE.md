@@ -81,12 +81,12 @@ cd frontend && npm run build && npm test
 
 ≤ 500 LOC на файл · SOLID, всё AI за Protocols (`SpeechToText`, `TextToSpeech`, `LlmClient`) · mypy strict · тесты в том же PR, реальные AI всегда мокаются · промпты/контракты в `data/`, не в коде.
 
-## Состояние (2026-08-12)
+## Состояние (2026-08-13)
 
 - **Phase 0** ✅ · **Phase 1** ✅ · **Phase 2 🟡 code complete (2026-07-05), НЕ принята** — оркестраторы, sentence-gated Contract Enforcer, Mode 2, SQLite, History/Words UI, R1-summary + Vocabulary Bank; live e2e-smoke пройден (interview→review→summary→bank). Оба блокера закрыты 2026-08-12 (вис ws и разрыв посередине хода); ручная приёмка выполнена и открыла дефект прокси — см. ниже
 - **Канон-стек обновлён и слит (2026-08-11)**: `delivery@1.68 · cqg@2.02 · okf@1.15` (squash `db2a501`, PR #3, мерж через `merge_guard`). Вход — `docs/canon/AGENT_STACK.md`; активной поставки нет; приёмка и остатки — `delivery/STACK-ACCEPTANCE.md`, разбор — `delivery/archive/2026-08-11-contour-2.01/`. Наблюдение открыто до **2026-08-25**: сигнал — `contour_doctor.py` версии `cqg@2.02` даёт `DEAD 0`; на закрытии нужен `observed.md` (§13)
 - **Обновление контура ≠ развёртывание**: порядок — CQG §5.5. Природа расхождения определяется сверкой со снимком `docs/canon/`, адаптации объявлены в `scripts/lint/adapted.json`; рядом `canaries.json` и `not-applicable.json`. Скрипты контура — **комплекты**: `contour_doctor.py` из 9 файлов, `delivery_check.py` из 11; без своей части вход не стартует
-- Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп `PIPER_LENGTH_SCALE=1.15`
+- Агента зовут **Генри**: голос `en_US-hfc_male-medium`, темп по умолчанию 1.15 (меняется голосом и на экране Settings), просодия `noise_scale=0.667`/`noise_w=1.0`, дыхание между предложениями 350 ms
 - Backend: 162 теста / 94.51% coverage (гейт 85), contracts 100%, mypy strict, дублей 0; frontend: 23 теста (3 компонентных на jsdom), eslint 0 errors, warning-ратчет ужат с 17 до 1
 - **Гейты фронта ожили на 2.01**: у complexity и jscpd появились TS-половины, у роли слоёв — `dependency-cruiser` (конфиг в корне + `tsconfig.depcruise.json`, оба знают, что фронт в подкаталоге). До 2.01 фронт этими ролями не проверялся вовсе — зелёное значило «никто не смотрел»
 - **✅ Вис ws закрыт (2026-08-12, squash `70c6d15`).** Подавление `skipif(CI)` снято с обоих тестов, добавлен регрессионный тест на инвариант «отключение клиента завершает сессию». Причина была не в `_warmup_task` (гипотеза отвергнута замером), а в оборванной отменой уборке: соединение оставалось вне пула, SQLAlchemy заводил `_terminate_graceful_close`, и закрытие цикла ждало его вечно. Разбор — `delivery/archive/2026-08-12-ws-disconnect-hang/`, уроки L5–L7 в `INDEX.md`. Наблюдение до **2026-08-26**: `CI` на `main` зелёный БЕЗ подавления, в логе гашения нет `did not finish in time`
