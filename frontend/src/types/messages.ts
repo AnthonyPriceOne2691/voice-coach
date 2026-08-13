@@ -4,7 +4,17 @@ export type SessionState = "idle" | "listening" | "processing" | "speaking" | "l
 
 export type ServerMessage =
   | { type: "ready"; payload: { server_version: string; ollama_ok: boolean } }
-  | { type: "state"; payload: { value: SessionState } }
+  | {
+      type: "state";
+      // Счётчик вопросов приходит вместе с состоянием (doc 15). Поля
+      // необязательные: у review-сессии и у терминальных состояний их нет.
+      payload: {
+        value: SessionState;
+        question_index?: number | null;
+        question_total?: number | null;
+        question_kind?: string | null;
+      };
+    }
   | { type: "transcript"; payload: { role: "user" | "agent"; text: string; final: boolean } }
   | { type: "audio"; payload: { chunk_base64: string; mime: string; final: boolean } }
   | { type: "session_started"; payload: { session_kind: string; session_id: string } }

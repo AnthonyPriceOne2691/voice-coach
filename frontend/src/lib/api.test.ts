@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+
 // Исходники читаются через `?raw` — возможность самого сборщика. Node-овский
 // fs потребовал бы @types/node ради одного теста, то есть новой зависимости
 // на годы; `vite/client` уже в tsconfig.types.
-import apiSource from "./api.ts?raw";
 import viteConfigSource from "../../vite.config.ts?raw";
+
+import apiSource from "./api.ts?raw";
 import { apiPrefixes, proxiedPrefixes } from "./devProxy";
 
 describe("dev-proxy покрывает все префиксы api.ts (C5)", () => {

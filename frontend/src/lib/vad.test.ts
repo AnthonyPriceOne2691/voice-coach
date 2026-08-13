@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { SILENCE_THRESHOLD_DBFS, SilenceDetector, rmsDbfs } from "./vad";
 
 function samplesAt(amplitude: number): Float32Array {

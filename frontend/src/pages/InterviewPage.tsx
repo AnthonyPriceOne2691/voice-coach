@@ -1,6 +1,8 @@
 import { useState } from "react";
+
 import { MicLevelMeter } from "../components/MicLevelMeter";
-import { SessionStateRing } from "../components/SessionStateRing";
+import { SessionHeader } from "../components/SessionHeader";
+import { StateOrb } from "../components/StateOrb";
 import { TranscriptPanel } from "../components/TranscriptPanel";
 import { useVoiceSession, type SessionEnded } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
@@ -11,8 +13,8 @@ interface Props {
 }
 
 // Две ветвистые части вынесены из страницы: что показать ПОСЛЕ конца сессии и
-// какая кнопка стоит в контролах. Обе — про состояние, а не про верстку, и обе
-// давали странице цикломатическую сложность 12 при пороге 10.
+// как выглядит приглашение. Обе — про состояние, а не про вёрстку, и обе
+// давали странице цикломатическую сложность выше порога.
 
 function EndedCard({
   ended,
@@ -25,21 +27,21 @@ function EndedCard({
 }) {
   if (ended.session_kind === "review") {
     return (
-      <div className="notice-banner">
+      <div className="banner banner-ok">
         Review saved. Henry is writing your full summary — it will appear in History shortly.
       </div>
     );
   }
   if (ended.next_action !== "offer_review") return null;
   return (
-    <div className="modal-card">
-      <h3>Interview complete 🎉</h3>
-      <p>Review it together with your recruiter friend?</p>
-      <div className="controls">
-        <button className="btn btn-start" onClick={() => onStartReview(ended.session_id)}>
-          Start Review Together
+    <div className="glass offer">
+      <h3>Interview complete</h3>
+      <p>Go through it together with your recruiter friend?</p>
+      <div className="cta">
+        <button className="btn" onClick={() => onStartReview(ended.session_id)}>
+          Review together
         </button>
-        <button className="btn btn-ghost" onClick={() => onSkipReview(ended.session_id)}>
+        <button className="btn btn-quiet" onClick={() => onSkipReview(ended.session_id)}>
           Skip for now
         </button>
       </div>
@@ -47,48 +49,57 @@ function EndedCard({
   );
 }
 
-function SessionControls({
-  active,
+function Invitation({
   reviewTarget,
-  onEnd,
+  onStart,
   onStartReview,
-  onStartInterview,
 }: {
-  active: boolean;
   reviewTarget: string | null;
-  onEnd: () => void;
+  onStart: () => void;
   onStartReview: (interviewId: string) => void;
-  onStartInterview: () => void;
 }) {
-  if (active) {
-    return (
-      <button className="btn btn-end" onClick={onEnd}>
-        End session
-      </button>
-    );
-  }
-  if (reviewTarget) {
-    return (
-      <button className="btn btn-start" onClick={() => onStartReview(reviewTarget)}>
-        Start Review Together
-      </button>
-    );
-  }
+  const review = reviewTarget !== null;
   return (
-    <button className="btn btn-start" onClick={onStartInterview}>
-      Start Mock Interview
-    </button>
+    <div className="glass hero">
+      <div className="hero-text">
+        <h1>{review ? "Let's go through it." : "Ready when you are."}</h1>
+        <p>
+          {review
+            ? "Henry will walk your answers question by question — what was strong, what to sharpen."
+            : "Mock technical interview with Henry — he mixes project questions with behavioral ones."}
+        </p>
+        <div className="chips">
+          <span className="chip">~15 min</span>
+          <span className="chip">English only</span>
+          <span className="chip">6 questions · 3 technical · 3 behavioral</span>
+        </div>
+        <div className="cta">
+          {review ? (
+            <button className="btn" onClick={() => onStartReview(reviewTarget)}>
+              Review together
+            </button>
+          ) : (
+            <button className="btn" onClick={onStart}>
+              Start interview
+            </button>
+          )}
+          <span className="faint">Say “speak slower” any time — Henry will.</span>
+        </div>
+      </div>
+      <StateOrb state="idle" />
+    </div>
   );
 }
 
 export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
-  const { state, transcript, error, active, micLevel, ended, start, end } = useVoiceSession();
+  const session = useVoiceSession();
+  const { state, transcript, error, active, micLevel, ended, progress, startedAt } = session;
   const [notice, setNotice] = useState<string | null>(null);
 
   const startReview = (interviewId: string) => {
     setNotice(null);
     onReviewStarted();
-    void start({ interviewId });
+    void session.start({ interviewId });
   };
 
   const skipReview = async (interviewId: string) => {
@@ -103,13 +114,29 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
 
   return (
     <div>
-      <p className="subtitle">Mock technical interview with Henry · ~15 min · English</p>
+      {error && <div className="banner banner-error">{error}</div>}
+      {notice && <div className="banner banner-ok">{notice}</div>}
 
-      <SessionStateRing state={state} />
-      {active && state === "listening" && <MicLevelMeter level={micLevel} />}
-
-      {error && <div className="error-banner">{error}</div>}
-      {notice && <div className="notice-banner">{notice}</div>}
+      {/* До старта транскрипта на экране НЕТ: пустой прямоугольник в полэкрана
+          ничего не сообщал и держал место, которое нужно приглашению. */}
+      {active ? (
+        <div className="glass session">
+          <SessionHeader
+            state={state}
+            progress={progress}
+            startedAt={startedAt}
+            onEnd={session.end}
+          />
+          {state === "listening" && <MicLevelMeter level={micLevel} />}
+          <TranscriptPanel entries={transcript} />
+        </div>
+      ) : (
+        <Invitation
+          reviewTarget={reviewTarget}
+          onStart={() => void session.start()}
+          onStartReview={startReview}
+        />
+      )}
 
       {ended && (
         <EndedCard
@@ -119,17 +146,15 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
         />
       )}
 
-      <div className="controls">
-        <SessionControls
-          active={active}
-          reviewTarget={reviewTarget}
-          onEnd={end}
-          onStartReview={startReview}
-          onStartInterview={() => void start()}
-        />
-      </div>
-
-      <TranscriptPanel entries={transcript} />
+      {/* Транскрипт последней сессии остаётся читаемым после её конца */}
+      {!active && transcript.length > 0 && (
+        <>
+          <h2 className="section-title">Transcript</h2>
+          <div className="glass session">
+            <TranscriptPanel entries={transcript} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

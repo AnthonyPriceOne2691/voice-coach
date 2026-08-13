@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { clientMessage, parseServerMessage } from "./messages";
 
 describe("parseServerMessage", () => {

@@ -1,0 +1,437 @@
+/* Экраны: оболочка, интервью, история, слова, настройки. */
+
+.app {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 28px 22px 60px;
+}
+
+/* ---------- оболочка: тихий бренд, тяжёлые табы ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 26px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  letter-spacing: 0.02em;
+}
+.brand-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 12px rgba(91, 140, 255, 0.8);
+}
+.tabs {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 15px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--t-base) var(--ease),
+    background var(--t-base) var(--ease);
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab.active {
+  color: var(--ink);
+  background: var(--glass-strong);
+  box-shadow:
+    inset 0 1px 0 var(--edge-bright),
+    0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+/* Смена вкладки: содержимое въезжает, а не мигает */
+.page {
+  animation: page-in var(--t-slow) var(--ease) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- кнопки ---------- */
+
+.btn {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14.5px;
+  cursor: pointer;
+  padding: 12px 24px;
+  border-radius: 13px;
+  color: var(--on-accent);
+  background: linear-gradient(135deg, #8ff0d0, #4fc7ff);
+  box-shadow:
+    var(--shadow-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition:
+    transform var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 18px 38px -12px rgba(79, 199, 255, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.btn:active {
+  transform: translateY(0);
+}
+.btn-quiet {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  box-shadow: none;
+  font-weight: 500;
+  padding: 10px 18px;
+  font-size: 13.5px;
+}
+.btn-quiet:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+/* ---------- приглашение (до старта) ---------- */
+
+.hero {
+  padding: 34px;
+  display: flex;
+  gap: 30px;
+  align-items: center;
+}
+.hero-text {
+  flex: 1;
+}
+.hero h1 {
+  font-size: 26px;
+  line-height: 1.25;
+}
+.hero p {
+  color: var(--ink-dim);
+  margin-top: 8px;
+  font-size: 14px;
+}
+.chips {
+  display: flex;
+  gap: 7px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.chip {
+  font-size: 12px;
+  color: var(--ink-dim);
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.04);
+}
+.cta {
+  margin-top: 22px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- орб состояния ---------- */
+
+.orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.orb-lg {
+  width: 150px;
+  height: 150px;
+}
+.orb-sm {
+  width: 74px;
+  height: 74px;
+}
+/* Кольцо — градиент по кругу, вырезанный маской: обводка, а не заливка */
+.orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 2px;
+  background: conic-gradient(
+    from 200deg,
+    var(--accent),
+    var(--accent-2),
+    var(--warm),
+    var(--accent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.9;
+}
+.orb-core {
+  width: 79%;
+  height: 79%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 28%,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.02) 60%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.orb-label {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.orb-sm .orb-label {
+  font-size: 9.5px;
+}
+
+/* Состояния различаются НЕ подписью, а поведением кольца (U9) */
+.orb-idle .orb-ring,
+.orb-loading_model .orb-ring {
+  opacity: 0.28;
+  background: conic-gradient(from 200deg, #4a5170, #2c3350, #4a5170);
+}
+.orb-listening .orb-ring {
+  animation: orb-breathe 2.4s ease-in-out infinite;
+}
+.orb-speaking .orb-ring {
+  animation: orb-spin 3.2s linear infinite;
+}
+.orb-processing .orb-ring {
+  animation: orb-flicker 1.5s ease-in-out infinite;
+}
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.045);
+    filter: brightness(1.35);
+  }
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-flicker {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---------- живая сессия ---------- */
+
+.session {
+  padding: 26px 30px 24px;
+}
+.session-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.session-meta {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.session-meta strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.session-right {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-dim);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--edge);
+}
+
+.mic-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.mic-meter-status {
+  min-width: 66px;
+}
+.mic-meter-status.mic-heard {
+  color: var(--accent-2);
+}
+.mic-meter-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.mic-meter-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: width 60ms linear;
+}
+.mic-meter-fill.mic-heard {
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+}
+.mic-meter-threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--warm);
+  opacity: 0.7;
+}
+
+/* ---------- диалог ---------- */
+
+.turns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.bubble {
+  max-width: 82%;
+  padding: 12px 15px;
+  border-radius: 15px;
+  font-size: 14px;
+  line-height: 1.5;
+  animation: bubble-in var(--t-slow) var(--ease) both;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.bubble-who {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+.bubble-agent {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--edge);
+  border-bottom-left-radius: 5px;
+}
+.bubble-user {
+  align-self: flex-end;
+  border-bottom-right-radius: 5px;
+  background: linear-gradient(135deg, rgba(91, 140, 255, 0.22), rgba(125, 227, 195, 0.14));
+  border: 1px solid rgba(140, 180, 255, 0.28);
+}
+
+/* ---------- баннеры и карточки ---------- */
+
+.banner {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin: 12px 0;
+  font-size: 13.5px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.05);
+}
+.banner-error {
+  border-color: rgba(255, 157, 144, 0.35);
+  background: rgba(255, 157, 144, 0.1);
+  color: #ffc9c2;
+}
+.banner-ok {
+  border-color: rgba(125, 227, 195, 0.35);
+  background: rgba(125, 227, 195, 0.1);
+  color: #c5f0e2;
+}
+.offer {
+  padding: 24px;
+  text-align: center;
+  margin-top: 18px;
+}
+.offer h3 {
+  font-size: 18px;
+}
+.offer p {
+  color: var(--ink-dim);
+  margin: 8px 0 18px;
+}
+.offer .cta {
+  justify-content: center;
+  margin-top: 0;
+}
+
+.section-title {
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 26px 0 12px;
+}
+
+/* ⚠ Временная граница поставки (2026-08-13). Стили History, Useful Words,
+ * разбора и настроек ещё живут в legacy-части `styles.css` со старыми именами
+ * классов: интерфейс режется по экранам, и каждый переезжает своей поставкой.
+ * Промежуточное состояние обязано РАБОТАТЬ, а не «половина без стилей». */

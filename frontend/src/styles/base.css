@@ -1,0 +1,77 @@
+/* Сброс, фон и общий слой «стекла». */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  font:
+    15px/1.55 -apple-system,
+    "SF Pro Text",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--ink);
+  background: #0a0c14;
+  min-height: 100vh;
+  /* Фон живёт градиентными пятнами, а не одной заливкой: именно они дают
+   * стеклу что преломлять — без них blur не виден вовсе. */
+  background-image:
+    radial-gradient(900px 600px at 12% -5%, rgba(91, 140, 255, 0.22), transparent 60%),
+    radial-gradient(700px 500px at 92% 8%, rgba(125, 227, 195, 0.14), transparent 55%),
+    radial-gradient(800px 700px at 50% 105%, rgba(160, 110, 255, 0.16), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* «Жидкое стекло» — ЧЕТЫРЕ свойства вместе, а не один blur:
+ *   1. заливка градиентом сверху вниз (слой имеет толщину),
+ *   2. backdrop-filter (сквозь него видно фон),
+ *   3. светлая грань внутри сверху (край ловит свет),
+ *   4. мягкая тень наружу (слой висит над фоном).
+ * Убери любое — и получится просто полупрозрачный прямоугольник. */
+.glass {
+  position: relative;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  box-shadow: var(--shadow-card), var(--shadow-lift);
+  overflow: hidden;
+}
+/* Блик: диагональная засветка верхнего левого угла */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.1) 0%, transparent 38%);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--ink-dim);
+  font-size: 0.92em;
+}
+.faint {
+  color: var(--ink-faint);
+  font-size: 0.85em;
+}
+
+/* Уважение к тем, кому анимация мешает — и к батарее */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

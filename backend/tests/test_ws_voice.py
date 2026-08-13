@@ -290,3 +290,39 @@ def test_disconnect_during_turn_finishes_session(
     assert [t["role"] for t in json.loads(row.transcript_json)] == ["agent", "user"]
     # B3: разрыв — не отказ хода
     assert "voice turn failed" not in caplog.text  # B3
+
+
+def test_state_message_carries_question_progress(tmp_path: Path) -> None:
+    """Экран сессии показывает «вопрос N из M», и данные для этого приходят с сервера.
+
+    До 2026-08-13 клиент их не получал вовсе — счётчик было нечем нарисовать.
+    """
+    container = make_container(tmp_path, FakeLlm(["Ok? "]), FakeStt(LONG_ANSWER))
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": "start_interview", "payload": {}})
+        ws.receive_json()  # session_started
+        states = [m for m in _collect_until(ws, "state") if m["type"] == "state"]
+
+        payload = states[0]["payload"]
+        assert payload["question_index"] == 1
+        assert payload["question_total"] == 6
+        assert payload["question_kind"] == "technical"  # открывает всегда технический
+
+        ws.send_json({"type": "end_session", "payload": {"reason": "user"}})
+        _collect_until(ws, "session_ended")
+
+
+def test_review_session_has_no_question_counter(tmp_path: Path) -> None:
+    """У Mode 2 своего счётчика нет — клиент обязан быть готов к null (doc 15)."""
+    container = make_container(tmp_path, FakeLlm(["Q1 was strong. "]), FakeStt("okay"))
+    seed_finished_interview(container.settings.database_url, "int-1")
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": "start_review", "payload": {"interview_id": "int-1"}})
+        ws.receive_json()
+        states = [m for m in _collect_until(ws, "state") if m["type"] == "state"]
+
+        assert states[0]["payload"]["question_index"] is None
+        assert states[0]["payload"]["question_kind"] is None
+
+        ws.send_json({"type": "end_session", "payload": {"reason": "user"}})
+        _collect_until(ws, "session_ended")
