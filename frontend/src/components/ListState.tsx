@@ -18,7 +18,7 @@ interface Props<T> {
 export function ListState<T>({ items, error, empty, children }: Props<T>) {
   return (
     <>
-      {error && <div className="error-banner">{error}</div>}
+      {error && <div className="banner banner-error">{error}</div>}
       {items === null ? (
         <p className="muted">Loading…</p>
       ) : items.length === 0 ? (

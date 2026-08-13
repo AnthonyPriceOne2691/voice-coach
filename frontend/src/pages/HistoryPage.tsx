@@ -35,7 +35,7 @@ function SummaryTab({
     return (
       <>
         {detail.summary_kind === "minimal" && (
-          <div className="notice-banner">
+          <div className="banner banner-ok">
             Minimal summary. Full rubric unlocks after Review Together.{" "}
             <button className="btn-link" onClick={() => onStartReview(detail.id)}>
               Start review
@@ -48,7 +48,7 @@ function SummaryTab({
   }
   if (detail.has_review) {
     return (
-      <div className="notice-banner">
+      <div className="banner banner-ok">
         No summary yet. It may still be generating —{" "}
         <button className="btn-link" onClick={onRefreshDetail}>
           refresh
@@ -58,7 +58,7 @@ function SummaryTab({
     );
   }
   return (
-    <div className="notice-banner">
+    <div className="banner banner-ok">
       No summary yet.{" "}
       <button className="btn-link" onClick={() => onStartReview(detail.id)}>
         Review together
@@ -97,17 +97,19 @@ function DetailPanel({
 }) {
   return (
     <div>
-      <button className="btn btn-ghost" onClick={onBack}>
-        ← Back to History
+      <button className="btn btn-quiet" onClick={onBack}>
+        ← Back to history
       </button>
-      <h2>{formatSessionSpan(detail.started_at, detail.ended_at, detail.duration_sec)}</h2>
-      {error && <div className="error-banner">{error}</div>}
+      <h2 className="section-title">
+        {formatSessionSpan(detail.started_at, detail.ended_at, detail.duration_sec)}
+      </h2>
+      {error && <div className="banner banner-error">{error}</div>}
 
-      <nav className="subtabs">
+      <nav className="tabs subtabs">
         {(["summary", "interview", "review"] as DetailTab[]).map((name) => (
           <button
             key={name}
-            className={`subtab ${tab === name ? "active" : ""}`}
+            className={`tab ${tab === name ? "active" : ""}`}
             onClick={() => onTab(name)}
           >
             {name === "summary" ? "Summary" : name === "interview" ? "Interview" : "Review"}
@@ -146,24 +148,40 @@ function HistoryRow({
   onStartReview: () => void;
   onRemove: () => void;
 }) {
+  // Одно главное действие — заполненная кнопка. «Review again» тише, удаление —
+  // иконка без заливки: до 2026-08-13 все три были одного веса, и удаление
+  // сессии стояло вровень с её открытием.
+  const reviewed = item.has_review;
   return (
-    <div className="history-item">
+    <div className="glass row">
       <div>
-        <strong>{formatSessionSpan(item.started_at, item.ended_at, item.duration_sec)}</strong> ·{" "}
-        {item.status}
-        <div className="muted">
-          Interview ✓ · Review {item.has_review ? "✓" : "—"} · Summary {item.summary_kind ?? "—"}
+        <div className="row-when">
+          {formatSessionSpan(item.started_at, item.ended_at, item.duration_sec)}
+        </div>
+        <div className="row-sub">
+          <span>{item.status === "completed" ? "Completed" : "Interrupted"}</span>
+          {reviewed && <span className="pill">Reviewed</span>}
+          {item.summary_kind === "full" && <span className="pill">Full summary</span>}
+          {item.summary_kind === "minimal" && (
+            <span className="pill pill-quiet">Minimal summary</span>
+          )}
+          {!reviewed && !item.summary_kind && <span className="pill pill-warn">Not reviewed</span>}
         </div>
       </div>
-      <div className="history-actions">
-        <button className="btn btn-ghost" onClick={onOpen}>
-          View
+      <div className="row-actions">
+        <button className="btn" onClick={onOpen}>
+          Open
         </button>
-        <button className="btn btn-ghost" onClick={onStartReview}>
-          {item.has_review ? "Review again" : "Start review"}
+        <button className="btn btn-quiet" onClick={onStartReview}>
+          {reviewed ? "Review again" : "Review together"}
         </button>
-        <button className="btn btn-ghost btn-danger" onClick={onRemove}>
-          Delete
+        <button
+          className="btn-icon"
+          title="Delete session"
+          aria-label="Delete session"
+          onClick={onRemove}
+        >
+          ✕
         </button>
       </div>
     </div>
@@ -234,7 +252,7 @@ export function HistoryPage({ onStartReview }: Props) {
 
   return (
     <div>
-      <h2>History</h2>
+      <h2 className="section-title">Recent sessions</h2>
       <ListState
         items={items}
         error={error}
