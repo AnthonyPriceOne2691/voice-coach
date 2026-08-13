@@ -188,13 +188,21 @@ Loading review model… (~10s)
 
 ## Screen 7: Settings (`/settings`)
 
-| Setting | Type | Default |
-|---------|------|---------|
-| Show live transcript | toggle | **ON** |
-| Interview duration | 15 / 30 / 45 min | 15 |
-| Silence before end-of-turn | slider 0.8–2.0 s | 1.2 s |
-| Speech pace | slider 0.85–1.60 | 1.15 |
-| Microphone device | dropdown | system default |
+| Setting | Type | Default | Построено |
+|---------|------|---------|-----------|
+| Speech pace | slider 0.85–1.60 | 1.15 | ✅ 2026-08-13 |
+| Interview duration | 15 / 30 / 45 min | 15 | ✅ 2026-08-13 |
+| Silence before end-of-turn | slider 0.8–2.0 s | 1.2 s | ✅ 2026-08-13 |
+| Show live transcript | toggle | **ON** | ✅ 2026-08-13 |
+| Microphone device | dropdown | system default | ❌ нужен `enumerateDevices` |
+
+**Сохранение — на отпускании ползунка**, не на каждом движении: один проезд
+иначе означал бы сорок запросов к базе. Значение, отвергнутое сервером (422 вне
+коридора темпа), **показывается**, а не прячется: молчаливый зажим неотличим от
+принятого значения.
+
+Просодии (`piper_noise_scale`, `sentence_pause_ms`) здесь **нет намеренно** —
+это характер голоса, а не ежедневная настройка; она живёт в конфиге (doc 03).
 
 **Speech pace** уже существует как настройка (`speech_length_scale`, doc 15) и
 меняется голосом внутри сессии — «speak slower» (doc 04). Регулятор здесь ещё
@@ -217,7 +225,7 @@ Diagnostics section (read-only):
 |---|---|
 | 1 | дизайн-система (`styles/tokens|base|app.css`), оболочка, экран Interview |
 | 2 | History, деталь сессии, Useful Words, разбор; **legacy-стили удалены** |
-| 3 | экран Settings *(в работе)* |
+| 3 | экран Settings ✅ |
 
 **Стекло — четыре свойства вместе:** заливка градиентом сверху вниз,
 `backdrop-filter: blur+saturate`, светлая грань `inset 0 1px 0` (край ловит

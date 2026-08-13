@@ -67,3 +67,11 @@ export interface VocabularyItem {
   times_seen?: number;
   added_at?: string;
 }
+
+/** Ключи kv-настроек (doc 15, `GET/PATCH /settings`). */
+export interface UserSettings {
+  show_live_transcript: boolean;
+  interview_duration_min: number;
+  silence_threshold_ms: number;
+  speech_length_scale: number;
+}

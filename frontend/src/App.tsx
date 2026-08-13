@@ -2,14 +2,16 @@ import { useState } from "react";
 
 import { HistoryPage } from "./pages/HistoryPage";
 import { InterviewPage } from "./pages/InterviewPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { WordsPage } from "./pages/WordsPage";
 
-type Tab = "interview" | "history" | "words";
+type Tab = "interview" | "history" | "words" | "settings";
 
 const TABS: [Tab, string][] = [
   ["interview", "Interview"],
   ["history", "History"],
   ["words", "Useful Words"],
+  ["settings", "Settings"],
 ];
 
 export default function App() {
@@ -53,6 +55,7 @@ export default function App() {
         )}
         {tab === "history" && <HistoryPage onStartReview={startReviewFor} />}
         {tab === "words" && <WordsPage />}
+        {tab === "settings" && <SettingsPage />}
       </div>
     </main>
   );
