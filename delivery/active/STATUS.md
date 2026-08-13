@@ -1,12 +1,12 @@
 # Active delivery status
 
-- **slug:** liquid-glass-ui
+- **slug:** liquid-glass-shell
 - **stack:** delivery@1.68, cqg@2.02, okf@1.15
 - **class:** L
 - **kind:** feature
 - **repro_test:** n/a (kind=feature)
 - **diagnosis:** n/a reason=не багфикс; диагноз интерфейса снят снимками «до» и записан в spec
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-08-13) reason=направление утверждено МАКЕТОМ до кода (отрисован и показан), плюс три решения: как в макете, все три экрана + новый Settings, орб живёт по состоянию
@@ -18,6 +18,8 @@
 - **worktree:** ../voice-coach-wt-ui (ветка feat/liquid-glass-ui)
 - **hooks:** claude (scripts/hooks/)
 - **blockers:** none
+  <!-- Breaker'ы были пробиты на полном объёме (31 файл / 1003 LOC); человек
+       выбрал РАЗРЕЗ, а не waiver (escalation.md). После сужения: 25 / 673. -->
 - **waivers:** none
 - **new_dependency:** none reason=стекло и анимации делаются CSS; router, Tailwind и framer-motion отклонены в plan.md с причинами
 - **runtime_paths:** frontend/src/styles/, delivery/evals/browser/
@@ -28,8 +30,8 @@
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** U12 подтверждён в живой сессии — интервью запускается из
-  нового интерфейса, орб отражает состояние, транскрипт читается как диалог,
-  Settings меняет темп речи и значение переживает перезагрузку
+  нового интерфейса, орб отражает состояние по ходу разговора, транскрипт
+  читается как диалог, а History и Useful Words открываются и не сломаны
 - **observe_until:** 2026-08-27
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
 
