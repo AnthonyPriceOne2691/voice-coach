@@ -26,7 +26,7 @@
   <!-- §12.6: экран — путь, чей отказ виден пикселями, а не кодом ошибки.
        `npm test` зелён при полностью сломанной вёрстке. Значит нужен браузер
        и снимки (U1-U9), а также живой прогон сессии (U12). -->
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** knowledge/engineering/echo-protection.md reason=тронут useVoiceSession.ts, но только пробросом question progress и времени старта сессии; инвариант «микрофон открывается после конца воспроизведения» не затронут — startVadLoop, startRecorder, onAudioChunk и end() в диффе отсутствуют by=human:anthony
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** U12 подтверждён в живой сессии — интервью запускается из
