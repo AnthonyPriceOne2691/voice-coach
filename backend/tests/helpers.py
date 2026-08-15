@@ -62,6 +62,10 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     )
     (prompts / "summary_system.txt").write_text("summary system")
     (prompts / "minimal_summary_system.txt").write_text("minimal system")
+    # Контейнер обязан быть ПОЛНЫМ: с 2026-08-15 суммаризация чинит негодный
+    # перевод повторным запросом, и без этого файла первый же тест, дошедший до
+    # починки, упал бы на отсутствующем промпте, а не на своём предмете.
+    (prompts / "translate_term_system.txt").write_text("translate term")
     (prompts / "templates" / "interview_intro.txt").write_text(
         "Hi, I'm Henry. Walk me through an internal tool you built end-to-end."
     )
