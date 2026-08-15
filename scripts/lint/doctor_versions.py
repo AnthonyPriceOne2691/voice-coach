@@ -48,28 +48,64 @@ class VersionChecks:
         ("delivery/STACK-ACCEPTANCE.md", r"^\*\*Stack:\*\*"),
     )
 
-    def _records(self, prefix: str) -> list[tuple[str, str]]:
-        """Все записи проекта о версии слоя: `[(файл, версия), …]`.
+    def _records(self, prefix: str) -> tuple[list[tuple[str, str]], list[str]]:
+        """Записи проекта о версии слоя: `([(файл, версия), …], [файл-без-записи])`.
 
         `absent` — законное значение (`okf@absent` на проекте без канона смысла),
         поэтому оно ЧИТАЕТСЯ: три записи с `absent` согласны, а `absent` против
         числа — настоящее расхождение. В `_declared_version` оно, наоборот, не
         годится, и почему — сказано там.
+
+        Возвращает ДВА списка: прочитанные записи и файлы, где запись должна быть,
+        а её нет. Второй список — не педантизм: пока его не было, тишину покупали
+        УДАЛЕНИЕМ строки, и проект с двумя стёртыми записями выглядел чище
+        проекта, где они расходятся (замер независимой вычистки `cqg@2.03`).
         """
-        out: list[tuple[str, str]] = []
+        found: list[tuple[str, str]] = []
+        silent: list[str] = []
         if not prefix:
-            return out
+            return found, silent
         for rel, label in self.STACK_RECORDS:
             p = self.root / rel
             if not p.is_file():
-                continue
-            for line in p.read_text("utf-8", errors="replace").splitlines():
+                continue        # файла нет вовсе — это вопрос слоя delivery, не наш
+            seen: list[str] = []
+            for line in self._prose_lines(p):
                 if not re.match(label, line):
                     continue
                 m = re.search(rf"\b({re.escape(prefix)}@(?:[0-9][0-9.]*|absent))", line)
-                if m:
-                    out.append((rel, m.group(1)))
-                break
+                if m and m.group(1) not in seen:
+                    seen.append(m.group(1))
+            found.extend((rel, v) for v in seen)
+            if not seen:
+                silent.append(rel)
+        return found, silent
+
+    @staticmethod
+    def _prose_lines(p: Path) -> list[str]:
+        """Строки файла ВНЕ fenced-блоков.
+
+        ⚠ Первая редакция брала первую строку с меткой и выходила по `break`.
+        Победителем оказывался кто угодно: ПРИМЕР записи в ```-блоке выше
+        настоящей (три ложных расхождения на исправном проекте), архивная секция,
+        или строка-метка без нужного префикса — её `break` съедал молча, и сверка
+        снимка для этого слоя отключалась. Все три замерены на стендах.
+
+        Отсюда два правила разом: пример в блоке записью не считается, и
+        собираются ВСЕ строки-метки, а не первая. Две разные версии в одном файле
+        — тоже расхождение, и оно попадает в результат обеими.
+
+        Тот же класс, ради которого в сьюте канона живёт `extract.prose_only()`;
+        доктор его импортировать не может, поэтому четыре строки живут здесь.
+        """
+        out: list[str] = []
+        fence = False
+        for line in p.read_text("utf-8", errors="replace").splitlines():
+            if line.lstrip().startswith("```"):
+                fence = not fence
+                continue
+            if not fence:
+                out.append(line)
         return out
 
     def _declared_version(self, prefix: str) -> str:
@@ -83,11 +119,27 @@ class VersionChecks:
         даже когда проект развернул три. Прими `okf@absent` за заявление — и
         доктор объявит отставшим снимок, который в порядке, то есть даст ложное
         срабатывание на штатной раскладке.
+
+        ⚠ **Если записи в канонной форме нет — ищем по всему файлу, как искали до
+        `cqg@2.02`.** Сужение до метки закрыло настоящее ложное срабатывание
+        (проза о версиях выше записи), но у него оказалась неназванная цена:
+        на STATUS, написанном иначе, чем шаблон A.2, сверка «снимок ОТСТАЛ»
+        пропадала целиком — вердикт переворачивался с `WEAK` на `AUTO`, то есть
+        молчание выдавалось за здоровье. Замерено на трёх формах записи.
+        Фолбэк её возвращает, а о самом отклонении формы говорит
+        `check_stack_records` строкой «нет записи в …», так что тихо оно не
+        проходит: одно свойство — один говорящий.
         """
-        for rel, v in self._records(prefix):
+        found, _ = self._records(prefix)
+        for rel, v in found:
             if rel.endswith("STATUS.md"):
                 return "" if v.endswith("@absent") else v
-        return ""
+        st = self.root / "delivery" / "active" / "STATUS.md"
+        if not st.is_file():
+            return ""
+        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
+                      "\n".join(self._prose_lines(st)))
+        return m.group(1) if m else ""
 
     def check_stack_records(self) -> None:
         """Записи о версии стека обязаны СОГЛАСОВАТЬСЯ между собой.
@@ -99,20 +151,31 @@ class VersionChecks:
         Вердикт `WEAK`, как у сверки снимка: быть посреди обновления законно, и
         `DEAD` уронил бы прогон ровно там, где обновление идёт правильно
         (§4.3b — красное всегда снимают первым). Молчать нельзя, ронять нечестно.
+
+        ⚠ **Отсутствие записи говорится так же громко, как расхождение.** Первая
+        редакция молчала при `len(recs) < 2`, и это открывало самый дешёвый обход
+        из возможных: сотри строку — и проект выглядит чище того, где записи
+        просто разошлись. Печатается и число прочитанных записей: «1 запись» —
+        честный ответ, «молчание» — нет.
         """
         for prefix in ("delivery", "cqg", "okf"):
-            recs = self._records(prefix)
+            found, silent = self._records(prefix)
             point = f"записи о версии {prefix}"
-            if len(recs) < 2:
-                continue                 # одна запись или ни одной — сверять нечего
-            seen = {v for _, v in recs}
-            if len(seen) == 1:
-                self.add(AUTO, point, f"{recs[0][1]} — {len(recs)} записи согласны")
+            if not found and not silent:
+                continue                 # слоя delivery в проекте нет — предмета нет
+            problems = []
+            if silent:
+                problems.append("нет записи в " + ", ".join(silent))
+            if len({v for _, v in found}) > 1:
+                problems.append("расходятся: "
+                                + ", ".join(f"{rel} → {v}" for rel, v in found))
+            if problems:
+                self.add(WEAK, point, "; ".join(problems)
+                         + " — запись либо врёт, либо отсутствует; обновление "
+                           "правит ВСЕ записи (§5.5)")
                 continue
-            self.add(WEAK, point,
-                     "расходятся: "
-                     + ", ".join(f"{rel} → {v}" for rel, v in recs)
-                     + " — одна из них врёт; обновление правит ВСЕ записи (§5.5)")
+            self.add(AUTO, point,
+                     f"{found[0][1]} — прочитано записей: {len(found)}")
 
     def _canon_version(self, p: Path) -> str:
         """Версия из шапки канона; пусто — шапка не читается.

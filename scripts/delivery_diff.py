@@ -71,18 +71,28 @@ def applicable_lessons(index_text: str, changed: list[str]) -> list[str]:
 
 
 
-def diff_identifiers(paths: list[str]) -> set[str]:
+def diff_identifiers(paths: list[str], base: str) -> set[str]:
     """Токены, которые есть в диффе: базовые имена файлов + идентификаторы кода.
 
     Берём и пути, и содержимое изменённых строк: решение может ссылаться и на файл
     («вынес в sentences.py»), и на функцию («`_cut_points` считает границы»).
+
+    ⚠ `base` — ПАРАМЕТР, и это несущее (`delivery@1.72`, поле). Здесь стояла
+    константа `HEAD~1..HEAD`, пока вызывающие уже брали базу из `--diff-base`:
+    пути приезжали от диффа всей поставки, а тела строк — от последнего коммита.
+    У поставки из двух коммитов (код, потом артефакты) порог §12.5 «≥2 цитаты из
+    диффа» становился невыполнимым АРИФМЕТИЧЕСКИ — в последнем коммите кода нет.
+    Это `cqg@2.05` («база порога — цель мержа») во втором скрипте: ту правку
+    внесли в порог и не провели в извлекатель, который тот же порог и кормит.
+    Правило к классу: база сравнения — всегда параметр, и у одной проверки она
+    ОДНА; половина, взявшая базу сама, отменяет вторую молча.
     """
     ids: set[str] = set()
     for path in paths:
         for part in re.split(r"[/\\.]", path):
             if len(part) >= 4 and part.lower() not in DECISION_STOPWORDS:
                 ids.add(part.lower())
-    body = git("diff", "--unified=0", "HEAD~1..HEAD", "--", *paths) if paths else ""
+    body = git("diff", "--unified=0", f"{base}..HEAD", "--", *paths) if paths else ""
     for tok in re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", body):
         low = tok.lower()
         if low not in DECISION_STOPWORDS:

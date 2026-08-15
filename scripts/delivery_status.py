@@ -112,7 +112,7 @@ def check_risky_diff(status: str, args, phase: str, verify,
             gaps = risk_review_gaps(
                 read(verify),
                 risky_classes(rstats[4], rbase),
-                diff_identifiers(rstats[4]),
+                diff_identifiers(rstats[4], rbase),
             )
             for g in gaps:
                 (errors if phase == "handoff" else warnings).append(

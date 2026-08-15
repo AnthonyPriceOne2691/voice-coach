@@ -97,8 +97,15 @@ baseline_lookup() {
 # Размер скриптов контура мерится отдельно — ратчет ВЕСА (Delivery §9.1a): снимок
 # `tests/contour_size_baseline.txt` в репозитории канона, потолок на скрипт только
 # вниз, планка нового — 300. До cqg@1.81 эта строка обещала замер, которого не было.
+#
+# ⚠ КОНФИГИ контура исключаются здесь же (cqg@2.04). Дефолтная маска их не берёт,
+# но LINT_LENGTH_GLOBS — настройка: стоит проекту дописать '*.js *.cjs', и гейт
+# начнёт мерить `eslint.config.js` и `.dependency-cruiser.cjs` — файлы, которые
+# поставляет сам канон, — как продуктовый код. Ровно F14, только по другому пути.
+# И то же правило читает доктор (CONTOUR_RE): зеркало обязано совпадать, иначе
+# полная канонная раскладка обвиняет сама себя (замер: DEAD 1 на свежем стенде).
 exclude_contour() {
-  grep -vE '^(scripts/lint/|scripts/delivery_(check|metrics)\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|delivery/|knowledge/)'
+  grep -vE '^(scripts/lint/|scripts/delivery_(check|metrics)\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|delivery/|knowledge/|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)'
 }
 
 scanned=0

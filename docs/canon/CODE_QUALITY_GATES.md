@@ -8,7 +8,7 @@
 > домена — в OKF. Если в проекте ещё нет `delivery/` — сначала Delivery
 > ([AGENT_STACK.md](AGENT_STACK.md) §2.A), потом этот канон.
 
-**Canon version:** `cqg@2.02` · 2026-08-11 (Changelog — в конце файла). Версию впиши в
+**Canon version:** `cqg@2.15` · 2026-08-13 (Changelog — в конце файла). Версию впиши в
 `delivery/CONSTITUTION.md` / `STATUS.md` (`stack:`) при развёртывании.
 
 **Самодостаточный документ.** Всё, что нужно для этой системы качества, — здесь: правила с порогами,
@@ -121,8 +121,8 @@
   [OKF_KNOWLEDGE_BUNDLE.md](OKF_KNOWLEDGE_BUNDLE.md).
 - **HITL / agent stop-gates** — не здесь, а в Delivery §10.
 
-**Стоимость чтения.** Канон — §1–§8 (≈2600 строк): правила, пороги, механика, CI.
-Приложения A и B — **bootstrap payload** (≈6680 строк, 72% файла): дословные
+**Стоимость чтения.** Канон — §1–§8 (≈2960 строк): правила, пороги, механика, CI.
+Приложения A и B — **bootstrap payload** (≈7436 строк, 72% файла): дословные
 исходники, нужны только при развёртывании или правке конкретного скрипта.
 Ревью кода и ответ на «можно ли так писать» не требуют приложений вообще.
 
@@ -251,7 +251,7 @@ def build_action_context(robots: RobotsLike, url: str) -> ActionContext:
 | **Сервис не знает про web** | Сервисный слой (`services/`, `service.py`) не импортирует web-фреймворк; auth в эндпоинте, сервис принимает id-параметры | **Гейт** `service-no-web` |
 | **DI, не importlib-магия** | Явные зависимости через параметры/`Protocol`; запрет `pkg\|session\|ctx: Any`, `import_module("...")` в новом коде | **Гейт** `di-indirection` + mypy |
 | **Нет grab-bag модулей** | Запрещены `utils/misc/common/helpers.py` без темы (`_helpers.py` с подчёркиванием — ок) | **Гейт** `no-grab-bag-module` |
-| **SOLID / design-doc freshness** | SRP-флаги (>30 импортов, файл по 2+ темам, функция «5 дел»); OCP/LSP/ISP; PR, меняющий инварианты гейт-цепочки, обновляет связанный design-doc в том же PR | **Ревью** |
+| **SOLID / design-doc freshness** | SRP-флаги (>30 импортов, файл по 2+ темам, функция «5 дел»); OCP/LSP/ISP; PR, меняющий инварианты гейт-цепочки, обновляет связанный design-doc в том же PR | **Ревью** — механизировать нечем: «файл про две темы» и «функция делает 5 дел» это суждение о СМЫСЛЕ, а порог по числу импортов ловил бы форму и краснел на честном фасаде |
 
 ### 2.4. Ошибки, данные, конфиг, промпты
 
@@ -261,7 +261,7 @@ def build_action_context(robots: RobotsLike, url: str) -> ActionContext:
 | **DRY-данные** | Данные-константы (enum/статусы/ключи/тексты) ≥2 модулей → единый источник с 1-го повтора | **Гейт** `jscpd-DRY`; ревью | — |
 | **Config только typed** | Доступ только `config.X` / typed `Settings`; дефолт 1 раз в `config/<domain>.py`; запрет `getattr(config,...)`, `os.getenv`/`os.environ` вне `config/` | **Гейт** `config-access` + mypy | ленивый `import config` внутри функции (про доступ, не импорт) |
 | **Промпты не инлайном** | LLM-промпт >5–10 строк → отдельный `*.md`-файл, lazy-load + cache | **Гейт** `inline-prompt` (AST) | `# noqa: PLW0603 -- single-shot module cache` |
-| **Docstring = контракт** | Обещания (no-raise/атомарность/семантика возврата) правятся с кодом в том же PR; комментарий = intent, не changelog | **Ревью** | — |
+| **Docstring = контракт** | Обещания (no-raise/атомарность/семантика возврата) правятся с кодом в том же PR; комментарий = intent, не changelog | **Ревью** — механизировать нечем: расхождение обещания с кодом видно только чтением обоих, а проверка присутствия докстринга ловит наличие текста, а не его правду | — |
 
 ### 2.4a. Диагностируемость: код должен объяснять, что с ним не так
 
@@ -1136,10 +1136,42 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
      она врёт при первом же добавлении файла. -->
 
 
-#### Как извлекать: три правила, потому что наивный разбор ломается на каждом
+#### Как извлекать: инструмент едет с канонами
 
-Канон требует аккуратного извлекателя и **не поставляет** его — писать придётся
-свой. Правила, добытые тем, что на них спотыкались:
+**`extract_payload.py` лежит рядом с четырьмя `*.md` и извлекает payload сам**
+(`cqg@2.08`) — как `stack_selftest.py` и `selftest_sizes.py`, тем же правом:
+нужен ровно в момент развёртывания.
+
+```bash
+python3 extract_payload.py                     # всё ли извлекается (76 из 76)
+python3 extract_payload.py --manifest          # пути payload'а, по одному на строку
+python3 extract_payload.py --extract КАТАЛОГ   # разложить
+# ⚠ Плейсхолдер БЕЗ угловых скобок: блоки канона проверяются `bash -n` (§7), а
+# `<куда>` даёт `>` без цели и роняет разбор. Соседний `<канон>/*.md` проходит
+# случайно — там после `>` стоит путь, и он служит целью перенаправления.
+```
+
+⚠ **Полноту сверяют diff'ом, а не глазами по таблице выше.** Это и есть ответ на
+полевой замер: чужой извлекатель нашёл **73 файла из 74**, и девятый модуль доктора
+обнаружился сравнением списков заголовков между ревизиями — то есть случайно.
+
+```bash
+python3 extract_payload.py --manifest | sort > /tmp/ожидается
+(cd ПРОЕКТ && git ls-files scripts) | sort > /tmp/есть
+diff /tmp/ожидается /tmp/есть        # пусто = комплекты полны
+```
+
+**До `cqg@2.08` канон требовал аккуратный извлекатель и НЕ поставлял его** — правила
+ниже были спецификацией для парсера, который каждый исполнитель писал заново. Правила
+известны, а дефекты разбора получались каждый раз новые.
+
+⚠ **Что при этом потеряно, и это названо, а не замолчано.** Свой парсер у каждого
+развёртывания был случайным источником НЕЗАВИСИМОЙ проверки: чужой разбор спотыкался
+о то, чего мой не видит. Общий инструмент эту проверку убирает — дефект разбора
+становится один для всех. Поэтому правила ниже остаются: свой парсер законен, а
+`--manifest` делает его сверку с общим дешёвой.
+
+Правила, добытые тем, что на них спотыкались:
 
 1. **Блок — ПЕРВЫЙ fenced после заголовка, проза между ними допустима.** У
    `### \`.pre-commit-config.yaml\`` между заголовком и блоком стоит цитата с
@@ -1242,6 +1274,17 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
    Инструменты гейтов (без них гейт мягко пропускается — и говорит об этом) —
    `pip-audit`, `mutmut`, `pytest-env`, `pytest-cov`, `hypothesis` — живут в
    `backend/requirements-dev.txt` (Приложение B), их ставит шаг 5 одной командой.
+
+   ⚠ **На uv/pyproject-проекте второй манифест НЕ заводится** (`cqg@2.07`).
+   Инструменты идут в `[project.optional-dependencies]` (группа `dev`), а
+   `requirements-dev.txt` не создаётся: два манифеста — два источника правды, и
+   разъедутся они молча. Требование этого шага — **чтобы инструменты стояли ПО
+   МАНИФЕСТУ, а не командой мимо него** (это и был урок lab-11 F9), а не чтобы
+   файл существовал. Шаг установки в §8.3 уже написан развилкой (`if [ -f
+   backend/requirements-dev.txt ]`), то есть механика допускала оба случая, пока
+   §5.0 перечисляла файл безусловно — и живой uv-проект остался с вопросом без
+   ответа, а исполнитель решал сам. Это была не свобода, а противоречие двух
+   секций.
    Для фронта `npm ci` (нужен `package-lock.json`) и `npm i -D fast-check` —
    property-раннер фронта (Delivery §6.5). До lab-11 (F9) эти пять ставились
    командой в этом шаге МИМО манифеста — локально работало, а в CI, который
@@ -1263,7 +1306,10 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
    он у тебя выключен, и неважно, что написано в чеклисте.
 5. **Активируй и проверь ПОЛНОТУ, а не только зелёность:**
    ```bash
+   # По МАНИФЕСТУ, а не командой мимо него (lab-11 F9). Какой манифест —
+   # решает проект: `requirements-dev.txt` ИЛИ dev-группа в pyproject (§5 шаг 4).
    pip install -r requirements-dev.txt   # ruff, mypy, pre-commit, import-linter
+   # uv/pyproject: uv sync --all-extras   # те же инструменты из [dev]
    pre-commit install
    bash scripts/lint/check_gate_coverage.sh   # ← сначала: все ли гейты подключены
    pre-commit run --all-files                 # затем: зелены ли подключённые
@@ -1334,6 +1380,44 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
    ```
    `stack_selftest.py` обязан оказаться в снимке **вместе с четырьмя `*.md`**: без
    него проверять payload нечем, и шаг §8.3 упадёт с явной причиной, а не молча.
+
+   Затем — **провенанс снимка** (`cqg@2.09`, AGENT_STACK §7.1). Правило там было
+   объявлено, а исполнитель не назван: процедура, которая снимок и создаёт, про
+   запись не знала — «правило без гейта, живёт пока его читают» (DoD §3.2 п.10).
+   `КОРЕНЬ` — каталог, ОТКУДА копировали каноны:
+
+   ```bash
+   python3 - "КОРЕНЬ" <<'PY' > docs/canon/VENDORED.json
+   import hashlib, json, pathlib, re, subprocess, sys
+   from datetime import date
+   src, snap = sys.argv[1], pathlib.Path("docs/canon")
+   sh = lambda *a: subprocess.run(a, cwd=src, capture_output=True, text=True).stdout.strip()
+   vers = {}
+   for f in sorted(snap.glob("*.md")):
+       m = re.search(r"\*\*(?:Canon version|Эта карта):\*\*\s*`([a-z-]+)@([\d.]+)`", f.read_text(encoding="utf-8"))
+       if m:
+           vers[m.group(1)] = m.group(2)
+   print(json.dumps({
+       "_": "Провенанс снимка (AGENT_STACK §7.1). Отвечает на вопрос «откуда он», на который SHA256SUMS не отвечает: хеши держат «копию не правили ПОСЛЕ вендоринга» и молчат о том, из чего вендорили. Сверяет запись обход флота, а не сам проект: сравнить с источником может только тот, у кого к нему доступ. Пересоздавать при каждом перевендоривании.",
+       "upstream": sh("git", "remote", "get-url", "origin") or "<адрес источника>",
+       "commit": sh("git", "rev-parse", "HEAD"),
+       # ⚠ Сама запись из счёта грязи ИСКЛЮЧЕНА: редирект создаёт файл раньше, чем
+       # выполняется проверка, и генератор объявлял бы грязным любое дерево — то
+       # есть поле выродилось бы в константу и перестало что-либо значить.
+       "dirty": bool([l for l in sh("git", "status", "--porcelain").splitlines()
+                      if "VENDORED.json" not in l]),
+       "vendored_at": date.today().isoformat(),
+       "versions": vers,
+       "sha256": {f.name: hashlib.sha256(f.read_bytes()).hexdigest()
+                  for f in sorted(snap.iterdir()) if f.is_file() and f.name != "VENDORED.json"},
+   }, ensure_ascii=False, indent=2))
+   PY
+   ```
+
+   ⚠ Поле `dirty` — не украшение. Оно закрывает дыру **в источнике**, а не в
+   обнаружении: снимок, снятый с грязной рабочей копии, иначе неотличим от снятого
+   с коммита, и `commit` в записи указывал бы на состояние, которого в upstream
+   нет. Пустая рабочая копия при вендоринге — условие, а не пожелание.
    Дальше — три вещи, без которых вариант C ломает соседние гейты:
    - `docs/canon/` в `BREAKER_EXCLUDE` (Delivery §3.4) — снимок это **механика
      контура**, а не поставка: 10 743 строки из 13 743 пробитого лимита breaker'а;
@@ -1426,15 +1510,17 @@ python-версия `check_grep_gate.sh` перезаписала три соб�
 # 1. Дерево ЧИСТОЕ — иначе откат невозможен, а он понадобится
 git status --short            # пусто; чужая незакоммиченная работа = стоп
 
-# 2. Снимок канона — НОВЫЙ: он источник для всякой сверки ниже
-cp <канон>/*.md docs/canon/   # вместе с их самопроверкой (§7.1, вариант C)
+# 2. ПРОВЕРЯЮЩИЙ слой — ПЕРВЫМ, до всякого другого payload'а: доктор
+#    КОМПЛЕКТОМ (девять файлов — без части не стартует, §5.0) и мета-гейт с
+#    частями. Без этих двух строк следующий вопрос задавать НЕКОМУ.
+cp <канон>/scripts/lint/contour_doctor.py <канон>/scripts/lint/doctor_*.py scripts/lint/
+cp <канон>/scripts/lint/check_gate_coverage.sh <канон>/scripts/lint/gate_coverage_*.sh scripts/lint/
 
-# 3. ПРОВЕРЯЮЩИЙ слой — ПЕРВЫМ, до всякого другого payload'а:
-#    доктор КОМПЛЕКТОМ (без части не стартует, §5.0) и мета-гейт с частями.
-#    Без этого шага следующий вопрос задавать НЕКОМУ.
-
-# 4. Что и почему разошлось — теперь есть кому ответить
+# 3. Что и почему разошлось — СТАРЫЙ снимок ещё на месте, и это условие ответа
 python3 scripts/lint/contour_doctor.py | grep 'расхождение с каноном'
+
+# 4. Снимок канона — НОВЫЙ. Только ТЕПЕРЬ: улика жила до этой строки
+cp <канон>/*.md docs/canon/   # вместе с их самопроверкой (§7.1, вариант C)
 
 # 5. Остальной payload — но ТОЛЬКО неадаптированные (таблица двух природ выше)
 
@@ -1443,6 +1529,44 @@ bash scripts/lint/check_gate_coverage.sh    # вписан ли + карта р�
 python3 scripts/lint/contour_doctor.py      # судит ли + видит ли код
 python3 scripts/delivery_check.py           # фазовые артефакты новой версии
 ```
+
+⚠ **Что адаптацией НЕ является — сказано, чтобы не решал каждый заново**
+(`cqg@2.07`). Три случая, все три пришли вопросами с живого обновления:
+① **заполненные `delivery/**`** расходятся с шаблоном ВСЕГДА — потому и заполнены;
+это не адаптация, в `adapted.json` они не объявляются, и сверка природ их не
+касается (она смотрит `scripts/lint/**` и `CANON_CONFIGS`);
+② **`slug` поставки и имя ветки** — идентификаторы, а не заявление о версии: когда
+цель обновления уехала на ревизию вперёд посреди работы, ветку переименовывать НЕ
+надо, версию несут три записи (ниже), а не имя;
+③ **правка канонного скрипта, чинящая дефект канона**, объявляется в `adapted.json`
+как всё прочее, но с пометкой, что это ПОЧИНКА: следующее обновление обязано снять
+запись, если канон починил у себя. Без этой пометки починка неотличима от
+адаптации под стек и живёт вечно.
+
+⚠ **Роль объявляет неприменимой АГЕНТ, и один — но записью, а не молча**
+(`cqg@2.07`). `not-applicable.json` с причиной — законный ход (§10.4), спрашивать
+человека для него не нужно: роль либо применима к стеку, либо нет, и это факт, а не
+предпочтение. Что обязательно: причина в файле и строка в `delivery/STACK-ACCEPTANCE.md`,
+чтобы решение попало на приёмку. Живое обновление объявило `.gitlab-ci.yml`
+неприменимым и внесло это себе в «где я обошёл канон» — то есть канон не сказал,
+чьё это решение, и исполнитель заподозрил себя в самоуправстве там, где действовал
+верно. Неназванный распорядитель — та же дыра, что неназванная база порога.
+
+⚠ **Сверять природу расхождений НАДО ДО перевендоривания снимка, и это не стиль,
+а условие ответа.** Сверка сравнивает тела с `docs/canon/`. Пока снимок СТАРЫЙ,
+«отличается» значит **адаптирован**, а «совпадает» — просто устарел: две природы
+таблицы выше различимы. После `cp` снимок новый, и обе природы схлопываются в одно
+«отличается от нового канона» — улика уничтожена той самой командой, которая должна
+идти следом. Прежняя редакция (`cqg@2.02`) ставила `cp` вторым шагом, до вопроса, и
+**оракул это закреплял** — проверка требовала «снимок обновляется раньше сверки», то
+есть защищала неверный порядок (`cqg@2.06`). Нашло поле, не прогон.
+
+⚠ **Хвостовой перевод строки при сверке нормализуй.** Файлы проекта часто лежат без
+финального `\n`, извлечённые из канона — с ним. Полевой замер: наивное побайтовое
+сравнение объявило адаптированными **все 36 файлов**; после `rstrip("\n")` их
+осталось **5**, и это совпало с ответом доктора. Разница между «5 адаптаций» и «36»
+— это разница между часом и днём работы. Доктор нормализует сам (`.strip()`), но
+исполнитель, пишущий свою сверку, об этом знать обязан.
 
 ⚠ **Версию правь во ВСЕХ записях, а их три:** `delivery/active/STATUS.md`,
 `delivery/CONSTITUTION.md` и `delivery/STACK-ACCEPTANCE.md` — все три ставит §2.3,
@@ -1467,6 +1591,16 @@ python3 scripts/delivery_check.py           # фазовые артефакты 
 
 Поле `changed` — не украшение: без него «адаптирован» не отвечает на вопрос
 «что именно переносить», и портирование снова становится диффом против канона.
+
+⚠ **Ключ, начинающийся с `_`, — комментарий, а не имя гейта.** Правило общее для
+всех ТРЁХ объявлений (`adapted.json`, `canaries.json`, `not-applicable.json`):
+JSON комментариев не имеет, поэтому проект документирует формат единственным
+доступным способом — ключом, и механика обязана это знать. Замер: пояснение
+`"_": "…"` в `canaries.json` доктор читал как объявление и печатал
+`SKIP канарейка _ — объявление без path/content`, то есть в сводке собственной
+непокрытости стоял пропуск, которого нет, а лечился он удалением пояснения.
+Обычные ключи проверяются как раньше: объявление без `path`/`content` — по-прежнему
+`SKIP`, иначе правка не закрыла бы класс, а сняла бы проверку (§4.3b).
 
 ⚠ **Расхождение без объявления — не ложь, но и не тишина.** Быть на версию
 позади нормально, поэтому доктор даёт `WEAK`, а не `DEAD`. Но печатает список:
@@ -1522,8 +1656,28 @@ run --all-files` — если гейт зелен и при этом не печ
 Пороги/режим тоже через env: `MAX_LINES_PROD`, `MAX_LINES_TESTS`, `BASELINE_HEADROOM`, `EXEMPTION_HEADROOM`,
 `STRICT`, `MIN_PCT`, `BASE`, `SKIP_TESTS`. Для TS-половин добавились
 `LINT_TS_COMPLEXITY_RULES` (JSON правил eslint — порог принадлежит гейту, а не
-конфигу проекта), `LINT_TS_EXT_RE`, `LINT_DEPCRUISE_CONFIG` и
-`MUTATION_TS_REPORT`.
+конфигу проекта), `LINT_TS_EXT_RE`, `LINT_DEPCRUISE_CONFIG`,
+`LINT_ESLINT_CONFIG`, `LINT_TSCONFIG` и `MUTATION_TS_REPORT`.
+
+⚠ **`LINT_TSCONFIG` — `tsconfig.json` для dependency-cruiser, если фронт не в
+корне** (`cqg@2.07`). Дефолт — кандидаты `<LINT_FE_DIR>/tsconfig.json`, затем
+корневой. Причина та же, что у `LINT_ESLINT_CONFIG`: путь внутри
+`.dependency-cruiser.cjs` резолвится от CWD, а гейт зовёт инструмент из корня
+репозитория — значит зашитый корневой путь верен только при фронте в корне, тогда
+как §5.0 кладёт его в подкаталог. Живое обновление получило `TS18003` и завело
+корневой `tsconfig.depcruise.json`, наследующий фронтовый; ход законный, но он
+попал в раздел «где я обошёл канон» — канон о нём не сказал ничего.
+
+⚠ **`LINT_ESLINT_CONFIG` — конфиг eslint, если он не там, где ищет гейт
+сложности.** Дефолт — кандидаты `<LINT_FE_DIR>/eslint.config.{js,mjs,cjs}`, затем
+те же имена в корне репо; eslint запускается **из каталога конфига**. Почему это
+переменная, а не константа, — замер (`cqg@2.04`): flat-config разрешается от CWD,
+а §5.0 кладёт фронтовый конфиг в ПОДКАТАЛОГ, и гейт, звавший eslint из корня,
+выдавал `ERROR: eslint вышел с кодом 2 … ESLint couldn't find an
+eslint.config.(js|mjs|cjs) file` — то есть **канон не попадал в раскладку, которую
+сам же предписывает**. Строка таблицы — это список тех, с кого спрашивают
+(врезка про `LINT_VENV` выше), поэтому потребитель назван: **complexity**,
+TS-половина.
 
 ⚠ **Дефолт `backend/features` — это раскладка проекта, на котором писался канон, и
 он почти наверняка не ваш.** Задавать `LINT_PY_SRC` надо во **всех** местах вызова:
@@ -1925,7 +2079,13 @@ jobs:
           missing=""; checked=""
           expect() { skip "$1" || { checked="$checked $1"; have "$1" || missing="$missing $1"; }; }
           expect detect-secrets
-          if ls **/pyproject.toml **/requirements*.txt >/dev/null 2>&1; then
+          # ⚠ Условие идёт через `grep -q .`, а не через код возврата `ls`: `ls A B`
+          # при существующем A и отсутствующем B выходит ЕДИНИЦЕЙ (замер: rc=1),
+          # поэтому прежняя форма `ls **/pyproject.toml **/requirements*.txt`
+          # на pyproject-проекте БЕЗ requirements.txt (uv/poetry — тот же случай,
+          # что lab-11 F9) не ожидала ни ruff, ни mypy. Шаг, заведённый против
+          # тихого пропуска, сам уходил в тихий пропуск.
+          if ls pyproject.toml */pyproject.toml requirements*.txt */requirements*.txt 2>/dev/null | grep -q .; then
             expect ruff; expect mypy
           fi
           if [ -f package.json ] || [ -f "$LINT_FE_DIR/package.json" ]; then
@@ -1962,6 +2122,23 @@ jobs:
       - name: Gate coverage (все гейты подключены)
         if: always()
         run: bash scripts/lint/check_gate_coverage.sh
+
+      # ⚠ Третий из трёх РАЗНЫХ вопросов §5 шаг 5: вписаны ли гейты · зелены ли
+      # вписанные · СУДЯТ ли вписанные. Третий тут не стоял, и это была не
+      # мелочь: в GitLab-адаптере (§8.3a) доктор был, в этом workflow — нет,
+      # то есть у инструмента был постоянный исполнитель на одном хостинге и не
+      # было на другом. А канон сам требует (карта §7.1): `auto` — это про
+      # постоянного исполнителя, а не про существование команды. Значит все
+      # вердикты доктора — расхождение конфига со снимком, слепые гейты,
+      # разъехавшиеся записи о версии — на GitHub-проекте читал только тот, кто
+      # вспомнит запустить руками. Асимметрию внёс `cqg@2.01` и не заметил.
+      #
+      # `DEAD` роняет шаг, `WEAK`/`ABSENT`/`SKIP` — нет: доктор красен ровно
+      # тогда, когда объявленная проверка молчит на своём же нарушении.
+      # Замер цены: 4.7–5.5 с против двадцатиминутного бюджета джобы.
+      - name: Contour doctor (гейты не только вписаны, но и судят)
+        if: always()
+        run: python3 scripts/lint/contour_doctor.py
 
       - name: Baseline ratchet (снимки только вниз)
         if: always()
@@ -2176,13 +2353,56 @@ gates:
     # обещает уберечь: упал шаг установки → гейты честно скажут «инструмента
     # нет → пропуск» → в сумме это читается как «гейты прошли». Локально такой
     # пропуск честен, в CI — нет.
-    - test -x backend/.venv/bin/ruff || { echo "инструменты гейтов не установились — шаг before_script упал"; exit 1; }
+    # ⚠ И ТЕМИ ЖЕ ПРАВИЛАМИ: список ВЫВОДИТСЯ из объявлений проекта. Первая
+    # редакция (`cqg@2.01`) была одной строкой `test -x backend/.venv/bin/ruff`,
+    # то есть адаптер нёс ровно питоновское допущение (`cqg@1.85`), от которого
+    # шаг и заведён: на не-python проекте он ронял джобу за отсутствие
+    # инструмента, чья роль объявлена `n/a`. Возможным это стало потому, что
+    # оракул `cqg@1.95` был написан на один хостинг из двух — и §8.3a, которая
+    # отговаривает от «второго списка, который никто не сверяет», сама им и
+    # жила. Теперь свойство проверяется циклом по хостингам.
+    - |
+      na="scripts/lint/not-applicable.json"
+      skip() { [ -f "$na" ] && grep -q "\"$1\"" "$na"; }
+      have() {
+        for p in "backend/.venv/bin/$1" ".venv/bin/$1" "node_modules/.bin/$1" \
+                 "$LINT_FE_DIR/node_modules/.bin/$1"; do
+          [ -x "$p" ] && return 0
+        done
+        command -v "$1" >/dev/null 2>&1
+      }
+      missing=""; checked=""
+      expect() { skip "$1" || { checked="$checked $1"; have "$1" || missing="$missing $1"; }; }
+      expect detect-secrets
+      # `grep -q .`, а не код возврата `ls`: `ls A B` при отсутствующем B выходит
+      # единицей, и pyproject-проект без requirements.txt не ждал ни ruff, ни
+      # mypy — тихий пропуск внутри шага против тихого пропуска (§8.3).
+      if ls pyproject.toml */pyproject.toml requirements*.txt */requirements*.txt 2>/dev/null | grep -q .; then
+        expect ruff; expect mypy
+      fi
+      if [ -f package.json ] || [ -f "$LINT_FE_DIR/package.json" ]; then
+        expect eslint; expect jscpd
+      fi
+      if [ -n "$missing" ]; then
+        echo "инструменты гейтов не поставились:$missing"
+        echo "Гейты ниже уйдут в честный пропуск, и джоба будет ВЫГЛЯДЕТЬ проверенной."
+        echo "Смотри before_script: он упал или поставил не туда (§8.3a)."
+        echo "Инструмент не нужен на этом стеке — объяви роль в $na (§5.5)."
+        exit 1
+      fi
+      echo "toolchain: проверено ->$checked (пусто = все роли объявлены n/a)"
     # Порядок тот же, что в §5 шаг 5, и он отвечает на три РАЗНЫХ вопроса:
     # вписаны ли гейты · зелены ли вписанные · судит ли вписанное.
     - bash scripts/lint/check_gate_coverage.sh
     - backend/.venv/bin/pre-commit run --all-files
     - python3 scripts/lint/contour_doctor.py
-    - bash scripts/merge_guard.sh --dry-run
+    # ⚠ Ветка — ПОЗИЦИОННЫМ аргументом, режим — переменной окружения. Первая
+    # редакция звала `merge_guard.sh --dry-run` (`cqg@2.00`), а у скрипта
+    # `SOURCE=${1:?…}`, поэтому флаг читался как имя ветки: `нет ветки
+    # '--dry-run'`, exit 1 — шаг был красным СТРУКТУРНО, на любом проекте и
+    # всегда. Класс: команда адаптера разошлась с интерфейсом скрипта, который
+    # она зовёт, и не сверял этого никто. Теперь сверяет оракул (§8.3a).
+    - DRY_RUN=1 bash scripts/merge_guard.sh "$CI_COMMIT_REF_NAME" "$CI_DEFAULT_BRANCH"
 
 # Вторая джоба — эквивалент джобы `delivery` из §8.3. Без неё фазовый гейт с
 # `--require-ci` и sync-гейт не гоняются НИГДЕ, и «ci-oracles» опять держится
@@ -2290,9 +2510,19 @@ pre-commit install --hook-type pre-push
 # .pre-commit-config.yaml — добавить рядом с остальными
   - repo: local
     hooks:
+      # ⚠ База — ЦЕЛЬ МЕРЖА, а не upstream ветки, и это стоило отказа правила на
+      # живом проекте (`cqg@2.05`). Прежняя редакция брала `@{u}`: пока ветка не
+      # запушена, это цель мержа и всё верно, а ПОСЛЕ первого push'а `@{u}` — сама
+      # ветка, и «дифф поставки» схлопывается в последний инкремент. Замер:
+      # по цели мержа 27 файлов и 8 цитат в блоке ревью, по `@{u}` — 1 файл и 0
+      # цитат при пороге §12.5 «≥2». Порог становится недостижим АРИФМЕТИЧЕСКИ:
+      # чинить нечего, а пройти нельзя — это не строгость, а отказ.
+      # И второе: тот же блок в CI судится против цели мержа и зелёный, то есть
+      # два оракула одного правила расходились по базе, причём локальный был
+      # строже там, где прав был CI. Базу обязаны брать одинаково — держит оракул.
       - id: delivery-gate
         name: delivery phase gate + breakers (pre-push)
-        entry: bash -c 'PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo origin/main)"'
+        entry: bash -c 'b(){ git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null && return 0; for c in origin/main origin/master; do git rev-parse --verify --quiet "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }; done; echo origin/main; }; PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(b)"'
         language: system
         stages: [pre-push]
         pass_filenames: false
@@ -2304,11 +2534,14 @@ pre-commit install --hook-type pre-push
         pass_filenames: false
       # Гейт, который исполняется только в CI, — не автоматика, а украшение: на
       # проекте без раннера он не срабатывал НИ РАЗУ (lab-12). Замер: 0.06 c на
-      # манифест — бюджет §8.6 (≤10 c) он не трогает. База — тот же upstream-ref,
-      # что у delivery-gate: судить надо то, что уедет в push.
+      # манифест — бюджет §8.6 (≤10 c) он не трогает. База — та же ЦЕЛЬ МЕРЖА, что
+      # у delivery-gate: вопрос «вносит ли ПОСТАВКА необъявленную зависимость», а
+      # не «внёс ли её последний push». По `@{u}` зависимость, добавленную первым
+      # push'ом, следующие уже не видят — и объявление можно снять из STATUS
+      # безнаказанно.
       - id: new-dependency
         name: новая зависимость объявлена в STATUS (pre-push)
-        entry: bash -c 'PY=$(command -v python3 || command -v python); BASE="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo origin/main)" "$PY" scripts/lint/check_new_dependency.py'
+        entry: bash -c 'b(){ git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null && return 0; for c in origin/main origin/master; do git rev-parse --verify --quiet "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }; done; echo origin/main; }; PY=$(command -v python3 || command -v python); BASE="$(b)" "$PY" scripts/lint/check_new_dependency.py'
         language: system
         stages: [pre-push]
         pass_filenames: false
@@ -2397,6 +2630,8 @@ jobs:
 # Usage:
 #   scripts/merge_guard.sh <source-branch> [target-branch]   # default target: main
 #   DRY_RUN=1 scripts/merge_guard.sh feat/x                  # только проверить
+# ⚠ ОТКУДА звать: мерж — из дерева, где целевая ветка НЕ занята другим worktree
+# (обычно основной клон). Из worktree поставки (§5.1) — только `DRY_RUN=1`.
 set -euo pipefail
 
 SOURCE=${1:?usage: merge_guard.sh <source-branch> [target-branch]}
@@ -2435,6 +2670,33 @@ fi
 git rev-parse --verify --quiet "$SOURCE" >/dev/null || die "нет ветки '$SOURCE'"
 git rev-parse --verify --quiet "$TARGET" >/dev/null || die "нет ветки '$TARGET'"
 [[ -z "$(git status --porcelain)" ]] || die "рабочее дерево грязное — закоммить или спрячь правки"
+
+# Целевая ветка может быть ЗАНЯТА другим рабочим деревом, и тогда мерж отсюда
+# невозможен: последний шаг делает `git checkout "$TARGET"` в дереве, откуда
+# позван. Полевой симптом (проект вёл поставку в worktree, как велит §5.1): шесть
+# гейтов зелёные, затем `fatal: 'main' is already used by worktree at …`. Диагноз
+# читается как поломка репозитория, а не как «позвал не оттуда», и приходит в
+# самом дорогом месте — после всей проверки. §5.1 велит вести поставку в worktree,
+# значит это штатный случай, а не редкость.
+#
+# Проверка РАННЯЯ и только для настоящего мержа: `DRY_RUN=1` ничего не
+# переключает, и падать на занятости ему не за что — иначе законный способ
+# «проверить слитое состояние из своего worktree» перестал бы работать.
+if [[ "$DRY_RUN" != "1" ]]; then
+  busy=$(git worktree list --porcelain | awk -v t="refs/heads/$TARGET" \
+    '/^worktree /{wt=substr($0,10)} /^branch /{if (substr($0,8)==t) print wt}')
+  if [[ -n "$busy" && "$busy" != "$REPO_ROOT" ]]; then
+    printf '%smerge_guard: ветка %s занята рабочим деревом:%s\n' "$red" "$TARGET" "$reset" >&2
+    printf '  %s\n' "$busy" >&2
+    printf 'Мерж переключает целевую ветку В ТОМ дереве, откуда позван, поэтому\n' >&2
+    printf 'отсюда он невозможен. Два законных хода:\n' >&2
+    printf '  1) мержить из того дерева:  cd %s && bash scripts/merge_guard.sh %s %s\n' \
+      "$busy" "$SOURCE" "$TARGET" >&2
+    printf '  2) проверить отсюда без мержа:  DRY_RUN=1 bash scripts/merge_guard.sh %s %s\n' \
+      "$SOURCE" "$TARGET" >&2
+    die "не то дерево для мержа (§8.5.2) — гейты не гонялись, время не потрачено"
+  fi
+fi
 
 WT=$(mktemp -d)/merge-check
 cleanup() { git worktree remove --force "$WT" >/dev/null 2>&1 || true; }
@@ -2522,16 +2784,44 @@ run_gate() {
   return 0
 }
 
-command -v pre-commit >/dev/null 2>&1 && [[ -f .pre-commit-config.yaml ]] \
-  && run_gate "pre-commit (all files)" pre-commit run --all-files
-[[ -f scripts/lint/check_baseline_ratchet.sh ]] \
-  && run_gate "baseline ratchet" env BASE="$TARGET" bash scripts/lint/check_baseline_ratchet.sh
-[[ -f scripts/delivery_check.py ]] \
-  && run_gate "delivery gate + breakers" "$PY" scripts/delivery_check.py --diff-base "$TARGET"
-[[ -f scripts/okf_sync_gate.py ]] \
-  && run_gate "canon sync" "$PY" scripts/okf_sync_gate.py --base "$TARGET"
-[[ -f delivery/evals/smoke/run.sh ]] \
-  && run_gate "smoke evals" bash delivery/evals/smoke/run.sh
+# Гейт, которого может не быть: ПРОПУСК ОБЯЗАН БЫТЬ НАЗВАН.
+#
+# ⚠ Раньше здесь стояло `условие && run_gate …`, а печать метки живёт ВНУТРИ
+# `run_gate` — значит непройденное условие не оставляло в выводе ни строки.
+# Замер: прогон с `PATH` без `pre-commit` печатает «merge_guard: всё зелено» и
+# выходит НУЛЁМ, не прогнав ни одного коммит-гейта; на стенде без файлов молча
+# выпали ПЯТЬ из шести, и вывод сказал то же самое. То есть гейт мержа — тот
+# самый, что стоит между веткой и main, — подтверждал «зелено» по пустоте.
+# Это дословно класс F10 канона («названный пропуск читается как успех»), только
+# здесь пропуск даже не назван, и живёт он в проверяющем слое.
+skipped=()
+gate_or_skip() {                 # gate_or_skip <метка> <причина|пусто> <команда…>
+  local label=$1 why=$2; shift 2
+  if [[ -n "$why" ]]; then
+    printf '  → %s\n' "$label"
+    printf '    %sПРОПУЩЕН%s: %s\n' "$yellow" "$reset" "$why"
+    skipped+=("$label")
+    return 0
+  fi
+  run_gate "$label" "$@"
+}
+
+why=""
+command -v pre-commit >/dev/null 2>&1 || why="нет pre-commit в PATH"
+[[ -n "$why" || -f .pre-commit-config.yaml ]] || why="нет .pre-commit-config.yaml"
+gate_or_skip "pre-commit (all files)" "$why" pre-commit run --all-files
+
+why=""; [[ -f scripts/lint/check_baseline_ratchet.sh ]] || why="нет scripts/lint/check_baseline_ratchet.sh"
+gate_or_skip "baseline ratchet" "$why" env BASE="$TARGET" bash scripts/lint/check_baseline_ratchet.sh
+
+why=""; [[ -f scripts/delivery_check.py ]] || why="нет scripts/delivery_check.py"
+gate_or_skip "delivery gate + breakers" "$why" "$PY" scripts/delivery_check.py --diff-base "$TARGET"
+
+why=""; [[ -f scripts/okf_sync_gate.py ]] || why="нет scripts/okf_sync_gate.py"
+gate_or_skip "canon sync" "$why" "$PY" scripts/okf_sync_gate.py --base "$TARGET"
+
+why=""; [[ -f delivery/evals/smoke/run.sh ]] || why="нет delivery/evals/smoke/run.sh"
+gate_or_skip "smoke evals" "$why" bash delivery/evals/smoke/run.sh
 
 # ПОСЛЕДНИМ и в основном клоне, а не в worktree: всё выше гонялось локально —
 # своим Python, своим venv. Этот шаг спрашивает у CI, зелено ли оно ТАМ. Без него
@@ -2544,6 +2834,18 @@ if [[ -f scripts/lint/check_ci_status.sh ]]; then
     printf '    %sFAIL%s\n' "$red" "$reset"
     failed+=("ci status")
   fi
+else
+  printf '  → %s\n' "ci status ($SOURCE)"
+  printf '    %sПРОПУЩЕН%s: нет scripts/lint/check_ci_status.sh\n' "$yellow" "$reset"
+  skipped+=("ci status")
+fi
+
+# «Зелено» без этой строки означало бы «зелено по пустоте». Пропуск не роняет
+# мерж — стенд может быть беден законно, — но и молчать о нём нельзя: цена
+# решения видна тому, кто мержит, а не тому, кто потом ищет причину.
+if (( ${#skipped[@]} )); then
+  printf '\n%s⚠ merge_guard: ПРОПУЩЕНО гейтов: %s%s\n' "$yellow" "${skipped[*]}" "$reset"
+  printf '  «зелено» ниже относится только к прогнанным (§8.5.2).\n'
 fi
 
 if (( ${#failed[@]} )); then
@@ -2579,6 +2881,12 @@ printf '\n%smerge_guard: %s слит в %s (%s) после зелёных гей
 Класть в `scripts/merge_guard.sh`, `chmod +x`. Правило для агента и человека:
 **мерж поставки — только этой командой** (или через PR с required checks, если
 тариф позволяет). `git merge` руками — то же, что `commit -n`.
+
+⚠ **Откуда звать.** Мерж — из дерева, где целевая ветка не занята другим worktree
+(обычно основной клон); из worktree поставки (§5.1) — только `DRY_RUN=1`. Иначе
+`git checkout main` падал `fatal: 'main' is already used by worktree at …` **после
+шести зелёных гейтов**, и это читалось как поломка репозитория. Теперь занятость
+проверяется первой строкой, до всякой работы, и сообщение называет оба хода.
 
 ### 8.5.3. Усиление: branch protection, если тариф позволяет
 
@@ -2795,7 +3103,7 @@ git rebase --exec 'pre-commit run --all-files' "$(git merge-base main HEAD)"
 - **Смоук-скрипт как проверяющая команда:** `git bisect run bash delivery/evals/smoke/run.sh`
   автоматизирует поиск целиком.
 
-> ## ⬇ Ниже — BOOTSTRAP PAYLOAD (строки ~2600–9280, 72% файла)
+> ## ⬇ Ниже — BOOTSTRAP PAYLOAD (строки ~2960–10400, 72% файла)
 >
 > Дословные исходники 14 скриптов Приложения A (плюс два в прозе — §8.2, §8.5.2) и конфигов Приложения B. **В обычной работе не читай** —
 > правила и пороги закончились выше (§1–§8). Читай отсюда только когда
@@ -3743,8 +4051,15 @@ baseline_lookup() {
 # Размер скриптов контура мерится отдельно — ратчет ВЕСА (Delivery §9.1a): снимок
 # `tests/contour_size_baseline.txt` в репозитории канона, потолок на скрипт только
 # вниз, планка нового — 300. До cqg@1.81 эта строка обещала замер, которого не было.
+#
+# ⚠ КОНФИГИ контура исключаются здесь же (cqg@2.04). Дефолтная маска их не берёт,
+# но LINT_LENGTH_GLOBS — настройка: стоит проекту дописать '*.js *.cjs', и гейт
+# начнёт мерить `eslint.config.js` и `.dependency-cruiser.cjs` — файлы, которые
+# поставляет сам канон, — как продуктовый код. Ровно F14, только по другому пути.
+# И то же правило читает доктор (CONTOUR_RE): зеркало обязано совпадать, иначе
+# полная канонная раскладка обвиняет сама себя (замер: DEAD 1 на свежем стенде).
 exclude_contour() {
-  grep -vE '^(scripts/lint/|scripts/delivery_(check|metrics)\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|delivery/|knowledge/)'
+  grep -vE '^(scripts/lint/|scripts/delivery_(check|metrics)\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|delivery/|knowledge/|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)'
 }
 
 scanned=0
@@ -4977,7 +5292,22 @@ class LayoutChecks:
 
         Шов по данным: цикл не отдаёт наружу ни одного имени, только вердикты, а
         из места принуждения ему нужен ровно один факт — есть ли конфиг.
+
+        ⚠ **В CI этот вопрос НЕОТВЕЧАЕМ, и потому там `SKIP`, а не `DEAD`.**
+        Хуки живут в клоне разработчика; чекаут их не ставит и ставить не должен —
+        принуждение в CI даёт сам workflow, который гоняет `pre-commit run
+        --all-files` напрямую. Без этой развилки доктор в CI красный по
+        построению: конфиг в дереве есть, хуков нет, `DEAD 2`, exit 1 — то есть
+        шаг был бы красным на КАЖДОМ проекте с развёрнутым контуром. Замерено на
+        стенде: `DEAD 2` без хуков против `DEAD 0` с подставленными.
+
+        Это ложное красное, а такие проверки снимают вместе со сверкой (§4.3b),
+        поэтому цена развилки — не удобство. Но и `AUTO` тут нельзя: вопрос не
+        «всё хорошо», а «здесь не спросить», и разница обязана быть в отчёте.
+        Признак — переменная `CI`: её ставят оба хостинга (GitHub Actions и
+        GitLab CI), поэтому второго признака контур не заводит.
         """
+        in_ci = os.environ.get("CI", "").lower() not in ("", "0", "false")
         gitdir = self._git_hooks_dir()
         for hook in ("pre-commit", "pre-push"):
             h = gitdir / "hooks" / hook
@@ -4985,6 +5315,10 @@ class LayoutChecks:
                 self.add(AUTO, f"хук {hook} установлен",
                          str(h if not h.is_relative_to(self.root)
                              else h.relative_to(self.root)))
+            elif in_ci:
+                self.add(SKIP, f"хук {hook} установлен",
+                         "прогон в CI: хуки живут в клоне разработчика, здесь "
+                         "принуждение даёт workflow — вопрос неотвечаем, а не «ок»")
             else:
                 self.add(DEAD if has_cfg else ABSENT, f"хук {hook} установлен",
                          "конфиг есть, а хук НЕ установлен: `pre-commit install"
@@ -5190,28 +5524,64 @@ class VersionChecks:
         ("delivery/STACK-ACCEPTANCE.md", r"^\*\*Stack:\*\*"),
     )
 
-    def _records(self, prefix: str) -> list[tuple[str, str]]:
-        """Все записи проекта о версии слоя: `[(файл, версия), …]`.
+    def _records(self, prefix: str) -> tuple[list[tuple[str, str]], list[str]]:
+        """Записи проекта о версии слоя: `([(файл, версия), …], [файл-без-записи])`.
 
         `absent` — законное значение (`okf@absent` на проекте без канона смысла),
         поэтому оно ЧИТАЕТСЯ: три записи с `absent` согласны, а `absent` против
         числа — настоящее расхождение. В `_declared_version` оно, наоборот, не
         годится, и почему — сказано там.
+
+        Возвращает ДВА списка: прочитанные записи и файлы, где запись должна быть,
+        а её нет. Второй список — не педантизм: пока его не было, тишину покупали
+        УДАЛЕНИЕМ строки, и проект с двумя стёртыми записями выглядел чище
+        проекта, где они расходятся (замер независимой вычистки `cqg@2.03`).
         """
-        out: list[tuple[str, str]] = []
+        found: list[tuple[str, str]] = []
+        silent: list[str] = []
         if not prefix:
-            return out
+            return found, silent
         for rel, label in self.STACK_RECORDS:
             p = self.root / rel
             if not p.is_file():
-                continue
-            for line in p.read_text("utf-8", errors="replace").splitlines():
+                continue        # файла нет вовсе — это вопрос слоя delivery, не наш
+            seen: list[str] = []
+            for line in self._prose_lines(p):
                 if not re.match(label, line):
                     continue
                 m = re.search(rf"\b({re.escape(prefix)}@(?:[0-9][0-9.]*|absent))", line)
-                if m:
-                    out.append((rel, m.group(1)))
-                break
+                if m and m.group(1) not in seen:
+                    seen.append(m.group(1))
+            found.extend((rel, v) for v in seen)
+            if not seen:
+                silent.append(rel)
+        return found, silent
+
+    @staticmethod
+    def _prose_lines(p: Path) -> list[str]:
+        """Строки файла ВНЕ fenced-блоков.
+
+        ⚠ Первая редакция брала первую строку с меткой и выходила по `break`.
+        Победителем оказывался кто угодно: ПРИМЕР записи в ```-блоке выше
+        настоящей (три ложных расхождения на исправном проекте), архивная секция,
+        или строка-метка без нужного префикса — её `break` съедал молча, и сверка
+        снимка для этого слоя отключалась. Все три замерены на стендах.
+
+        Отсюда два правила разом: пример в блоке записью не считается, и
+        собираются ВСЕ строки-метки, а не первая. Две разные версии в одном файле
+        — тоже расхождение, и оно попадает в результат обеими.
+
+        Тот же класс, ради которого в сьюте канона живёт `extract.prose_only()`;
+        доктор его импортировать не может, поэтому четыре строки живут здесь.
+        """
+        out: list[str] = []
+        fence = False
+        for line in p.read_text("utf-8", errors="replace").splitlines():
+            if line.lstrip().startswith("```"):
+                fence = not fence
+                continue
+            if not fence:
+                out.append(line)
         return out
 
     def _declared_version(self, prefix: str) -> str:
@@ -5225,11 +5595,27 @@ class VersionChecks:
         даже когда проект развернул три. Прими `okf@absent` за заявление — и
         доктор объявит отставшим снимок, который в порядке, то есть даст ложное
         срабатывание на штатной раскладке.
+
+        ⚠ **Если записи в канонной форме нет — ищем по всему файлу, как искали до
+        `cqg@2.02`.** Сужение до метки закрыло настоящее ложное срабатывание
+        (проза о версиях выше записи), но у него оказалась неназванная цена:
+        на STATUS, написанном иначе, чем шаблон A.2, сверка «снимок ОТСТАЛ»
+        пропадала целиком — вердикт переворачивался с `WEAK` на `AUTO`, то есть
+        молчание выдавалось за здоровье. Замерено на трёх формах записи.
+        Фолбэк её возвращает, а о самом отклонении формы говорит
+        `check_stack_records` строкой «нет записи в …», так что тихо оно не
+        проходит: одно свойство — один говорящий.
         """
-        for rel, v in self._records(prefix):
+        found, _ = self._records(prefix)
+        for rel, v in found:
             if rel.endswith("STATUS.md"):
                 return "" if v.endswith("@absent") else v
-        return ""
+        st = self.root / "delivery" / "active" / "STATUS.md"
+        if not st.is_file():
+            return ""
+        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
+                      "\n".join(self._prose_lines(st)))
+        return m.group(1) if m else ""
 
     def check_stack_records(self) -> None:
         """Записи о версии стека обязаны СОГЛАСОВАТЬСЯ между собой.
@@ -5241,20 +5627,31 @@ class VersionChecks:
         Вердикт `WEAK`, как у сверки снимка: быть посреди обновления законно, и
         `DEAD` уронил бы прогон ровно там, где обновление идёт правильно
         (§4.3b — красное всегда снимают первым). Молчать нельзя, ронять нечестно.
+
+        ⚠ **Отсутствие записи говорится так же громко, как расхождение.** Первая
+        редакция молчала при `len(recs) < 2`, и это открывало самый дешёвый обход
+        из возможных: сотри строку — и проект выглядит чище того, где записи
+        просто разошлись. Печатается и число прочитанных записей: «1 запись» —
+        честный ответ, «молчание» — нет.
         """
         for prefix in ("delivery", "cqg", "okf"):
-            recs = self._records(prefix)
+            found, silent = self._records(prefix)
             point = f"записи о версии {prefix}"
-            if len(recs) < 2:
-                continue                 # одна запись или ни одной — сверять нечего
-            seen = {v for _, v in recs}
-            if len(seen) == 1:
-                self.add(AUTO, point, f"{recs[0][1]} — {len(recs)} записи согласны")
+            if not found and not silent:
+                continue                 # слоя delivery в проекте нет — предмета нет
+            problems = []
+            if silent:
+                problems.append("нет записи в " + ", ".join(silent))
+            if len({v for _, v in found}) > 1:
+                problems.append("расходятся: "
+                                + ", ".join(f"{rel} → {v}" for rel, v in found))
+            if problems:
+                self.add(WEAK, point, "; ".join(problems)
+                         + " — запись либо врёт, либо отсутствует; обновление "
+                           "правит ВСЕ записи (§5.5)")
                 continue
-            self.add(WEAK, point,
-                     "расходятся: "
-                     + ", ".join(f"{rel} → {v}" for rel, v in recs)
-                     + " — одна из них врёт; обновление правит ВСЕ записи (§5.5)")
+            self.add(AUTO, point,
+                     f"{found[0][1]} — прочитано записей: {len(found)}")
 
     def _canon_version(self, p: Path) -> str:
         """Версия из шапки канона; пусто — шапка не читается.
@@ -5366,9 +5763,20 @@ class HookReaders:
     #: отдельно). Без этого знаменатель раздували бы скрипты канона, «частичная
     #: область» печаталась бы на КАЖДОМ правильно развёрнутом проекте — а шумную
     #: проверку снимают за неделю (§4.3b), и тогда она не защищает никого.
+    #:
+    #: ⚠ КОНФИГИ контура — тоже его механика, и это стоило ложного красного
+    #: (`cqg@2.04`). Замер: разложи все девять файлов §5.0 — и доктор печатает
+    #: `DEAD область check_file_length.sh — маска гейта не покрывает 2 файл(ов)
+    #: области: .dependency-cruiser.cjs, frontend/eslint.config.js`, то есть
+    #: КАНОННАЯ раскладка обвиняет сама себя. Расширение у них исходное
+    #: (`.cjs`/`.js` в `SOURCE_EXT`), поэтому они попадали в знаменатель, а маска
+    #: гейта длины `*.py *.ts *.tsx` их не покрывает — и не должна: это конфиги, а
+    #: не продуктовый код, и их размер живёт под ратчетом веса канона.
+    #: Регрессия развёртывания видела один конфиг из девяти, поэтому сьют молчал.
     CONTOUR_RE = re.compile(r"^(scripts/lint/|scripts/delivery_(check|metrics)\.py$"
                             r"|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$"
-                            r"|delivery/|knowledge/|docs/canon/)")
+                            r"|delivery/|knowledge/|docs/canon/"
+                            r"|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)")
 
 
     def _hook_stages(self, text: str, name: str) -> list[str]:
@@ -5440,8 +5848,57 @@ import re
 
 from doctor_core import AUTO, DEAD, NOT_GATES, SKIP, SKIP_WORDS, SUCCESS_WORDS, WEAK, run
 
+#: Часть гейта, подключённая РЯДОМ: `. "$SCRIPT_DIR/x.sh"` у shell, `from x import`
+#: у python. Оба написания есть в payload'е — с `cqg@1.82` он режется по планке 300
+#: строк, и у семи гейтов половина кода живёт в соседнем файле.
+_PART_SH = re.compile(r'\$\{?SCRIPT_DIR\}?/([A-Za-z0-9_]+\.sh)')
+#: ⚠ `\b` обязателен: без него `ESLINT_ABS` читается как переменная `LINT_ABS`
+#: (внутри слова «ESLINT» лежит «LINT»), и доктор знал бы имена, которых нет.
+_LINT_VAR = re.compile(r'\bLINT_[A-Z_]+')
+_PART_PY = re.compile(r'(?m)^from\s+([a-z0-9_]+)\s+import\b')
 
 
+def _komplekt(script) -> str:
+    """Тело гейта ВМЕСТЕ с его частями — комплектом, а не входным файлом.
+
+    Читать один вход нельзя: после разреза `cqg@1.82` вопрос «какие переменные
+    гейт читает» переехал в часть вместе с кодом (у гейта сложности TS-половина
+    целиком в `complexity_halves.sh`), и по входу он выглядел бы не читающим
+    ничего. Тот же приём, что `extract.whole()` в сьюте канона.
+    """
+    head = script.read_text(encoding="utf-8", errors="replace")
+    out = [head]
+    for name in _PART_SH.findall(head) + [m + ".py" for m in _PART_PY.findall(head)]:
+        part = script.parent / name
+        if part.is_file() and part.name != script.name:
+            out.append(part.read_text(encoding="utf-8", errors="replace"))
+    return "\n".join(out)
+
+
+def _own_vars(env: dict, body: str) -> dict:
+    """`LINT_*` из хука, которые гейт ДЕЙСТВИТЕЛЬНО читает (`cqg@2.04`).
+
+    Ложное красное, найденное полем: доктор печатал `DEAD область
+    check_grep_gate.sh — маска гейта не покрывает 18 файл(ов) области:
+    backend/tests/…` при ВЕРНО настроенном гейте. В `entry:` стоял общий на все
+    гейты префикс (`LINT_PY_SRC=… LINT_COV_PKG=… LINT_FE_DIR=… LINT_BE_DIR=…`),
+    и `LINT_BE_DIR` затянул в знаменатель весь backend — при том что предмет
+    гейта `backend/app/**`, а тесты он не смотрит НАМЕРЕННО. Переменную эту
+    `check_grep_gate.sh` не читает вовсе.
+
+    Общий префикс — законная и удобная запись: §6 велит держать значения в
+    `entry:`, и раскладывать их по хукам поштучно она не требует. Значит корни
+    области обязаны браться из переменных гейта, а не из строки хука.
+
+    Признак вычислим и проверяется тем же грепом: имя `LINT_*` в КОДЕ комплекта.
+    Комментарии сняты, и это не микрооптимизация — шестой рецидив класса, ради
+    которого в сьюте живёт `extract.code_only()`: `check_file_length.sh`
+    упоминает `LINT_PY_SRC` в комментарии, который ОБЪЯСНЯЕТ, что гейт его не
+    читает. По комментарию доктор бы этот корень и взял.
+    """
+    code = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))
+    named = set(_LINT_VAR.findall(code))
+    return {k: v for k, v in env.items() if k in named}
 
 
 def _gate_command(script, text: str, *, multi_rule: bool) -> list[str] | None:
@@ -5553,6 +6010,10 @@ class AreaChecks:
         `off_commit`. Всё прочее (`cmd`, `env`, `out`, `n`) живёт одну итерацию,
         поэтому каждый `continue` честно становится `return None`, а решение
         «добавлять ли в список» остаётся у вызывающего.
+
+        ⚠ Гейт ЗАПУСКАЕТСЯ со всем окружением хука, а СУДИТСЯ по своим
+        переменным (`_own_vars`): передать меньше значило бы мерить не тот путь,
+        а сверять по чужим — обвинять за общий префикс в `entry:` (`cqg@2.04`).
         """
         name = script.name
         if not script.is_file() or name in NOT_GATES or name not in text:
@@ -5561,13 +6022,14 @@ class AreaChecks:
         if label:
             return label
         point = f"область {name}"
-        body = script.read_text(encoding="utf-8", errors="replace")
+        body = _komplekt(script)
         multi_rule = "--list-rules" in body
         cmd = _gate_command(script, text, multi_rule=multi_rule)
         if cmd is None:              # многоправильный гейт вписан без `--rule`
             return None
         env = self._hook_env(text, name)
         code, out = run(cmd, self.root, env=env)
+        mine = _own_vars(env, body)
         scanned = self._scanned(out)
         if scanned is None:
             # Гейт не отчитывается числом — либо не сканирующий, либо красный
@@ -5577,10 +6039,10 @@ class AreaChecks:
             return None
         n, unit = scanned
         if not n:
-            self._judge_zero(point, out, env, multi_rule=multi_rule)
+            self._judge_zero(point, out, mine, multi_rule=multi_rule)
             return None
         mask_m = self.MASK_RE.search(out)
-        self._judge_area(point, n, unit, files, env, multi_rule=multi_rule,
+        self._judge_area(point, n, unit, files, mine, multi_rule=multi_rule,
                          files_re=self._hook_files_re(text, name),
                          mask=(mask_m.group(1).split() if mask_m else []))
         return None
@@ -6036,6 +6498,14 @@ class CanaryData:
             return {}
         out: dict[str, list[tuple[str | None, str, str]]] = {}
         for key, spec in (raw or {}).items():
+            # Ключ с `_` в начале — КОММЕНТАРИЙ, а не имя гейта (§5.5). JSON
+            # комментариев не имеет, поэтому формат документируют ключом, и
+            # доктор читал его как объявление: `SKIP канарейка _ — объявление без
+            # path/content`. Пропуск, которого нет, в собственной сводке
+            # непокрытости — то есть инструмент врал про свою же слепую зону, и
+            # лечился бы этот SKIP удалением пояснения из файла.
+            if str(key).startswith("_"):
+                continue
             if not (isinstance(spec, dict) and spec.get("path") and spec.get("content")):
                 self.add(SKIP, f"канарейка {key}",
                          f"объявление без path/content в {OWN_CANARIES}")
@@ -7812,6 +8282,13 @@ RUFF="$VENV/bin/ruff"
 ESLINT="$FE_DIR/node_modules/.bin/eslint"
 [[ -x "$ESLINT" ]] || ESLINT="node_modules/.bin/eslint"
 [[ -x "$ESLINT" ]] || ESLINT=$(command -v eslint 2>/dev/null || true)
+# АБСОЛЮТНЫЕ пути для TS-половины: она меняет cwd (flat-config eslint ищется от
+# него, а канон кладёт конфиг в `<frontend>/`, §5.0), и относительные значения
+# после `cd` указывали бы не туда. Замер до этого: exit 2 «ESLint couldn't find an
+# eslint.config.(js|mjs|cjs) file» — то есть канон не попадал в раскладку, которую
+# сам же предписывает (`cqg@2.04`, найдено полевым прогоном).
+ESLINT_ABS=$ESLINT; [[ "$ESLINT_ABS" == /* ]] || ESLINT_ABS="$REPO_ROOT/$ESLINT"
+TS_ABS=$TS_SRC;     [[ "$TS_ABS" == /* ]]    || TS_ABS="$REPO_ROOT/$TS_SRC"
 
 # Половина ЖИВА, только если есть И каталог, И инструмент. Причина мёртвой
 # половины называется отдельно от «нашли ноль» — тот же класс, что
@@ -7911,7 +8388,10 @@ if [[ "$MODE" == "--report" ]]; then
   fi
   if (( ts_live )); then
     printf 'Нарушения сложности по файлам, ts (правила %s):\n' "$TS_RULES"
-    "$ESLINT" "$TS_SRC" --no-color --rule "$TS_RULES" 2>/dev/null
+    # Через ту же обёртку, что и счёт: иначе `--report` (то самое «что именно
+    # длинное», куда посылает красный итог) падал бы с exit 2 на раскладке,
+    # которую канон предписывает сам.
+    ts_eslint --no-color --rule "$TS_RULES" 2>/dev/null
   fi
   exit 0
 fi
@@ -8032,18 +8512,62 @@ py_counts() {
 # 3. JSON читается НЕСТРОГО (`strict=False`): сообщение об ошибке разбора несёт
 #    сырой управляющий символ, и строгий `json.loads` падает трейсбеком ровно на
 #    том случае, который гейт обязан диагностировать.
+# 4. Считаются ТОЛЬКО правила гейта. Замер: полевой прогон дал 5 нарушений при 4
+#    настоящих — пятым пришёл `@typescript-eslint/no-non-null-assertion`, правило
+#    ПРОЕКТА из его же конфига (канонный `eslint.config.js` ставит его `warn`).
+#    Флаг `--rule` навязывает пороги гейта, но не глушит остальные, поэтому снимок
+#    «сложности» смешивался с линтерным долгом проекта и рос от правок, к сложности
+#    отношения не имеющих: ратчет краснел бы на чужой находке и чинился бы
+#    пересъёмом вверх (`cqg@2.04`).
+
+# Конфиг eslint ищется ПО КАНДИДАТАМ — тем же приёмом, каким четыре гейта ищут venv
+# (находка 5 первого развёртывания). Причина замерена: flat-config разрешается от
+# CWD, а §5.0 кладёт фронтовый конфиг в ПОДКАТАЛОГ (`<frontend>/eslint.config.js`),
+# и гейт, звавший eslint из корня репозитория, получал exit 2 «ESLint couldn't find
+# an eslint.config.(js|mjs|cjs) file». Переопределяется `LINT_ESLINT_CONFIG` (§6).
+eslint_config() {
+  local c
+  for c in "${LINT_ESLINT_CONFIG:-}" "$FE_DIR/eslint.config.js" \
+           "$FE_DIR/eslint.config.mjs" "$FE_DIR/eslint.config.cjs" \
+           eslint.config.js eslint.config.mjs eslint.config.cjs; do
+    [[ -n "$c" && -f "$c" ]] && { printf '%s' "$c"; return 0; }
+  done
+  return 1
+}
+
+# eslint запускается ИЗ КАТАЛОГА КОНФИГА, а не с `--config` из корня, и это тоже
+# замер: канонный конфиг объявляет `files: ['src/**/*.{ts,tsx}']`, а flat-config
+# сверяет такие маски с CWD. `--config frontend/eslint.config.js` из корня дал бы
+# НОЛЬ подходящих файлов — то есть зелёное на непросмотренном (класс F17), что хуже
+# честного exit 2. Цель и инструмент передаются абсолютными путями: cwd меняется.
+ts_eslint() {
+  local cfg dir
+  cfg=$(eslint_config) || cfg=""
+  dir="."
+  [[ -n "$cfg" ]] && dir=$(dirname "$cfg")
+  ( cd "$dir" || exit 2; "$ESLINT_ABS" "$TS_ABS" "$@" )
+}
+
 ts_counts() {
   local out rc body prc
-  out=$("$ESLINT" "$TS_SRC" --format json --no-color --rule "$TS_RULES" 2>"$errf")
+  out=$(ts_eslint --format json --no-color --rule "$TS_RULES" 2>"$errf")
   rc=$?
   if (( rc > 1 )); then
     printf '%sERROR%s: eslint вышел с кодом %d — снимок НЕ снят и старый не тронут.\n' \
       "$red" "$reset" "$rc" >&2
     sed 's/^/  eslint: /' "$errf" >&2
     printf 'Код 2 у eslint — это ошибка конфига или CLI, а не находки.\n' >&2
+    # Причина НАЗЫВАЕТСЯ вместе с переменной, которой правится: чужие слова
+    # («couldn't find eslint.config») отправляют чинить не туда — искать конфиг,
+    # который лежит на месте, просто не там, откуда звали.
+    if ! eslint_config >/dev/null; then
+      printf 'Конфига eslint не найдено. Искал: %s/eslint.config.{js,mjs,cjs} и то же\n' \
+        "$FE_DIR" >&2
+      printf 'в корне репо. Правится LINT_ESLINT_CONFIG или LINT_FE_DIR (§6).\n' >&2
+    fi
     return 2
   fi
-  body=$(printf '%s' "$out" | python3 -c '
+  body=$(printf '%s' "$out" | TS_RULES="$TS_RULES" python3 -c '
 import json, os, sys
 raw = sys.stdin.read()
 try:
@@ -8051,6 +8575,13 @@ try:
 except Exception:
     sys.stderr.write("вывод eslint не разобран как JSON\n")
     raise SystemExit(3)
+# Правила ГЕЙТА, и считаются только они (свойство 4 в шапке). Пустой набор — не
+# фильтровать: порог задан проектом через LINT_TS_COMPLEXITY_RULES и разобрать его
+# нечем, а тихо обнулить счёт значило бы выдать непроверенное за чистое.
+try:
+    own = set(json.loads(os.environ.get("TS_RULES") or "{}"))
+except Exception:
+    own = set()
 root = os.getcwd().rstrip(os.sep) + os.sep
 counts, fatal = {}, []
 for entry in data:
@@ -8062,6 +8593,8 @@ for entry in data:
             head = (str(m.get("message", "")).splitlines() or [""])[0]
             fatal.append(path + ": " + head)
             continue
+        if own and m.get("ruleId") not in own:
+            continue          # правило проекта, не порог гейта
         counts[path] = counts.get(path, 0) + 1
 if fatal:
     sys.stderr.write("файлы НЕ разобраны — это не «ноль нарушений»:\n")
@@ -8604,6 +9137,8 @@ if not isinstance(data, dict):
     sys.stderr.write("ожидался объект {ключ: причина}\n")
     raise SystemExit(2)
 for k, v in data.items():
+    if str(k).startswith("_"):
+        continue          # ключ-комментарий, не объявление роли (§5.5)
     reason = str(v).strip()
     if not reason:
         sys.stderr.write("%s: объявление БЕЗ причины\n" % k)
@@ -9491,7 +10026,20 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    tsConfig: { fileName: 'tsconfig.json' },
+    // ⚠ Путь резолвится от CWD, а гейт зовёт depcruise из КОРНЯ репозитория —
+    // значит зашитый `tsconfig.json` верен только когда фронт в корне. А §5.0
+    // кладёт фронтовый конфиг в подкаталог, то есть канон снова не попадал в
+    // раскладку, которую сам предписывает (тот же класс, что flat-config eslint,
+    // `cqg@2.04`). Живое обновление получило `TS18003` и завело корневой
+    // `tsconfig.depcruise.json`, наследующий фронтовый, — законный ход, но он
+    // остался в разделе «где я обошёл канон», потому что канон о нём молчал.
+    // Кандидаты + `LINT_TSCONFIG` (§6): наследующий конфиг больше не обязателен.
+    tsConfig: {
+      fileName: process.env.LINT_TSCONFIG
+        || [`${process.env.LINT_FE_DIR || 'frontend'}/tsconfig.json`,
+            'tsconfig.json'].find((p) => require('fs').existsSync(p))
+        || 'tsconfig.json',
+    },
     tsPreCompilationDeps: true,
     exclude: { path: '(\\.test\\.|\\.spec\\.|__tests__)' },
   },
@@ -9903,6 +10451,19 @@ import-linter>=2.0
 
 | Дата | Версия | Изменение |
 |---|---|---|
+| 2026-08-15 | **2.15** | **Первый НАСТОЯЩИЙ обход флота нашёл три дефекта за один прогон, и ни одного из них сьют не видел по построению.** Приборы строились два дня и ловили до сих пор только мои же дефекты; здесь они впервые поработали по живым проектам — четырём, с диска. ① **Обход упал целиком:** `KeyError: 'stack-map'`. `cqg@2.12` научил `declared_versions()` читать обе формы шапки, пины проектов немедленно получили ЧЕТВЁРТЫЙ канон, а `preflight.CANON_FILE` перечислял три. Первая правка была заплаткой — дописать карту строкой; настоящая причина в том, что **список файлов канонов ЖИВЁТ У ИЗВЛЕКАТЕЛЯ**, а здесь лежала его копия. Это `one-notion-one-place`, ПЯТОЕ место, и копия разъехалась ровно так, как разъезжаются все копии. Теперь список берётся у владельца, перевод ключа `stack` → `stack-map` назван один раз, и пятый канон не сломает это молча. ② **Число врало:** «stack-map 1.42→1.49 (0 рев.)» при семи ревизиях разницы. Форм changelog оказалось ТРИ — три канона ведут его строками таблицы, карта разделами `## `stack-map@X.Y``, — а разбор знал две. Ноль значил «мы не посчитали» и читался как «отставания нет». Заведён класс **`number-without-its-denominator`**: контур ловил его у себя дважды до реестра (отставание по индексу вместо changelog, окна только из `active/STATUS.md`), но те места записью не адресованы и домыслены не будут. ③ **Удаление кэша индекса было НЕПОЛНЫМ:** `2.13` убрала файл, а `main()` продолжал его создавать — первый же запуск команды вернул `versions.json` обратно. Поймал это **собственный оракул «кэш не вернулся»**, написанный сутками раньше ровно на этот случай: проверка на возвращение предмета окупилась в первый же день. Запись файла убрана, флаг `--check` исчез вместе с предметом сверки. ⚠ **Общее у всех трёх — почему их не мог найти сьют.** Он герметичен и ходит по синтетическим пинам из трёх канонов; настоящие пины приходят с диска чужих проектов. Это не дефект сьюта, а его названная граница, и она означает: **обход обязан гоняться по-настоящему, а не считаться проверенным по своим оракулам.** Заодно сняты две записи, ставшие неправдой рядом с кодом (ловушка п.27): «остаток: карту не считаем» и `note` про три канона. **вес: не рос.** **field: +17 строк, за что** — вывод списка канонов у владельца, третья форма changelog и снятие записи файла. **объём: +1 строк, за что** — эта запись. **класс:** one-notion-one-place @ field/fleet/preflight.py::CANON_FILE |
+| 2026-08-14 | **2.14** | **Обход флота по триггерам, и печатает он ТОЛЬКО дельту (часть III плана сходимости).** Ось не «постоянная связь», а «есть адресат»: сводка нашла отставание в 18 ревизий и просроченное окно за ОДИН прогон, значит ценность не в частоте, а в том, что отчёт попадается человеку на глаза. Демон, пишущий в лог, который никто не читает, — это inert-прогон, только дороже. **Триггеров ровно два, и они выведены из того, что меняется:** бамп версии канона (меняет отставание у всего флота разом) и суточный тик (даты проходят без чьего-либо участия — просрочка окна наступает сама). Календарное «раз в неделю» хуже обоих: после бампа отчёт устарел бы сразу, а просрочку показал бы через шесть дней после факта. ⚠ **В сьют обход не встроен и не будет:** он читает ЧУЖИЕ проекты с диска, а сьют обязан быть герметичным — зависимость от того, что лежит на машине, уже роняла прогоны (`cqg@2.03`). Поэтому обход разделён надвое: диск читает команда, а сьют проверяет ЧИСТУЮ функцию `delta()` — два словаря на входе, строки на выходе. **Тишина имеет форму:** прогон без изменений печатает число проектов и дату, с которой сверялся, а «сравнивать не с чем» — ОТДЕЛЬНАЯ фраза; слить их значило бы объявить первый обход спокойным, хотя он ничего не сравнивал (тот же класс, что `inert this run` с кодом 0, `okf@1.16`). ⚠ **Форма снимка ЗАМЕРЕНА, и первая редакция аксессоров была угадана.** Они читали `observations["open"]` и `adaptations["undeclared"]`; на живых снимках обе ветки молча возвращали пусто — то есть обход печатал бы «изменений нет», не посмотрев ни на окна, ни на дрейф. Настоящая форма: `observations` — список `{where, until}`. **Названный пробел, а не покрытая ветка:** классификации `UNDECLARED` в снимке НЕТ вовсе — `collect_one` хранит только объявленные адаптации, а классификацию считает `preflight`. Обход поэтому видит появление и исчезновение ОБЪЯВЛЕННЫХ адаптаций и НЕ видит молчаливого дрейфа; адрес починки — расширить `collect_one`, отдельной ревизией. Написать `snap["adaptations"]["undeclared"]` и получить пустое множество было бы `green-without-the-thing` в чистом виде. **Просрочка называется ТОЛЬКО в день наступления** — иначе одно окно кричит каждый день, и через неделю отчёт перестают читать, то есть исход ровно тот, против которого обход и заведён. **Сильный признак остался сильным:** совпадение ПЕРЕМЕННЫХ у двух проектов, а не имён файлов; обратная ветка «одна переменная у одного проекта — не признак» стоит рядом, иначе проверка выродилась бы в шум. ⚠ **Триггеры положены файлами, но НЕ УСТАНОВЛЕНЫ:** хук `post-commit` и launchd-plist лежат в `field/fleet/schedule/` с командами установки в комментариях. Установка — действие на машине человека, и решает его он. Отчёт пишется в `field/fleet/WATCH.md` и ПЕРЕЗАПИСЫВАЕТСЯ: копящийся отчёт читают один раз. **вес: не рос.** **field: +231 строк, за что** — `watch.py` (203) и хук `post-commit.sh` (28). **объём: +1 строк, за что** — эта запись. **класс:** none reason=вводит обход, дефекта не закрывает |
+| 2026-08-14 | **2.13** | **Кэш индекса версий убран совсем, и это ПЕРВЫЙ РЕЦИДИВ, который назвал реестр классов.** Класс `index-is-a-cache-not-a-source` считался закрытым с 2026-08-13, но закрытие было ЧАСТИЧНЫМ: оно закрыло ЧТЕНИЕ — инструменты флота научились переживать протухание пересканированием, — и оставило ОБНОВЛЕНИЕ. Оракул продолжал требовать побайтового совпадения хранимого файла с пересобранным, то есть держал КЭШ как источник истины: ровно то, что запрещает класс, ради которого он написан. Цена этого была не теоретической: **красный `main` после КАЖДОГО rebase-мержа ревизии и второй PR на пересборку — пять раз за один день** (PR #5/#6, #8/#9, #10/#11, #12/#13, #14/#15), и дважды main реально стоял красным между мержами. ⚠ **Спор решил замер, а не довод, и порядок был именно такой: сначала мерить, потом выбирать.** BACKLOG требовал этого прямо — «два первых варианта защищают файл, надобность которого не проверялась ни разу». Полная пересборка индекса по 138 коммитам занимает **3.0 секунды**. То есть кэш экономил три секунды и стоил ритуала из двух PR. Убран **предмет, а не проверка**: `versions.json` удалён, `build_versions.index()` собирает индекс из истории на месте, три потребителя (`collect`, `preflight`, `plan_update`) зовут его напрямую. Прогону «хранимый совпадает с пересобранным» стало нечего сверять, и он заменён на «кэш не вернулся»: возвращение файла обязано быть замечено, иначе вернётся и ритуал. **Названный предел:** 3 секунды — это на 138 коммитах, стоимость линейна по истории, и на тысяче коммитов будет уже около двадцати секунд; кэш вернуть можно, но вместе с механизмом обесценивания, а не «сохраним и будем сверять». ⚠ **Как это записано в реестре — отдельно важно.** Место то же самое (`field/fleet/versions.json`), поэтому механика вывела **РЕЦИДИВ**, а не близнеца, и я его записал рецидивом, а не переименовал место, чтобы получить более приятную строку. Первый ненулевой сигнал прибора сходимости пришёл на первый же день его работы и указал на моё собственное неполное закрытие. Реестр при этом прогон НЕ роняет — он измеряет (§9.1a п.7), и это ровно тот случай, ради которого так и решено. **Заодно реестр поймал порванную ссылку в себе:** оракул класса был переименован этой же правкой, и `без оракула` стало 1, пока ссылка не была обновлена. **вес: не рос.** **field: +30 строк, за что** — `index()` с замером в докстринге и переключение трёх потребителей. **объём: +1 строк, за что** — эта запись. **класс:** index-is-a-cache-not-a-source @ field/fleet/versions.json |
+| 2026-08-14 | **2.12** | **Понятие → его владельцы (часть II-b), и первый же ручной проход нашёл расхождение с уже названной ценой.** Отношение это — единственное из четырёх, у которого НЕТ семени, и автоматика к нему не подошла: детектор «общие отличительные литералы между поставляемыми файлами» даёт 9 совпадений между `extract_payload.py` и `stack_selftest.py`, то есть между файлами, которые сегодня ОБЯЗАНЫ совпадать, и все совпадения — имена канонов. **Признак ловит общий ПРЕДМЕТ, а не общую реализацию** — слабый в одежде сильного, ровно как «оба проекта правят одни и те же файлы» на флоте. Поэтому список понятий (`field/convergence/notions.json`) ручной и объявлен НЕПОЛНЫМ в себе самом, а число названных понятий печатается прогоном рядом со знаменателем. ⚠ **Правило НЕ «один владелец», и это решение с причиной:** владельцы живут в разных популяциях по построению развёртывания — доктор ЕДЕТ в чужой проект, реестр классов живёт только в канон-репозитории, общего модуля у них быть не может. Требовать единственности значило бы требовать невыполнимого, а невыполнимые правила снимают вместе с ратчетом (§4.3b). Требуется РАЗРЕШИМОСТЬ: либо один владелец, либо названный оракул согласия, существующий файлом. Тот же ход, что в `2.10`: два парсера блоков не сведены в один, а связаны дифференциальным прогоном, который не знает, кто из двоих прав. **Находка:** понятие «версия канона из шапки» имеет ЧЕТЫРЁХ владельцев, и один из них расходился — `stack_selftest.declared_versions` читал только форму `**Canon version:**` и имя `[a-z]+` без дефиса, поэтому карту не видел ДВАЖДЫ: ни по форме шапки, ни по имени `stack-map`. Цена этой слепоты была названа месяц назад в `field/fleet/build_versions.py` пределом «stack-map в индекс НЕ попадает» — то есть версия карты не мерилась у флота вовсе, и отставание по ней у развёрнутых проектов не знал никто. Починено, предел закрыт, карта в индекс попала. ⚠ **Собственный замер сначала соврал, и это записано, а не убрано:** первая проба брала из каждого файла ПЕРВУЮ регулярку и объявила слепыми три реализации из четырёх — на деле `doctor_versions.py` и `tests/extract.py` читают обе формы вторым `re.search` в цепочке `or`. Проба, смотрящая на первое совпадение и молчащая про остальные, врёт числом ровно как гейт, посмотревший ноль файлов. Верный результат — расходилась ОДНА реализация из четырёх. Там же второй раз за день признак обвинил живой код: проверка существования владельца знала только файлы и объявила несуществующими двух владельцев, которые ПОСТАВЛЯЮТСЯ приложением канона и файлами не лежат. **Оракул согласия — `tests/test_version_header_parsers_agree.py`**: все четыре реализации опрашиваются на обеих формах шапки, регулярки поставляемого скрипта достаются ИЗ ЕГО ТЕЛА, а не копируются (копия сделала бы оракул пятым владельцем понятия). Есть контроль «все четыре опрошены» — без него «расхождений нет» значило бы «мы спросили троих». **Исторические прогоны на обе половины части II:** отношение «артефакт → исполнитель» названо на состоянии, где `VENDORED.json` был объявлен без исполнителя; отношение «понятие → владельцы» названо на состоянии до `2.10`, где у пары парсеров блоков ещё не было оракула согласия. **вес: +10 строк, за что** — `stack_selftest.py` читает обе формы шапки и дефис в имени, плюс приложение A карты пересобрано из файла (они разъехались на 10 строк, и локальный сьют этого НЕ видит: проверка дрейфа живёт только шагом CI — назван остаток). **field: +73 строк, за что** — отношение 4 в `crossref.py` (+68) и снятие протухшего предела в `build_versions.py` (+5): запись «stack-map в индекс НЕ попадает» стала неправдой рядом с кодом, а это ловушка п.27 — правило в комментарии, которое комментарий же и нарушает. **объём: +1 строк, за что** — только эта запись. **класс:** one-notion-one-place @ stack_selftest.py::declared_versions |
+| 2026-08-14 | **2.11** | **Указатель связей: ссылка обязана разрешаться (часть II-a плана сходимости).** Замер, из которого он вырос: девять дефектов 2026-08-13 разобраны по природе, и **семь из девяти оказались дефектами СВЯЗЕЙ**, а не содержания — ни один не был «не нашёл нужное место в каноне». Значит узкое место не поиск, а разрешимость ссылок, и RAG бьёт мимо. Три отношения читаются из источников, которые существуют УЖЕ: колонка `Enforced` таблиц §2 (правило → чем принуждается), тела прогонов `tests/` (гейт → его оракул), проза «обязан» плюс блоки процедур и payload (артефакт → его исполнитель). **Второго списка правил не заведено** — разбор берётся из `test_enforced_vs_advisory`, потому что свой разъехался бы с каноном на первой правке, а это ровно тот класс, который указатель ищет. ⚠ **Главное — прогон по ИСТОРИИ, и первая редакция его ПРОВАЛИЛА.** Указатель, умеющий смотреть только на сегодняшнее дерево, непроверяем: сегодня ссылки разрешаются, и сломанный указатель прошёл бы как рабочий. Поэтому корень сделан параметром, и проверка идёт на состоянии, где связь заведомо была сломана: коммит `stack-map@1.48` объявил `docs/canon/VENDORED.json`, а исполнитель появился только в `cqg@2.09`. Первая редакция там **не увидела ничего** — искала требование и путь в пределах предложения, а канон развёл их точкой и переносом строки. После починки на абзац: требуемых артефактов **7 → 15**, шума ноль, и обе половины дифференциального прогона на месте — на сломанном состоянии артефакт назван, на починенном молчит. Коммиты ищутся ПО СОДЕРЖАНИЮ (`git log -S`), а не по SHA: захардкоженный SHA живёт до первого rebase-мержа, что этот репозиторий доказал трижды. ⚠ **Признак «гейт запускается» соврал дважды и оба раза в сторону ОБВИНЕНИЯ.** Сначала объявил без оракула три гейта, которые гоняются через константу модуля; после разрешения констант остался четвёртый — он гоняется из кортежа в цикле. То есть «аргумент вызова» и «исполняется» — разные вещи, и разница нашлась чтением кода, а не падением. Форма, которая держится: строка-путь в структурной позиции И модуль вообще что-то запускает; ошибаться теперь может только в сторону пропуска — ложное обвинение дороже, проверку, кричащую на живой код, снимают вместе с правилом (§4.3b). **Находка, ради которой всё и делалось:** два правила §2 держались на `**Ревью**` без названной причины — «SOLID / design-doc freshness» и «Docstring = контракт». Само ревью дефектом не является (часть правил механизировать нечем), но «почему нечем» обязано быть сказано, ровно как `n/a reason=` и `gate_kept_reason:` в соседних местах: без причины advisory становится местом, куда складывают несделанное. Причины названы обе, и они не отписки — суждение о СМЫСЛЕ против проверки ФОРМЫ. **Что указатель НЕ даёт:** не поймает правило, которое вообще не записано; не проверит, что правило верное; и не заменит подметание класса — близнец с РАЗРЕШЁННЫМИ ссылками виден только отношением «понятие → одна реализация», вынесенным в часть II-b, потому что семени у него нет (замерено: признак по общим литералам даёт 9 совпадений между файлами, которые обязаны совпадать, — ловит общий предмет, а не общую реализацию). **вес: не рос** — `scripts/**` не тронут. **field: +329 строк, за что** — `field/convergence/crossref.py`, первая цена по бюджету §9.1a п.8. **объём: +1 строк, за что** — только эта запись: обе причины дописаны В СТРОКИ таблиц, а ратчет считает строки, и рост длины строки он не видит — назвать это надо, иначе «+0» читается как забытая цена. **класс:** exception-without-a-named-reason @ CODE_QUALITY_GATES.md §2.2, §2.5 |
+| 2026-08-13 | **2.10** | **Два ПОСТАВЛЯЕМЫХ парсера отвечали по-разному на вопрос «где здесь блок».** `blocks()` в `stack_selftest.py` видел фенс с отступом — там дыру закрыли раньше, и цена записана: «исполняемые блоки процедуры развёртывания не проверялись НИКОГДА». `block_after()` в извлекателе остался с `line.startswith("```")` и такие блоки пропускал молча: не падал, просто НЕ НАХОДИЛ. Развёртывание возит оба файла, то есть получало два ответа на один вопрос — класс второго списка версий (`cqg@1.59`) и второго парсера payload'а (`cqg@2.08`). Найдено собственным оракулом `cqg@2.09`: он взял ЧУЖОЙ блок и упал сообщением про несуществующий файл, то есть диагноз был не про причину. **Обратный прогон, обязательный для этой правки, сделан:** извлечение всех 75 файлов payload'а до и после совпадает побайтово — фенсы payload'а стоят в нулевой колонке. Заодно снят обход из `2.09`: блок §5 шага 11 возвращён в список с отступом, и оракул по-прежнему его исполняет. **Вторая половина — `bash -n` не отвечает на вопрос «исполнится ли».** Замерено отдельно: блок с отступом у терминатора heredoc синтаксически валиден и неисполним (heredoc доедает файл до конца). Значит селфтест засчитывал «исполняемый блок проверен» неисполнимому блоку. Заведена проверка `unclosed_heredoc()`, и тело блока теперь выравнивается ОБОИМИ парсерами одинаково, поэтому проверка судит ровно то, что исполнится. **Её первый прогон дал ложное срабатывание на собственном каноне** — строка `# пайп в python - <<heredoc не работает` обвиняла блок за РАССКАЗ о heredoc; комментарии срезаются до поиска, потому что ложное срабатывание здесь дороже пропуска (§4.3b): проверка только завелась, а такие чинят снятием. Класс закрыт дифференциальным оракулом `tests/test_one_block_parser.py`: оба парсера гоняются по одному тексту и обязаны совпасть — такая проверка не знает, кто из них прав, и потому не ошибается вместе с любым. Три красных на регрессиях. ⚠ **Названный остаток стал дороже:** правка легла в ЕДУЩИЕ файлы, а они под ратчет веса не попадают (он считает `scripts/**`) — рост оплачен только объёмом. Ре-базировка единицы счёта по-прежнему нужна отдельной ревизией. **вес: не рос** — `scripts/**` не тронут. **объём: +55 строк, за что** — правка обоих парсеров, проверка heredoc и синхронизация приложения A с файлом |
+| 2026-08-13 | **2.09** | **Провенанс снимка получил ИСПОЛНИТЕЛЯ: `stack-map@1.48` объявил `docs/canon/VENDORED.json`, а процедура, которая снимок и создаёт (§5 шаг 11), про запись не знала.** Правило в одном каноне, шаг в другом, между ними ничего — канон называет этот класс сам: «правило без гейта, живёт пока его читают» (DoD §3.2 п.10), и за один день 2026-08-13 он сработал ЧЕТВЁРТЫЙ раз. Шаг 11 теперь генерирует запись блоком, и блок **исполняется оракулом**, а не пересказывается: пять полей, версии в обеих формах шапки, хеши на каждый файл снимка. ⚠ Поле `dirty` несущее — оно закрывает дыру **в источнике**, а не в обнаружении: снимок, снятый с грязной рабочей копии, иначе неотличим от снятого с коммита, и `commit` в записи указывал бы на состояние, которого в upstream нет. **Три дефекта поймал не глаз, а прогон блока.** ① Генератор считал грязью САМОГО СЕБЯ: редирект создаёт файл раньше, чем выполняется `git status`, и поле выродилось бы в константу `true` на любом дереве. ② Фенс с отступом **не виден `block_after`**, хотя виден `blocks()` в `stack_selftest.py`, где эту же дыру закрыли раньше: два ПОСТАВЛЯЕМЫХ парсера расходятся в том, что считать блоком. Здесь обойдено выравниванием блока в нулевую колонку; сам разъезд записан остатком — правка семантики извлечения требует обратных прогонов по всем 75 файлам payload'а и своей ревизии. ③ **`bash -n` ПРИНИМАЕТ отступ у терминатора heredoc**, то есть селфтест засчитал «исполняемый блок проверен» блоку, который исполниться не может (замерено отдельно). Отсюда правило: синтаксическая проверка не отвечает на вопрос «исполнится ли», и блоки процедуры, которые что-то СОЗДАЮТ, обязаны иметь оракул на исполнение. **вес: не рос** — payload не менялся, тронута проза §5 и блок процедуры. **объём: +39 строк, за что** — генератор с названной ценой поля `dirty` и эта запись |
+| 2026-08-12 | **2.08** | **F3 и F4 полевого отчёта закрыты ОДНОЙ правкой: канон начал поставлять извлекатель, и полнота комплектов стала diff'ом.** ① **F4:** §5.0 требовала аккуратный извлекатель и НЕ поставляла его — три правила разбора были спецификацией для парсера, который каждый исполнитель писал заново. Правила известны, а дефекты разбора получались каждый раз новые: полевой замер — чужой извлекатель нашёл **73 файла из 74**, и девятый модуль доктора обнаружился сравнением списков заголовков между ревизиями, то есть СЛУЧАЙНО. Теперь `extract_payload.py` едет рядом с четырьмя `*.md` тем же правом, что `stack_selftest.py` и `selftest_sizes.py`: нужен ровно в момент развёртывания. ② **F3 закрылся даром:** у извлекателя есть машинный инвентарь, и `--manifest` печатает все 75 путей — полноту сверяют `diff`'ом с `git ls-files`, а не глазами по таблице. ③ **Второго парсера НЕ появилось, и это главное решение правки:** разбор переехал целиком, а `tests/extract.py` стал переходником и РЕЭКСПОРТИРУЕТ имена. Два парсера дали бы «у меня извлекается / у них не извлекается» — тот же класс, что второй список версий в README (`cqg@1.59`), только дороже: он бы врал про payload. ④ **Payload, который приставляют, а не пишут файлом, тоже под покрытием.** Заведён `SNIPPETS`: блок хуков `pre-push` §8.6 не извлекал НИ ОДИН тест (основной конфиг в `CONFIGS`, а эти три хука — отдельный снипет), и неверная база диффа жила ровно там (`cqg@2.05`). В манифест снипет не входит сознательно — своего файла у него нет, а манифест сверяется с `git ls-files`; в самопроверку входит. ⑤ **Плейсхолдер в bash-блоке пишется БЕЗ угловых скобок:** `<куда>` даёт `>` без цели и роняет `bash -n` (§7). Соседний `<канон>/*.md` проходил случайно — после `>` там стоит путь и служит целью перенаправления. Поймал селфтест на моей же правке. Три обратных прогона: файл выпал из манифеста — красное; снипет перестал объявляться — красное; §5.0 обещает не то число — красное. ⚠ **Названный остаток:** едущие файлы (`stack_selftest.py`, `selftest_sizes.py`, `extract_payload.py`) под ратчет веса НЕ попадают — он считает `scripts/**`. Значит их рост неоплачен. Правится это сменой единицы счёта, а §9.1a запрещает менять единицу под результат, поэтому нужна отдельная разовая ре-базировка с записью, а не походу. **вес: не рос** — payload не менялся; **объём: +39 строк, за что** — переписанная §5.0 про извлекатель, команда сверки полноты и названная цена решения (потеря независимого парсера у каждого развёртывания) |
+| 2026-08-12 | **2.07** | **Разделы «что пришлось догадываться» и «где я обошёл канон» закрыты полностью — их существование и есть дефект.** Пять вопросов живого обновления, на которые канон не отвечал, и исполнитель решал сам. ① **Прямое ПРОТИВОРЕЧИЕ двух секций:** §5.0 перечисляла `backend/requirements-dev.txt` безусловно, а шаг установки §8.3 уже был написан развилкой «может отсутствовать (uv/pyproject)». То есть механика допускала оба случая, а инвентарь требовал файл — на uv-проекте ответа не было ни в одной секции. Сказано прямо: второй манифест НЕ заводится, инструменты идут в dev-группу pyproject, а требование шага — «стоят ПО манифесту, а не командой мимо него» (урок lab-11 F9), а не «файл существует». ② **`tsConfig` в поставляемом `.dependency-cruiser.cjs` был зашит в корень**, а §5.0 кладёт фронт в подкаталог — тот же класс, что flat-config eslint (`cqg@2.04`), только со вторым инструментом. Проект получил `TS18003` и завёл наследующий конфиг в корне: ход законный, но он попал в «где я обошёл канон», потому что канон молчал. Кандидаты + `LINT_TSCONFIG` в §6, и **оракул теперь на КЛАСС**: ни один поставляемый конфиг не смеет зашивать путь к конфигу инструмента константой в корне — третий такой случай придёт с третьим инструментом. ③ **Что адаптацией НЕ является** — три случая, каждый стоил вопроса: заполненные `delivery/**` расходятся с шаблоном ВСЕГДА (потому и заполнены); `slug` и имя ветки — идентификаторы, а не заявление о версии, и переименовывать ветку, когда цель уехала вперёд, не надо; правка канонного скрипта, ЧИНЯЩАЯ дефект канона, объявляется с пометкой «починка», иначе она неотличима от адаптации под стек и живёт вечно. ④ **Роль неприменимой объявляет АГЕНТ, и один** — спрашивать человека не нужно, применимость это факт, а не предпочтение; обязательны причина в файле и строка в карте ролей. Проект объявил `.gitlab-ci.yml` неприменимым и внёс это себе в обходы — то есть заподозрил себя в самоуправстве там, где действовал верно: неназванный распорядитель это та же дыра, что неназванная база порога (`cqg@2.05`). ⑤ **Правило счёта MANUAL-полей метрик задано** (см. `delivery@1.71`): число без правила несравнимо между поставками, а метрика существует ровно для сравнения. Два обратных прогона на новый класс: зашил путь обратно — красное; убрал переменную из §6 — красное. **веса эта правка не добавила** — кандидаты tsconfig живут в поставляемом КОНФИГЕ, а ратчет веса считает `scripts/**`; названо, чтобы отсутствие цены не читалось как забытая запись. **объём: +80 строк, за что** — пять ответов на вопросы, которые исполнитель иначе решает заново каждое обновление |
+| 2026-08-12 | **2.06** | **Два пункта раздела «что пришлось догадываться» из полевого отчёта, и первый вскрыл дефект в моей же `2.02`.** ① **Природу расхождений надо сверять ДО перевендоривания снимка** — сверка сравнивает тела с `docs/canon/`, и пока снимок СТАРЫЙ, «отличается» значит адаптирован, а «совпадает» — просто устарел: две природы таблицы §5.5 различимы. После `cp` обе схлопываются в «отличается от нового канона», то есть улику уничтожает та самая команда, которая должна идти СЛЕДОМ. Порядок §5.5 переставлен: проверяющий слой → вопрос о расхождениях → перевендоривание. ⚠ **И мой оракул это закреплял:** он требовал «снимок обновляется раньше сверки», то есть защищал уничтожение улики — **второй случай подряд, когда проверка держит дефект как инвариант**, и оба раза мои. Признак такой проверки один и тот же: она сверяет порядок/форму, не спросив, что свойство вообще означает. ② **Хвостовой `\n` при сверке нормализуется, и об этом сказано вслух:** полевой замер — наивное побайтовое сравнение объявило адаптированными ВСЕ 36 файлов, после `rstrip("\n")` осталось 5, и это совпало с ответом доктора. Разница между «5 адаптаций» и «36» — разница между часом и днём: исполнитель по первому числу пошёл бы портировать три десятка файлов, которые всего лишь устарели. Доктор нормализует сам, но §5.5 пишет свою сверку не он. Обратный прогон: вернул старый порядок — красное с адресом. **вес: не рос** — обе правки в прозе и в оракуле; **объём: +17 строк, за что** — две врезки §5.5, каждая с полевым числом, без которых следующее обновление снова уничтожит улику и снова насчитает 36 адаптаций |
+| 2026-08-12 | **2.05** | **F1 полевого отчёта: правило §12.5 становилось НЕВЫПОЛНИМЫМ после первого push'а — и это отказ, а не строгость.** Хуки pre-push брали базу из `@{u}`. Пока ветка не запушена, это цель мержа и всё верно; после первого push'а `@{u}` — сама ветка, и «дифф поставки» схлопывается в последний инкремент. Полевой замер: по цели мержа **27 файлов и 8 цитат** в блоке ревью, по `@{u}` — **1 файл и 1 идентификатор при пороге «≥2»**. Порог недостижим АРИФМЕТИЧЕСКИ: чинить нечего, пройти нельзя, и первое, что делает исполнитель, — снимает хук. ⚠ **Второй симптом того же корня, и он дороже первого:** тот же блок в CI судился против ЦЕЛИ МЕРЖА и был зелёным — то есть два оракула одного правила жили с разными ответами, а локальный был строже там, где прав был CI. Это не «локально строже», это два разных правила под одним именем, и починка одного молча оставляла второе. Сделано: оба хука pre-push (`delivery-gate` и `new-dependency`) берут цель мержа резолвером `origin/HEAD` → `origin/main` → `origin/master`; неверная база была не опечаткой, а РЕШЕНИЕМ — комментарий её обосновывал («судить надо то, что уедет в push»), поэтому исправлена и проза. §12.5 получила врезку: порог считается против диффа поставки, база обязана быть целью мержа, и берётся она одинаково локально и в CI. Оракул поведенческий: резолвер ВЫНИМАЕТСЯ из самого `entry:` и гоняется в стенде с настоящим remote, где ветка уже запушена и `@{u}` указывает на неё саму; плюс фолбэк без `origin/HEAD`, плюс запрет `@{u}` в обоих хуках, плюс сверка «локально и CI берут базу одинаково». Два обратных прогона: вернул `@{u}` — красное; увёл CI на собственную ветку — красное. ⚠ **И самое неприятное: неверную базу ЗАКРЕПЛЯЛ ОРАКУЛ.** В сьюте стоял тест, требовавший `@{u}` в `entry:` дословно, — то есть пока он жил, любая починка базы выглядела бы регрессией. Проверка, защищающая неверное, хуже отсутствия проверки: она превращает дефект в инвариант. Тест переписан на «база задана и она не upstream», а поведение резолвера ушло в отдельный класс. **Попутно вскрылось, что блок хуков pre-push не извлекает НИ ОДИН тест:** основной `.pre-commit-config.yaml` в `extract.CONFIGS`, а эти три хука — отдельный снипет §8.6, то есть payload без покрытия, и неверная база жила именно там. Родня F3 отчёта (полнота комплектов payload'а механикой не проверяется) — записано как остаток, а не закрыто. **веса эта правка не добавила** — резолвер живёт в `entry:` хуков, то есть в конфиге, а ратчет веса считает `scripts/**`; названо, чтобы отсутствие цены не читалось как забытая запись. **объём: +24 строк, за что** — врезка §12.5 про базу порога и переписанные обоснования у обоих хуков, без которых следующая правка вернёт `@{u}` с тем же аргументом |
+| 2026-08-12 | **2.04** | **Полевой отчёт с обновления живого проекта закрыт по восьми пунктам, и семь из восьми — ЛОЖНЫЕ КРАСНЫЕ канона.** Это дороже обычных дефектов: проект, получив красное на верной раскладке, **правит канонные файлы у себя** — так и записано в его отчёте, в разделе «где я обошёл канон». ① **Знаменатель площади брался из ЛЮБЫХ `LINT_*` переменных `entry:`.** Замер: `DEAD область check_grep_gate.sh — маска гейта не покрывает 18 файл(ов) области: backend/tests/…` при ВЕРНО настроенном гейте — в хуке стоял общий на все гейты префикс, и `LINT_BE_DIR` затянул в знаменатель весь backend, при том что предмет гейта `backend/app/**`, а тесты он не смотрит намеренно. Теперь корни берутся из переменных, которые гейт ДЕЙСТВИТЕЛЬНО читает, и читается он КОМПЛЕКТОМ: после разреза `1.82` половина кода живёт в соседнем файле, и по входу гейт выглядел бы не читающим ничего. Попутно поймано `\b` в регулярке имён: без него `ESLINT_ABS` читается как переменная `LINT_ABS`, и доктор знал бы имена, которых нет. ② **Полная канонная раскладка обвиняла сама себя:** разложи все девять конфигов §5.0 — и `DEAD область check_file_length.sh — маска не покрывает .dependency-cruiser.cjs, frontend/eslint.config.js`, exit 1. Конфиги контура исключены и в гейте, и в зеркале доктора (зеркала обязаны совпадать), а **регрессия развёртывания получила все девять конфигов вместо одного** — сьют не видел этого класса по построению. ③ **TS-половина гейта сложности не попадала в раскладку, которую канон сам предписывает:** flat-config разрешается от CWD, гейт звал eslint из корня, а §5.0 кладёт конфиг в ПОДКАТАЛОГ — `eslint вышел с кодом 2 … couldn't find an eslint.config file`. Появился `LINT_ESLINT_CONFIG` с кандидатами и запуском из каталога конфига; переменная вписана в §6, иначе это тайное знание. ④ **Она же считала ЛЮБЫЕ сообщения eslint:** пятым «нарушением сложности» оказалось правило ПРОЕКТА (`no-non-null-assertion`) — снимок сложности смешивался с линтерным долгом и рос от правок, к сложности отношения не имеющих. ⑤ **GitLab-предохранитель был зашит на python** (`test -x backend/.venv/bin/ruff`), тогда как GitHub-редакция список инструментов ВЫВОДИТ и читает `not-applicable.json`: на не-python проекте адаптер уронил бы джобу тем самым питоновским допущением, от которого сам и заведён (девятый рецидив класса `1.85`). Приведён к тому же свойству, оракул расширен на ОБА хостинга. ⑥ **`merge_guard` из worktree давал сырой `fatal` от git** после шести зелёных гейтов — §5.1 велит вести класс M/L в worktree, а §8.5.2 не говорила, откуда звать. ⑦ **Ключ-комментарий `_` в `canaries.json` читался как имя гейта** (`SKIP канарейка _`): JSON комментариев не имеет, документировать формат в файле было нечем. ⑧ **Поля, читаемые построчным grep'ом, помечены `⚠ ОДНОЙ строкой` каждое** — полная строка `new_dependency`, разбитая редактором на три, давала жалобу на форму значения (см. `delivery@1.69`). Патчи готовили два независимых агента в своих копиях; я применял по одному и **проверял своими обратными прогонами, а не отчётом**: пять прогонов, включая «а не отключил ли патч проверку площади вместо починки» — площадь, снятая совсем, обязана краснеть, и краснеет. Попутно оракул стоимости чтения поймал накопленный дрейф объявления за три ревизии (payload 6680 при 7436) — числа обновлены в трёх местах. **вес: +174 строк, за что** — фильтр переменных с чтением комплекта, исключение конфигов в двух зеркалах, поиск конфига eslint, фильтр правил TS, выводимый предохранитель GitLab, ранняя проверка worktree и фильтр ключей-комментариев; **объём: +85 строк, за что** — `LINT_ESLINT_CONFIG` в §6 с названной причиной, врезки про оба ложных красных и строка в §8.5.2 про то, откуда звать гейт мержа |
+| 2026-08-11 | **2.03** | **Независимая вычистка `2.02` нашла, что ДВА заявленных свойства механикой не держатся, и попутно — два структурно красных шага, которые я же отправил в `2.01`.** Читающий агент вернул сломанное состояние при полностью зелёном сьюте (672 теста, OK) — то есть мои пробы были слабее дефекта. ① **Оракул порядка §5.5 проверял ПРОЗУ:** сравнивал позицию комментария с позицией вопроса, а шаг укладки доктора командой не был вовсе. Теперь у шага есть команды (`cp` комплекта доктора и мета-гейта), сверяется порядок КОМАНД, порядок НОМЕРОВ шагов и обещание «до всякого другого payload'а» целиком — прежняя редакция держала его половину, и перенос «остального payload'а» выше проходил молча. ② **Цена роста платила дважды:** запись, уже лежащая в HEAD, оставалась «текущей», пока версия не бампнута, поэтому следующий рост ровно того же размера был бесплатен (замерено: +108 payload'а и +34 прозы при пересъёме журналов — оба ратчета зелёные). Теперь канон, чья версия совпадает с версией в HEAD, из поиска цены исключается: рост — решение, решение — новая ревизия. **А охранявший это тест был тавтологией:** фильтр отбирал числа по «нет подстроки в current», после чего `assertFalse` искал ту же подстроку — найтись она не могла по построению. ③ **Доктор в трёх местах менял молчание на зелёное.** `_records` брал первую строку с меткой и выходил, поэтому победителем оказывался ПРИМЕР записи в ```-блоке (три ложных расхождения на исправном проекте) или строка-метка без нужного префикса (слой терялся молча, и сверка снимка для него отключалась); теперь записи читаются вне fenced-блоков и собираются ВСЕ. Тишину покупали УДАЛЕНИЕМ строки — проект с двумя стёртыми записями выглядел чище проекта, где они расходятся; теперь отсутствие записи называется адресом, а число прочитанных печатается. Сужение до метки унесло сверку «снимок ОТСТАЛ» на любой форме STATUS кроме шаблонной (вердикт переворачивался `WEAK`→`AUTO`) — фолбэк возвращён, а отклонение формы называется. ④ **Метки доктора не были привязаны к шаблонам:** смена буллита в A.2 оставляла сьют зелёным, а доктор перестал бы читать развёрнутый по шаблону проект; теперь оракул сверяет метку со строкой шаблона, а полигоны набирают записи ИЗ шаблонов, а не своими строками. ⑤ **Мой брак из `2.01`, оба структурно красные на любом проекте:** GitLab-адаптер звал `merge_guard.sh --dry-run`, а у скрипта `SOURCE=${1:?…}` — флаг читался как имя ветки (`нет ветки '--dry-run'`, exit 1); и доктор в CI давал `DEAD 2` за неустановленные хуки, потому что чекаут их не ставит и не должен. Первое закрыто вызовом с ветками и **оракулом на класс** — команда конфига обязана соответствовать интерфейсу скрипта (`${N:?}` требует позиционного); второе — `SKIP` с причиной «вопрос неотвечаем», при сохранённом `DEAD` локально и признаком по ЗНАЧЕНИЮ `CI`, а не по наличию. ⑥ **У доктора не было постоянного исполнителя на GitHub:** в `.gitlab-ci.yml` он был, в `quality.yml` — нет, то есть все его вердикты читал только тот, кто вспомнит запустить руками. Асимметрию внёс `2.01`. Шаг добавлен, цена замерена (4.7–5.5 с), и строка приёмки «Гейты фактически исполняются» переведена с `measure` на `auto`: она держалась человеком, читающим лог, а полевой замер показал цену — развёрнутый `quality.yml` не нёс `if: always()` НИ РАЗУ две недели при зелёной приёмке. ⑦ **Гейт мержа подтверждал «зелено» по пустоте:** форма `условие && run_gate`, а печать метки внутри `run_gate`, поэтому на бедном стенде молча выпадали ШЕСТЬ гейтов из шести и вывод говорил «всё зелено» с кодом 0. Пропуск теперь называется у каждого, есть сводка, и «зелено» без оговорки больше не печатается. ⑧ **Оракул `always()` держался КОМПЕНСАЦИЕЙ:** считал подстроку, и в джобе `delivery` шесть вхождений при пяти реальных ключах — шестое было комментарием, который про `always()` рассказывает; джоба `gates` не покрывалась вовсе. Теперь считаются ключи вне комментариев, покрыты обе джобы, а исключения ОБЪЯВЛЕНЫ с причиной и сверяются с существующими шагами. Шестнадцать обратных прогонов; два поймали слабость самой пробы, а не кода, и один — ложное зелёное в моей же оснастке (переименованный тест сделал фильтр `pytest -k` пустым, и «не запустилось» зачлось за красное). **вес: +122 строк, за что** — чтение записей вне фенсов и сбор всех, фолбэк сверки снимка, `SKIP` хуков в CI, названные пропуски гейта мержа и шаг доктора в CI; **объём: +26 строк, за что** — команды в шаге §5.5 (без них оракулу нечего упорядочивать), врезки про оба структурных красных и переписанная строка приёмки с названным пределом |
 | 2026-08-11 | **2.02** | **Путь ОБНОВЛЕНИЯ починен в двух местах, и оба дефекта нашла передача контура живому проекту, а не чтение.** Замер: развёрнутый `cqg@1.61` против текущего — 28 файлов payload'а отсутствуют, 17 разошлись. ① **Круговая зависимость внутри собственной процедуры.** §5.5 шагом 2 велела спросить доктора «что разошлось», а сверка расхождений появилась только в `cqg@1.71`: на обновляемом развёртывании её нет вовсе, то есть процедура отправляла за ответом к инструменту, который отвечать не умеет, и обновление всё равно начиналось с раскопок диффом — ровно с того, от чего §5.5 и написана уберечь. Порядок переписан на шесть шагов, и правило названо классом: **обновление кладёт слои в порядке, ОБРАТНОМ развёртыванию** — там проверяющий слой последний, потому что судить нечего, здесь первый, потому что он и есть инструкция. Порядок держит оракул (`test_deployment_procedure`): шаг «положи проверяющий слой» обязан стоять до вопроса к нему, снимок — до сверки с ним. ② **Версия стека записана в ТРИ места, а сверялось одно.** Замер на живом дереве: STATUS `cqg@1.61`, CONSTITUTION и STACK-ACCEPTANCE обе `cqg@1.7` — две записи из трёх врали 40 ревизий, потому что предыдущее обновление поправило ровно ту, которую спрашивает механика (`cqg@1.78`). Класс — «второй список, который никто не сверяет», уже стоивший версий в README (`cqg@1.59`), только теперь список создаёт сам канон своими шаблонами. Доктор получил `check_stack_records`, а **список записей оракул выводит ИЗ ШАБЛОНОВ A.1/A.2/A.12**, а не переписывает рядом: появится четвёртая запись — тест назовёт адрес. Вердикт `WEAK`, как у сверки снимка: быть посреди обновления законно, `DEAD` уронил бы прогон там, где обновление идёт правильно. **Признак — МЕТКА строки, а не токен `слой@версия`, и первая проба на это промахнулась:** она положила прозу со старыми версиями НИЖЕ записи, обход до неё не дошёл, и наивная форма «прошла» — прогон, который ничего не сломал, ничего и не доказывает (третий случай класса «оракул проверяет имя, а не свойство»). Переставил прозу выше — наивная форма объявляет расхождение, которого нет. Отдельно закрыт `absent`: он читается как значение (три `okf@absent` согласны), но заявлением НЕ считается, иначе снимок варианта C, несущий все четыре канона на проекте с тремя, объявлялся бы отставшим — ложное срабатывание на штатной раскладке. **Семь обратных прогонов, каждый уронил свою пробу**, и восьмой поймал ложное зелёное в самой оснастке: после переименования теста фильтр `pytest -k` перестал выбирать что-либо, а «не запустилось» скрипт зачёл за красное. ③ **Проверено на живых данных, а не только на полигоне:** новый доктор положен в КОПИЮ развёрнутого проекта и назвал все три слоя с адресами при `DEAD 0` и коде 0. ④ **Разрез, которого потребовала своя же планка:** правка довела `doctor_layout.py` до 406 строк — рекорда контура, — поэтому семья суждений о ЗАЯВЛЕННОМ вынесена в `doctor_versions.py`. Граница проверяемая: новый модуль не читает ни хуков, ни инструментов, ни тел конфигов — только заявления о версии; `doctor_layout.py` 406 → **257**, свыше 300 осталось четыре файла. ⑤ **Три счётчика прозы разъехались молча, и один — до этой правки:** «49 скрипт» в четырёх местах при 50, «меньше 34 файлов» при 35 и шапка доктора, обещавшая «ВСЕ шесть файлов» при фактических ВОСЬМИ (разошлось на `cqg@1.98`, пережило две правки). Последний счётчик читал только глаз — теперь его сверяет механика, причём и число, и СПИСОК частей: без списка «девять» осталось бы верным при перечислении не тех девяти. **вес: +108 строк, за что** — `check_stack_records` со чтением трёх записей, разрез доктора на девятый модуль и шапка нового файла; **объём: +34 строк, за что** — переписанный порядок §5.5 с названной круговой зависимостью и врезка про три записи с адресами, без которых исполнитель повторит оба дефекта на следующем обновлении. ⑥ **И цена этой правки поймала дефект в самом ратчете цены:** первая редакция записи назвала «+142» — число, замеренное при УСТАРЕВШЕМ журнале веса, где новые строки скриптов считались ещё и обвязкой payload'а, то есть платились дважды. Проверка это пропустила, но не потому, что число сошлось: `price_named` искал строку по ВСЕМ четырём changelog'ам, а в Delivery с прошлой ревизии лежит «объём: +34 строк» — **историческая цена оплатила сегодняшний рост того же размера**. Ровно та половина класса, которую `cqg@1.84` закрыл для веса и `stack-map@1.43` для объёма: число сверили с фактом, а вот ГДЕ оно записано — нет. Теперь цена ищется только в записях ТЕКУЩИХ версий (строка changelog, чья версия совпадает с шапкой своего канона), и то же исправлено у веса — правка на класс, а не на случай. Обратный прогон: цена, оставленная только в прошлой записи, обязана краснеть |
 | 2026-08-11 | **2.01** | **Перенос на два хостинга доведён — и первым делом снята регрессия, которую внёс сам `2.00`.** Независимая вычистка (субагент, только чтение) нашла девять мест ложного зелёного и пять ложных отрицаний; закрыты самые дорогие. ① **GitLab-проект с живым зелёным пайплайном становился КРАСНЫМ на мерже:** ветка звала `no_ci_evidence`, и при `ci-oracles: deployed` гейт возвращал 1 — за то, что у контура нет своего скрипта под этот хостинг. §10.4 определяет `weak` как «CI нет вообще», а на GitLab он есть, значит честного значения не существовало НИ ОДНОГО. ② **Законный выход теперь работает:** `no_ci_evidence` читает `not-applicable.json` — до этого совет «объяви роль» обещал выход, которого механика не давала, то есть правка про невыполнимый совет сама несла невыполнимый совет. ③ **Порядок признаков хостинга исправлен:** спрашивается сначала `remote.origin.url`, файл — фолбэк; обратный порядок ломал GitHub-проект с зеркальным `.gitlab-ci.yml` (ложное «роль не закрыта» там, где она закрыта). ④ **§8.3a достроена:** шаг «инструменты гейтов на месте» ПЕРВЫМ (без него адаптер повторял ровно класс F10, от которого его же проза обещает уберечь) и вторая джоба `delivery` (иначе `--require-ci` и sync-гейт не гоняются нигде, а §8.4 п.3 требует required checks на обе). ⑤ **Три слабости названы, а не замолчаны:** `if: always()` эквивалента нет — первая упавшая команда обрывает `script:`; фронтовая половина не поднята (образ питоновский, `npm ci` нет) и её роли надо объявлять; `main-guard` эквивалента не имеет. ⑥ **Адаптер сверяется с каноном:** `.gitlab-ci.yml` добавлен в `CANON_CONFIGS` доктора — до этого §5.5 на GitLab не находила ничего и молчала и про устаревший адаптер, и про необъявленную адаптацию. ⑦ **Адаптер объявлен payload'ом** (`extract.CONFIGS`) — иначе ни один тест физически его не видел, и «второй список, который никто не сверяет» жил бы внутри §8.3a, которая от него отговаривает. ⑧ `check_gate_value.sh` тоже узнаёт хостинг: раньше на GitLab-машине с авторизованным `gh` печатал «нет прогонов workflow quality», то есть «данных нет» вместо «роль не закрыта». Семь прогонов в классе, два обратных — каждый уронил ровно свою пробу. **вес: +51 строк, за что** — чтение объявления, порядок признаков и распознавание хостинга во втором скрипте; **объём: +38 строк, за что** — достройка §8.3a и три названные слабости, без которых адаптер продавал бы паритет, которого нет |
 | 2026-08-11 | **2.00** | **Контур кладётся и в GitHub-, и в GitLab-проект — привязка к хостингу была допущением, а не требованием.** Замер: доктор искал CI только в `.github/workflows`, поэтому на GitLab-проекте с живым `.gitlab-ci.yml` печатал «CI workflow: нет — §10.4 закроет как weak». **Ложное отрицание в документе, который для читателя И ЕСТЬ ответ про покрытие** — тот же класс, что питоновское допущение в шаблоне workflow (`cqg@1.85`), девятый рецидив семейства. Основание, по которому привязку можно снять, а не обойти: гейт мержа у контура **чисто гитовый** (`merge_guard.sh`, 192 строки, `gh` в нём нет), а CI-контракт §10.4 описан ШАГАМИ. Сделано: ① доктор признаёт оба конфига; ② `BREAKER_EXCLUDE` и метрики знают `.gitlab-ci.yml` — иначе правка пайплайна считалась бы в порог «сколько файлов тронуто»; ③ **новая §8.3a — адаптер GitLab, а не второй шаблон**: те же команды в синтаксисе хостинга, потому что полный двойник немедленно разъехался бы с джобой §8.3 (уроки про питоновское допущение и «пропуск, читаемый как успех» жили бы в двух местах — второй список, который никто не сверяет); ④ `check_ci_status.sh` определяет хостинг и **перестал советовать невыполнимое**: «установи gh» на GitLab не совет, `gh` про Actions, которых там нет. **Чего сознательно НЕ сделано:** разбор вывода `glab` не написан — полигона на GitLab у контура ещё не было, а механика под непроверенное предположение это ровно то, за что канон краснеет. Вместо неё две роли («прогон CI действительно зелёный», «гейты хоть раз срабатывали») называются незакрытыми вслух, с двумя законными ходами: свой скрипт на `glab ci list` либо объявление в `not-applicable.json` — тогда роль видна в карте ролей и на приёмке. Названо и то, что на GitLab лучше: Protected branches бесплатны, тогда как §8.5.3 держит гейт мержа в репозитории именно потому, что серверные rulesets GitHub платные. Четыре прогона: GitLab-CI найден · GitHub не сломан той же правкой · без конфига «CI нет» остаётся (иначе правка купила бы зелёное) · совет зависит от хостинга. Обратный прогон: без правки краснеют две из четырёх. **вес: +41 строк, за что** — за распознавание второго хостинга и выполнимый совет; **объём: +58 строк, за что** — за §8.3a с адаптером и разбором «что лучше, что хуже», без которого следующий развёртыватель написал бы второй полный шаблон |

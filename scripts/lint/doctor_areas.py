@@ -14,8 +14,57 @@ import re
 
 from doctor_core import AUTO, DEAD, NOT_GATES, SKIP, SKIP_WORDS, SUCCESS_WORDS, WEAK, run
 
+#: Часть гейта, подключённая РЯДОМ: `. "$SCRIPT_DIR/x.sh"` у shell, `from x import`
+#: у python. Оба написания есть в payload'е — с `cqg@1.82` он режется по планке 300
+#: строк, и у семи гейтов половина кода живёт в соседнем файле.
+_PART_SH = re.compile(r'\$\{?SCRIPT_DIR\}?/([A-Za-z0-9_]+\.sh)')
+#: ⚠ `\b` обязателен: без него `ESLINT_ABS` читается как переменная `LINT_ABS`
+#: (внутри слова «ESLINT» лежит «LINT»), и доктор знал бы имена, которых нет.
+_LINT_VAR = re.compile(r'\bLINT_[A-Z_]+')
+_PART_PY = re.compile(r'(?m)^from\s+([a-z0-9_]+)\s+import\b')
 
 
+def _komplekt(script) -> str:
+    """Тело гейта ВМЕСТЕ с его частями — комплектом, а не входным файлом.
+
+    Читать один вход нельзя: после разреза `cqg@1.82` вопрос «какие переменные
+    гейт читает» переехал в часть вместе с кодом (у гейта сложности TS-половина
+    целиком в `complexity_halves.sh`), и по входу он выглядел бы не читающим
+    ничего. Тот же приём, что `extract.whole()` в сьюте канона.
+    """
+    head = script.read_text(encoding="utf-8", errors="replace")
+    out = [head]
+    for name in _PART_SH.findall(head) + [m + ".py" for m in _PART_PY.findall(head)]:
+        part = script.parent / name
+        if part.is_file() and part.name != script.name:
+            out.append(part.read_text(encoding="utf-8", errors="replace"))
+    return "\n".join(out)
+
+
+def _own_vars(env: dict, body: str) -> dict:
+    """`LINT_*` из хука, которые гейт ДЕЙСТВИТЕЛЬНО читает (`cqg@2.04`).
+
+    Ложное красное, найденное полем: доктор печатал `DEAD область
+    check_grep_gate.sh — маска гейта не покрывает 18 файл(ов) области:
+    backend/tests/…` при ВЕРНО настроенном гейте. В `entry:` стоял общий на все
+    гейты префикс (`LINT_PY_SRC=… LINT_COV_PKG=… LINT_FE_DIR=… LINT_BE_DIR=…`),
+    и `LINT_BE_DIR` затянул в знаменатель весь backend — при том что предмет
+    гейта `backend/app/**`, а тесты он не смотрит НАМЕРЕННО. Переменную эту
+    `check_grep_gate.sh` не читает вовсе.
+
+    Общий префикс — законная и удобная запись: §6 велит держать значения в
+    `entry:`, и раскладывать их по хукам поштучно она не требует. Значит корни
+    области обязаны браться из переменных гейта, а не из строки хука.
+
+    Признак вычислим и проверяется тем же грепом: имя `LINT_*` в КОДЕ комплекта.
+    Комментарии сняты, и это не микрооптимизация — шестой рецидив класса, ради
+    которого в сьюте живёт `extract.code_only()`: `check_file_length.sh`
+    упоминает `LINT_PY_SRC` в комментарии, который ОБЪЯСНЯЕТ, что гейт его не
+    читает. По комментарию доктор бы этот корень и взял.
+    """
+    code = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))
+    named = set(_LINT_VAR.findall(code))
+    return {k: v for k, v in env.items() if k in named}
 
 
 def _gate_command(script, text: str, *, multi_rule: bool) -> list[str] | None:
@@ -127,6 +176,10 @@ class AreaChecks:
         `off_commit`. Всё прочее (`cmd`, `env`, `out`, `n`) живёт одну итерацию,
         поэтому каждый `continue` честно становится `return None`, а решение
         «добавлять ли в список» остаётся у вызывающего.
+
+        ⚠ Гейт ЗАПУСКАЕТСЯ со всем окружением хука, а СУДИТСЯ по своим
+        переменным (`_own_vars`): передать меньше значило бы мерить не тот путь,
+        а сверять по чужим — обвинять за общий префикс в `entry:` (`cqg@2.04`).
         """
         name = script.name
         if not script.is_file() or name in NOT_GATES or name not in text:
@@ -135,13 +188,14 @@ class AreaChecks:
         if label:
             return label
         point = f"область {name}"
-        body = script.read_text(encoding="utf-8", errors="replace")
+        body = _komplekt(script)
         multi_rule = "--list-rules" in body
         cmd = _gate_command(script, text, multi_rule=multi_rule)
         if cmd is None:              # многоправильный гейт вписан без `--rule`
             return None
         env = self._hook_env(text, name)
         code, out = run(cmd, self.root, env=env)
+        mine = _own_vars(env, body)
         scanned = self._scanned(out)
         if scanned is None:
             # Гейт не отчитывается числом — либо не сканирующий, либо красный
@@ -151,10 +205,10 @@ class AreaChecks:
             return None
         n, unit = scanned
         if not n:
-            self._judge_zero(point, out, env, multi_rule=multi_rule)
+            self._judge_zero(point, out, mine, multi_rule=multi_rule)
             return None
         mask_m = self.MASK_RE.search(out)
-        self._judge_area(point, n, unit, files, env, multi_rule=multi_rule,
+        self._judge_area(point, n, unit, files, mine, multi_rule=multi_rule,
                          files_re=self._hook_files_re(text, name),
                          mask=(mask_m.group(1).split() if mask_m else []))
         return None

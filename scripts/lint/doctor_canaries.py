@@ -168,6 +168,14 @@ class CanaryData:
             return {}
         out: dict[str, list[tuple[str | None, str, str]]] = {}
         for key, spec in (raw or {}).items():
+            # Ключ с `_` в начале — КОММЕНТАРИЙ, а не имя гейта (§5.5). JSON
+            # комментариев не имеет, поэтому формат документируют ключом, и
+            # доктор читал его как объявление: `SKIP канарейка _ — объявление без
+            # path/content`. Пропуск, которого нет, в собственной сводке
+            # непокрытости — то есть инструмент врал про свою же слепую зону, и
+            # лечился бы этот SKIP удалением пояснения из файла.
+            if str(key).startswith("_"):
+                continue
             if not (isinstance(spec, dict) and spec.get("path") and spec.get("content")):
                 self.add(SKIP, f"канарейка {key}",
                          f"объявление без path/content в {OWN_CANARIES}")

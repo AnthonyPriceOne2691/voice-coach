@@ -63,23 +63,66 @@ def blocks(text: str) -> tuple[list[tuple[int, str, str]], int]:
         line = raw.lstrip()
         if not line.startswith("```"):
             if lang is not None:
-                buf.append(raw)
+                # ⚠ Тело ВЫРАВНИВАЕТСЯ по отступу открывающего фенса, как это
+                # делает `block_after` в извлекателе (`cqg@2.10`). До этого
+                # `blocks()` хранил строки как есть, а извлекатель — тоже как
+                # есть, но фенс с отступом вообще не видел: два поставляемых
+                # парсера отвечали по-разному на вопрос «что здесь блок».
+                # Выравнивание несущее: heredoc с отступом у терминатора не
+                # закрывается, то есть непрогретый блок неисполним.
+                buf.append(raw[pad:] if raw[:pad].isspace() else raw)
             continue
         info = line[3:].strip().lower()
         if lang is None:                       # открытие верхнего уровня
             lang, start, buf, depth = info, i, [], 1
+            pad = len(raw) - len(line)
             continue
         if info:                               # вложенное открытие
             depth += 1
-            buf.append(raw)
+            buf.append(raw[pad:] if raw[:pad].isspace() else raw)
             continue
         depth -= 1                             # закрытие
         if depth == 0:
             out.append((start, lang, "\n".join(buf)))
             lang = None
         else:
-            buf.append(raw)
+            buf.append(raw[pad:] if raw[:pad].isspace() else raw)
     return out, (1 if lang is not None else 0)
+
+
+#: Открытие heredoc: `<<TAG`, `<<'TAG'`, `<<"TAG"`, `<<-TAG`.
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+
+
+def unclosed_heredoc(code: str) -> str | None:
+    """None = чисто. Терминатор heredoc, до которого не дойдёт shell.
+
+    **`bash -n` этот класс НЕ ловит, и это замерено:** блок, где терминатор
+    написан с отступом, синтаксически валиден — heredoc просто «доедает» файл
+    до конца. То есть проверка печатала «исполняемый блок проверен» про блок,
+    который исполниться не может.
+
+    Найдено на собственной правке `cqg@2.09`: генератор провенанса в §5 шага 11
+    лежал в нумерованном списке, терминатор `PY` шёл с отступом, `bash -n`
+    молчал, и неисполнимость обнаружилась только прогоном блока оракулом.
+
+    Терминатор обязан стоять в НУЛЕВОЙ колонке (для `<<-` допустимы табы —
+    так определён сам оператор). Тело блока к этому моменту уже выровнено
+    `blocks()` по отступу фенса, поэтому проверка судит то же, что исполнится.
+    """
+    # ⚠ Комментарии срезаются ДО поиска, и это не аккуратность. Первый же
+    # прогон дал ложное срабатывание на строке канона `# пайп в `python -
+    # <<heredoc` не работает` — то есть проверка обвинила блок за РАССКАЗ о
+    # heredoc. Ложное срабатывание здесь дороже пропуска (§4.3b): такие
+    # проверки чинят снятием, а эта только что завелась.
+    bare = "\n".join(re.sub(r"(^|\s)#.*$", "", l) for l in code.splitlines())
+    for dash, _q, tag in HEREDOC.findall(bare):
+        allowed = rf"(?m)^\t*{tag}\s*$" if dash else rf"(?m)^{tag}\s*$"
+        if not re.search(allowed, code):
+            where = "с отступом" if re.search(rf"(?m)^\s+{tag}\s*$", code) else "отсутствует"
+            return (f"heredoc <<{tag}: терминатор {where} — блок не закроется. "
+                    "`bash -n` такое принимает, поэтому проверка отдельная")
+    return None
 
 
 try:
@@ -240,11 +283,21 @@ def broken_tables(text: str) -> list[str]:
 def declared_versions(root: Path) -> tuple[dict[str, str], dict[str, str]]:
     """(версии из шапок канонов, версии из таблицы §1 карты)."""
     heads: dict[str, str] = {}
-    for name in CANONS[1:]:
+    for name in CANONS:
         p = root / name
         if not p.is_file():
             continue
-        m = re.search(r"\*\*Canon version:\*\*\s*`([a-z]+)@([\d.]+)`", p.read_text(encoding="utf-8"))
+        # ⚠ ОБЕ формы шапки и дефис в имени (`cqg@2.12`). Здесь стояла только
+        # форма `Canon version` и класс `[a-z]+`, то есть карта не читалась
+        # дважды: ни по форме шапки, ни по имени `stack-map`. Цена этой слепоты
+        # была названа в `field/fleet/build_versions.py` пределом «stack-map в
+        # индекс НЕ попадает» — то есть версия карты не мерилась у флота вовсе.
+        # Из четырёх реализаций этого понятия расходилась одна; остальные три
+        # (`doctor_versions.py`, `tests/extract.py`, реестр классов) обе формы
+        # читают. Согласие держит дифференциальный оракул.
+        text = p.read_text(encoding="utf-8")
+        m = (re.search(r"\*\*Canon version:\*\*\s*`([a-z-]+)@([\d.]+)`", text)
+             or re.search(r"\*\*Эта карта:\*\*\s*`([a-z-]+)@([\d.]+)`", text))
         if m:
             heads[m.group(1)] = m.group(2)
     table: dict[str, str] = {}
@@ -285,7 +338,10 @@ def main() -> int:
                 proc = subprocess.run(
                     ["bash", "-n"], input=code, text=True, capture_output=True, check=False
                 )
-                if proc.returncode:
+                err = unclosed_heredoc(code)
+                if err:
+                    pass
+                elif proc.returncode:
                     err = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "bash -n failed"
             else:
                 err = check_yaml(code)

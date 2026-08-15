@@ -72,7 +72,24 @@ module.exports = {
     // `tsPreCompilationDeps` обязателен: без него не видно `import type`, а
     // контракт «types/ — лист» держится ровно на них. Замер: 36 зависимостей
     // без флага против 44 с ним — восемь связей типа были невидимы.
-    tsConfig: { fileName: "tsconfig.depcruise.json" },
+    // ⚠ ПОРТ `cqg@2.15`: канон научился искать tsconfig по кандидатам и дал
+    // переменную `LINT_TSCONFIG` (§6). Здесь стоял обходной корневой
+    // `tsconfig.depcruise.json` — законный ход, но он жил в разделе «где я обошёл
+    // канон», потому что канон о нём молчал. Теперь обход выражен ПЕРЕМЕННОЙ, а
+    // не правкой файла: адаптация проекта стала на одну строку меньше.
+    tsConfig: {
+      fileName: process.env.LINT_TSCONFIG
+        // ⚠ АДАПТАЦИЯ, одна строка: `tsconfig.depcruise.json` идёт ПЕРВЫМ.
+        // Канонный порядок ставит первым `<fe>/tsconfig.json`, и на этой
+        // раскладке он даёт `TS18003: No inputs were found` — его `include`
+        // считается от каталога конфига, а depcruise зовётся из КОРНЯ. Поймано
+        // обратным прогоном гейта при обновлении на `cqg@2.15`: первая редакция
+        // порта взяла канонный порядок как есть и уронила гейт слоёв.
+        || ['tsconfig.depcruise.json',
+            `${process.env.LINT_FE_DIR || 'frontend'}/tsconfig.json`,
+            'tsconfig.json'].find((p) => require('fs').existsSync(p))
+        || 'tsconfig.json',
+    },
     tsPreCompilationDeps: true,
     exclude: { path: "(\\.test\\.|\\.spec\\.|__tests__)" },
   },

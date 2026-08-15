@@ -146,7 +146,9 @@ def check_expectation_and_oracle(status: str, ctx: ActiveCtx, klass: str,
     сказал это заранее («не парсится отдельно»), а первый заход сигнал
     проигнорировал — и сломал модуль дважды.
     """
-    spec, tasks, verify = ctx.spec, ctx.tasks, ctx.verify
+    # ⚠ `ctx.tasks` и `ctx.verify` здесь БОЛЬШЕ НЕ БЕРУТСЯ, и пустота этой строки
+    # — сама улика: функция перестала читать документы поставки о себе.
+    spec = ctx.spec
     eval_smoke, implement_like = ctx.eval_smoke, ctx.implement_like
     # --- §3.1d уровень 1: ожидание обязано появиться РАНЬШЕ кода.
     # Проверяем не качество примеров (это невозможно), а сам факт, что они
@@ -156,11 +158,10 @@ def check_expectation_and_oracle(status: str, ctx: ActiveCtx, klass: str,
         spec_text = read(spec)
         ex_ids = re.findall(r"(?m)^\s*\|\s*([A-Z]\d+)\s*\|", spec_text)
 
-        # Корпус «где искать ссылки»: smoke + tasks + verify + тексты тестов.
-        # Строится БЕЗУСЛОВНО, потому что его читают ДВЕ независимые проверки —
-        # ссылки на id ниже и реляционный оракул §6.5 дальше.
+        # Корпуса «где искать». Строятся БЕЗУСЛОВНО, потому что их читают ДВЕ
+        # независимые проверки — ссылки на id ниже и реляционный оракул §6.5.
         #
-        # lab-12: он строился внутри else-ветки, и обе ветки с ошибкой роняли
+        # lab-12: корпус строился внутри else-ветки, и обе ветки с ошибкой роняли
         # гейт `UnboundLocalError: haystack` ВМЕСТО того, чтобы напечатать уже
         # сформулированный диагноз. Класс: **проверка, обязанная поставить
         # диагноз, умирает вместо диагноза** — исполнитель видит поломку
@@ -168,7 +169,29 @@ def check_expectation_and_oracle(status: str, ctx: ActiveCtx, klass: str,
         # зеркало «гейта, врущего зелёным»: тот молчит, когда должен говорить,
         # этот кричит не о том. Мера — не «инициализировать переменную», а
         # держать сбор данных отдельно от разбора причин.
-        haystack = read(eval_smoke) + read(tasks) + read(verify)
+        #
+        # ⚠ Корпусов ДВА, и это несущее (`delivery@1.72`, поле). Был один, и в
+        # него входили `tasks.md` и `verify-report.md` — то есть ДОКУМЕНТЫ О
+        # ПОСТАВКЕ. §6.5 ищет в корпусе `@given`, поэтому проверка гасилась
+        # УПОМИНАНИЕМ декоратора в прозе отчёта: зелёное получено словом о
+        # свойстве, а не свойством. Поймано так: первая редакция отчёта
+        # процитировала имя искомого декоратора, ОБЪЯСНЯЯ этот самый warning, —
+        # и warning исчез. Ссылки на id держали тот же дефект и заметнее: отчёт
+        # перечисляет id примеров штатно, поэтому «id встречается в тестах»
+        # удовлетворялось таблицей в verify-report.
+        #
+        # Правило к КЛАССУ: корпус проверки не смеет содержать текст, который
+        # ОПИСЫВАЕТ эту проверку, — описание там неотличимо от предмета. Канон
+        # это правило уже произносил в двух шагах отсюда («в них нельзя спрятать
+        # неверное ожидание», §6.5) и рядом же нарушал; ловит расхождение теперь
+        # не глаз, а `test_green_without_the_thing.py`.
+        #
+        # Границы корпусов заданы тем, что проверка СПРАШИВАЕТ. §6.5 спрашивает
+        # про тест — значит только тексты тестов. Ссылки на id канон и сам
+        # описывал как «в тестах ИЛИ eval-smoke» (см. ветку ниже) — значит проза
+        # попала в корпус мимо собственной формулировки: `tasks.md` обещает,
+        # `verify-report.md` отчитывается, а вопрос был про проверку.
+        tests_text = ""
         for root_dir in ("tests", "backend/tests", "src/tests"):
             d = ACTIVE.parent.parent / root_dir
             if not d.is_dir():
@@ -181,20 +204,26 @@ def check_expectation_and_oracle(status: str, ctx: ActiveCtx, klass: str,
                     and f.suffix in TEST_TEXT_SUFFIXES
                     and not any(p in SKIP_DIR_PARTS for p in f.parts)
                 ):
-                    haystack += read(f)
+                    tests_text += read(f)
 
-        check_examples_and_ids(spec_text, ex_ids, haystack, klass, phase,
+        check_examples_and_ids(spec_text, ex_ids,
+                               tests_text + read(eval_smoke), klass, phase,
                                errors, warnings)
 
-        check_relational_oracle(haystack, klass, warnings)
+        check_relational_oracle(tests_text, klass, warnings)
 
 
-def check_relational_oracle(haystack: str, klass: str,
+def check_relational_oracle(tests_text: str, klass: str,
                             warnings: list[str]) -> None:
     """Хотя бы один реляционный оракул на M/L (§6.5 уровень 2).
 
     Пятый шов (`delivery@1.57`) — ВНУТРИ функции, а не по её шву: блок вложен
-    в `if` соседнего раздела и берёт `haystack` параметром.
+    в `if` соседнего раздела и берёт корпус параметром.
+
+    ⚠ Параметр называется `tests_text`, а не `haystack`, намеренно: имя корпуса
+    и есть содержание правки `delivery@1.72`. Сюда приходят ТОЛЬКО тексты
+    тестов; проза поставки описывает искомое свойство теми же словами, и под
+    именем «стог» это неразличимо.
     """
     # --- §6.5 уровень 2: хотя бы один реляционный оракул на M/L.
     # «Минимум один» стояло в §6.5 практикой и не принуждалось ничем —
@@ -210,7 +239,7 @@ def check_relational_oracle(haystack: str, klass: str,
     # `brew install coreutils`, CQG §5 шаг 3), и об этом сказано в тексте
     # ошибки: иначе получим ритуал вместо оракула.
     if not re.search(r"@given|@hypothesis\.given|fc\.assert|fc\.property",
-                     haystack):
+                     tests_text):
         warnings.append(
             f"class {klass}: ни одного реляционного оракула (§6.5) — "
             "не найдено ни `@given` (hypothesis), ни `fc.property` "
@@ -224,7 +253,7 @@ def check_relational_oracle(haystack: str, klass: str,
         )
 
 
-def check_examples_and_ids(spec_text: str, ex_ids: list[str], haystack: str,
+def check_examples_and_ids(spec_text: str, ex_ids: list[str], refs_text: str,
                            klass: str, phase: str, errors: list[str],
                            warnings: list[str]) -> None:
     """Блок примеров есть, id проставлены, id встречаются в тестах.
@@ -253,7 +282,7 @@ def check_examples_and_ids(spec_text: str, ex_ids: list[str], haystack: str,
     else:
         # id должны встречаться в тестах или eval-smoke: связь примера с
         # проверкой — то, что отличает обещание от отчёта о реализации.
-        missing = [i for i in dict.fromkeys(ex_ids) if i not in haystack]
+        missing = [i for i in dict.fromkeys(ex_ids) if i not in refs_text]
         if missing:
             warnings.append(
                 "acceptance-примеры без ссылки в тестах/eval-smoke: "

@@ -99,6 +99,8 @@ if not isinstance(data, dict):
     sys.stderr.write("ожидался объект {ключ: причина}\n")
     raise SystemExit(2)
 for k, v in data.items():
+    if str(k).startswith("_"):
+        continue          # ключ-комментарий, не объявление роли (§5.5)
     reason = str(v).strip()
     if not reason:
         sys.stderr.write("%s: объявление БЕЗ причины\n" % k)

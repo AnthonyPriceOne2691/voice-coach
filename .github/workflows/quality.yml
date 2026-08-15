@@ -78,7 +78,12 @@ jobs:
           missing=""; checked=""
           expect() { skip "$1" || { checked="$checked $1"; have "$1" || missing="$missing $1"; }; }
           expect detect-secrets
-          if ls **/pyproject.toml **/requirements*.txt >/dev/null 2>&1; then
+          # ⚠ ПОРТ `cqg@2.15`: условие идёт через `grep -q .`, а не через код
+          # возврата `ls`. `ls A B` при существующем A и отсутствующем B выходит
+          # ЕДИНИЦЕЙ, поэтому прежняя форма на pyproject-проекте БЕЗ
+          # requirements.txt не ожидала ни ruff, ни mypy — шаг против тихого
+          # пропуска сам уходил в тихий пропуск.
+          if ls pyproject.toml */pyproject.toml requirements*.txt */requirements*.txt 2>/dev/null | grep -q .; then
             expect ruff; expect mypy
           fi
           if [ -f package.json ] || [ -f "$LINT_FE_DIR/package.json" ]; then
@@ -111,6 +116,15 @@ jobs:
       - name: Gate coverage (все гейты подключены)
         if: always()
         run: bash scripts/lint/check_gate_coverage.sh
+
+      # ⚠ ПОРТ `cqg@2.15`: третий из трёх РАЗНЫХ вопросов — вписаны ли гейты,
+      # зелены ли вписанные, СУДЯТ ли вписанные. Третьего здесь не было: у
+      # доктора был постоянный исполнитель в GitLab-адаптере и не было в этом
+      # workflow, то есть его вердикты читал только тот, кто вспомнит запустить.
+      # `DEAD` роняет шаг, `WEAK`/`ABSENT`/`SKIP` — нет.
+      - name: Contour doctor (гейты не только вписаны, но и судят)
+        if: always()
+        run: python3 scripts/lint/contour_doctor.py
 
       - name: Baseline ratchet (снимки только вниз)
         if: always()
