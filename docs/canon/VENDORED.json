@@ -1,21 +1,20 @@
 {
   "_": "Провенанс снимка (AGENT_STACK §7.1, cqg@2.09). Отвечает на вопрос «ОТКУДА он», на который SHA256SUMS не отвечает: хеши держат «копию не правили ПОСЛЕ вендоринга» и молчат о том, из чего вендорили. Зачем это нужно проекту: без адреса источника вопрос «отстал ли я от канона» не имеет адресата вовсе — сверить снимок с upstream может только тот, у кого к нему доступ (обход флота или машина владельца). ПЕРЕСОЗДАВАТЬ при каждом перевендоривании — команда в CQG §5 шаг 11.",
   "upstream": "https://github.com/AnthonyPriceOne2691/agent-canon-stack.git",
-  "commit": "64a616b51c47ade34ff51ae875418e866a9e93de",
+  "commit": "2b72dea9aba9110b9b7bf1a8a541d0422012692c",
   "dirty": false,
   "vendored_at": "2026-08-15",
   "versions": {
     "stack-map": "1.49",
     "delivery": "1.75",
-    "cqg": "2.15",
+    "cqg": "2.16",
     "okf": "1.17"
   },
   "sha256": {
     "AGENT_DELIVERY_HARNESS.md": "2bc37f3e2cd27faf5cb197993f055534bb64503a69b8eecde29cd7135f96d840",
-    "AGENT_STACK.md": "0cc564657f068831c19ad6561112638389bca296ffd22ef293c41f1b37157904",
-    "CODE_QUALITY_GATES.md": "226be79e6660c2fee0dd2a8ce2f596ee58a7fb945fe2e3cb086c112403634b59",
+    "AGENT_STACK.md": "6b1a7df85dfe7880af8cc807ebabc5753c53bc706fab31b03b93b923b9584b15",
+    "CODE_QUALITY_GATES.md": "cea0240b121746dae5c17c2222db4a20311cbcc40e6c65d1329d15e6a7f7adf9",
     "OKF_KNOWLEDGE_BUNDLE.md": "5db516213a46a32340896c384f51c098339d628190b44773f573e5a1ceee7d5f",
-    "VENDORED.md": "0107e0b581b2fdc8ff142948b3c8f5ad547eec8b86e77c8cfeba5c98cbcde81f",
     "extract_payload.py": "a7a405aeb8a157d0eb60e1b9bda442a88cca2a627efd0f0fddf5f9b59b33611b",
     "selftest_sizes.py": "166511867006a66b6f850209e0e3d6fff81fca4c5518cd8ec11a5d94ea694867",
     "stack_selftest.py": "dc51c6a81041c43b7dc52121618089163edcccce791031f397962dab1dcad586"
