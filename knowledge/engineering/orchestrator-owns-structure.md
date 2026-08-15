@@ -9,7 +9,13 @@ implementation:
   - backend/app/orchestrator/pace.py
   - backend/app/orchestrator/review.py
   - backend/app/orchestrator/question_bank.py
-  - data/prompts/
+  # Только промпты голосового цикла: `data/prompts/` целиком тянуло сюда и
+  # промпты суммаризации, которые описывает другой concept (model-split).
+  # Путь, покрывающий чужое, делает гейт code<->canon шумным, а шумный гейт
+  # начинают обходить waiver'ами.
+  - data/prompts/interviewer_system.txt
+  - data/prompts/review_system.txt
+  - data/prompts/templates/
   - data/questions/
 ---
 

@@ -76,6 +76,21 @@ async def test_review_lifecycle(db: Database) -> None:
     assert (await reviews.for_interview("i1"))[0].id == "r1"
 
 
+async def test_vocabulary_translation_can_be_rewritten(db: Database) -> None:
+    """Починка банка (S-H6): перевод переписывается, пропавшая запись — не молча."""
+    repo = VocabularyRepository(db)
+    await repo.merge(
+        [{"term_en": "impact statement", "translation_ru": "陳述", "example_en": "x"}],
+        session_id="s1",
+    )
+    entry = (await repo.list())[0]
+
+    assert await repo.set_translation(entry.id, "заявление о вкладе") is True
+    assert (await repo.list())[0].translation_ru == "заявление о вкладе"
+    # Скрипт чистки обязан уметь сказать «не нашёл», а не отчитаться об успехе.
+    assert await repo.set_translation("no-such-id", "что угодно") is False
+
+
 async def test_vocabulary_merge_dedup_and_soft_delete(db: Database) -> None:
     repo = VocabularyRepository(db)
     items = [

@@ -107,6 +107,10 @@ class ScriptedLlm:
     def __init__(self, scripts: list[list[str]]) -> None:
         self._scripts = scripts
         self.calls: list[list[ChatMessage]] = []
+        #: Модель КАЖДОГО вызова, а не одна на фейк: в одном проходе суммаризации
+        #: их две — разбор идёт на R1, починка перевода на qwen (D-8). Без этого
+        #: списка тест «починка ушла не на ту модель» написать нечем.
+        self.models: list[str] = []
 
     async def stream_chat(
         self,
@@ -118,6 +122,7 @@ class ScriptedLlm:
         num_ctx: int | None = None,
     ) -> AsyncIterator[str]:
         self.calls.append(list(messages))
+        self.models.append(model)
         script = self._scripts[min(len(self.calls) - 1, len(self._scripts) - 1)]
         for token in script:
             yield token

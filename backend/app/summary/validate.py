@@ -6,15 +6,51 @@ from typing import Any
 
 SCORE_KEYS = ("clarity", "structure", "technical_depth", "english_fluency", "positioning")
 
+CYRILLIC = re.compile(r"[Ѐ-ӿ]")
+#: Иероглифы, кана и хангыль. `deepseek-r1:14b` — мультиязычная модель, и на
+#: длинной генерации она срывается на китайский: в банке слов из-за этого лежит
+#: `выразительный陳述`. Ловим весь блок, а не один язык: срыв бывает и в японский.
+CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]")
+
+
+def translation_problem(text: str) -> str | None:
+    """Почему перевод не годится — словами, для лога. `None` = годится (S-H6).
+
+    Латиница НЕ запрещена: `автоматизация outreach` законна, `Redis` в переводе
+    термина `Redis` — тоже. Требуем ровно двух вещей: кириллица есть, иероглифов
+    нет. Более строгое правило дало бы ложные срабатывания на каждой второй
+    записи, а это дороже пропуска (Delivery §4.3b).
+    """
+    if CJK.search(text):
+        return "содержит иероглифы"
+    if not CYRILLIC.search(text):
+        return "нет ни одной кириллической буквы"
+    return None
+
+
+def translation_is_russian(text: str) -> bool:
+    """S-H6: перевод обязан быть русским.
+
+    Поле `vocabulary.translation_ru` ИСКЛЮЧЕНО из `S-H2_en_body` (там английский),
+    и до этой проверки его не покрывало ничто: исключение из одного правила молча
+    стало «может быть чем угодно».
+    """
+    return translation_problem(text) is None
+
 
 class SummaryInvalidError(ValueError):
     """LLM output failed the summary contract; message is the retry hint."""
 
 
 def extract_json(raw: str) -> dict[str, Any]:
-    """Parse the first {...} block (models love to wrap JSON in prose/fences)."""
+    """S-H1: разбор первого блока {...} (модели любят обернуть JSON в прозу и фенсы).
+
+    Здесь же исполняется S-H5: пустой после `strip_thinking` ответ — это ответ без
+    JSON, и он отвергается той же ошибкой. Разделять их незачем: у R1 «пусто после
+    снятия рассуждений» и «нет JSON» — одно и то же событие.
+    """
     start, end = raw.find("{"), raw.rfind("}")
-    if start == -1 or end <= start:
+    if start == -1 or end <= start:  # S-H1 + S-H5_nonempty_after_strip
         raise SummaryInvalidError("no JSON object found in output")
     try:
         data = json.loads(raw[start : end + 1])

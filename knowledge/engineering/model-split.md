@@ -8,7 +8,11 @@ implementation:
   - backend/app/llm/ollama_client.py
   - backend/app/llm/strip_thinking.py
   - backend/app/summary/service.py
+  - backend/app/summary/validate.py
   - backend/app/config.py
+  - data/prompts/summary_system.txt
+  - data/prompts/minimal_summary_system.txt
+  - data/prompts/translate_term_system.txt
 ---
 
 # Purpose
@@ -38,6 +42,11 @@ thinking-блок, который в диалоге целиком выбрас�
   транскрипт, ни в summary.
 - Токен-бюджеты для summary отдельные (`summary_num_ctx`, `summary_max_tokens`):
   два транскрипта не влезают в 8192 (doc 20).
+- **Починка вывода R1 идёт на qwen, а не на R1.** R1 мультиязычен и на длинной
+  генерации срывается на китайский — так в банк слов попал `выразительный陳述`.
+  Повторный перевод термина (`SummaryService.translate_term`) выполняется
+  `ollama_model_interview`: просить починку у источника дефекта — худший из
+  возможных выборов, а офлайн-путь может позволить себе второй вызов.
 
 # Related
 
@@ -50,6 +59,8 @@ thinking-блок, который в диалоге целиком выбрас�
 | Клиент Ollama | `backend/app/llm/ollama_client.py` |
 | Вырезание thinking | `backend/app/llm/strip_thinking.py` |
 | Offline summary | `backend/app/summary/service.py` |
+| Проверка перевода (S-H6) | `backend/app/summary/validate.py` |
+| Промпты офлайн-разбора | `data/prompts/summary_system.txt`, `minimal_summary_system.txt`, `translate_term_system.txt` |
 | Параметры моделей | `backend/app/config.py` |
 
 # Sources

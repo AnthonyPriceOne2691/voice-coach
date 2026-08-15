@@ -54,6 +54,20 @@ class VocabularyRepository:
             await s.commit()
         return added
 
+    async def set_translation(self, entry_id: str, translation: str) -> bool:
+        """Переписать перевод существующей записи (S-H6: починка банка).
+
+        Возвращает `False`, если записи нет: разовый скрипт чистки должен уметь
+        сказать «не нашёл», а не молча отчитаться об успехе.
+        """
+        async with self._db.session() as s:
+            entry = await s.get(VocabularyEntry, entry_id)
+            if entry is None:
+                return False
+            entry.translation_ru = translation
+            await s.commit()
+        return True
+
     async def list(
         self,
         *,

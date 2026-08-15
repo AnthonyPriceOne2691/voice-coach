@@ -16,7 +16,7 @@ invariants:
       schema: summary_output          # schema in docs/08-post-session-debrief.md
     - id: S-H2_en_body
       check: english_only_fields
-      exclude_fields: [vocabulary.translation_ru]
+      exclude_fields: [vocabulary.translation_ru]   # ⚠ исключение обязано быть ЗАМЕНЕНО правилом ниже (S-H6)
     - id: S-H3_scores_range
       check: scores_int_range
       min: 1
@@ -25,6 +25,15 @@ invariants:
       check: vocabulary_items_complete   # term_en, translation_ru, example_en all non-empty
     - id: S-H5_nonempty_after_strip
       check: nonempty_after_strip_thinking
+    # Замена исключения из S-H2, а не новая придирка: поле, освобождённое от
+    # «только английский», не покрывалось НИЧЕМ — так в банк слов попало
+    # `выразительный陳述` (утечка китайского у deepseek-r1). Требуется кириллица
+    # и отсутствие иероглифов; латиница законна (`автоматизация outreach`).
+    # Запись с испорченным переводом сначала ЧИНИТСЯ повторным переводом на
+    # qwen2.5 и отбрасывается только если починка не удалась — и то вслух, в лог.
+    - id: S-H6_translation_is_russian
+      check: field_is_russian
+      field: vocabulary.translation_ru
 
 recovery:
   max_retries: 1

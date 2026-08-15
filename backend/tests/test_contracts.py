@@ -190,3 +190,60 @@ def test_behavioral_seeds_are_speakable(interview: ContractEnforcer) -> None:
     # красная сторона (L25): будь в вопросе оценка, сторож обязан покраснеть
     red = interview.start_turn(TurnContext(state="CORE_QUEST"))
     assert red.feed("Tell me about a time you failed. I'd rate that answer 3 out of 5.") is not None
+
+
+# --- Сторожа summary-контракта (V8) --------------------------------------
+#
+# `summary.contract.yaml` не исполняется енфорсером (он про голос) — его правила
+# живут кодом в `app/summary/`. Значит связь «объявлено ↔ реализовано» держится
+# на честном слове, и именно в этой щели поселился `выразительный陳述`.
+
+SUMMARY_CONTRACT = CONTRACTS_DIR / "summary.contract.yaml"
+SUMMARY_CODE = Path(__file__).resolve().parents[1] / "app" / "summary"
+
+
+def _summary_hard_invariants() -> list[dict[str, object]]:
+    import yaml
+
+    data = yaml.safe_load(SUMMARY_CONTRACT.read_text(encoding="utf-8"))
+    invariants = data["invariants"]["hard"]
+    assert isinstance(invariants, list) and invariants
+    return [dict(item) for item in invariants]
+
+
+def test_every_summary_invariant_leaves_a_mark_in_code() -> None:
+    """Объявленный инвариант обязан быть реализован — иначе контракт врёт о полноте."""
+    source = "\n".join(p.read_text(encoding="utf-8") for p in sorted(SUMMARY_CODE.glob("*.py")))
+    for invariant in _summary_hard_invariants():
+        marker = str(invariant["id"]).split("_", 1)[0]  # S-H6 из S-H6_translation_is_russian
+        assert marker in source, (
+            f"инвариант {invariant['id']} объявлен в summary.contract.yaml, но маркера "
+            f"{marker} нет ни в одном файле app/summary/ — правило существует только на бумаге"
+        )
+
+
+def test_excluded_field_is_covered_by_another_invariant() -> None:
+    """Исключение из правила обязано быть ЗАМЕНЕНО правилом, а не оставлять поле голым.
+
+    Это сторож ровно на найденный дефект: `vocabulary.translation_ru` исключили из
+    `S-H2_en_body` («только английский») и не покрыли ничем — поле оказалось между
+    двумя правилами, и туда попали иероглифы `deepseek-r1`. Проверка не на текст
+    правила, а на СВЯЗЬ: у каждого исключённого поля есть другой инвариант, который
+    его называет.
+    """
+    invariants = _summary_hard_invariants()
+    for invariant in invariants:
+        excluded = invariant.get("exclude_fields") or []
+        assert isinstance(excluded, list)  # V8
+        for field in excluded:
+            covering = [
+                other["id"]
+                for other in invariants
+                if other["id"] != invariant["id"] and other.get("field") == field
+            ]
+            assert covering, (  # V8: исключение обязано быть заменено правилом
+                f"поле {field} исключено из {invariant['id']} и не покрыто ничем: "
+                "исключение из одного правила молча означает «может быть чем угодно». "
+                "Заведи инвариант с `field: <это поле>` — так в банк слов попало "
+                "`выразительный陳述`"
+            )

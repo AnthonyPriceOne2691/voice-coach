@@ -18,7 +18,12 @@ from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.storage.turns import is_meta
-from app.summary.validate import SummaryInvalidError, extract_json, validate_summary
+from app.summary.validate import (
+    SummaryInvalidError,
+    extract_json,
+    translation_problem,
+    validate_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,10 @@ logger = logging.getLogger(__name__)
 #: слива ws-сессий: секунды. Дольше — значит LLM висит, и держать ради этого
 #: закрытие процесса нельзя.
 SHUTDOWN_SUMMARY_TIMEOUT_S = 10.0
+
+#: Перевод одного термина — это строка, а не текст. Потолок держит модель от
+#: рассуждений вслух, которые всё равно пришлось бы отрезать.
+TERM_TRANSLATION_MAX_TOKENS = 64
 
 SCHEMA_HINT = (
     "Output a single JSON object with fields: overall_summary (string), "
@@ -171,9 +180,13 @@ class SummaryService:
                 messages, model=model, max_tokens=max_tokens, num_ctx=num_ctx
             )
             try:
-                return validate_summary(
+                data = validate_summary(
                     extract_json(strip_thinking(raw)), require_vocabulary=require_vocabulary
                 )
+                # Одно место на ОБА пути (full на R1 и minimal на qwen): второй
+                # сайт вставки разъехался бы с первым, как уже бывало (L11/L39).
+                data["vocabulary"] = await self._repair_vocabulary(data["vocabulary"])
+                return data
             except SummaryInvalidError as exc:
                 last_error = str(exc)
                 messages = [
@@ -186,6 +199,67 @@ class SummaryService:
                     },
                 ]
         raise SummaryInvalidError(last_error)
+
+    async def _repair_vocabulary(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """S-H6: перевод обязан быть русским — испорченный чинится, потеря звучит.
+
+        Порядок именно такой: сначала попытка вернуть слово, и только потом
+        отказ. `impact statement` — полезный термин, и терять его из-за двух
+        иероглифов жалко, когда повторный перевод стоит одного офлайн-вызова.
+
+        Отброшенная запись ПИШЕТСЯ В ЛОГ с термином: молчаливая пропажа
+        неотличима от «модель не предложила слово», а это разные события.
+        """
+        kept: list[dict[str, Any]] = []
+        for item in items:
+            translation = str(item.get("translation_ru", ""))
+            problem = translation_problem(translation)  # cpu-ok: 5–12 записей (S-H4)
+            if problem is None:
+                kept.append(item)
+                continue
+            term = str(item.get("term_en", ""))
+            # Пример употребления идёт вместе с термином: перевод вслепую
+            # даёт «заявление об impactе» — замерено живым прогоном на банке.
+            fixed = await self.translate_term(term, example=str(item.get("example_en", "")))
+            if translation_problem(fixed) is None:  # cpu-ok: тот же цикл на 5–12 записей
+                logger.info(
+                    "vocabulary: перевод термина %r починен (%r -> %r)", term, translation, fixed
+                )
+                kept.append({**item, "translation_ru": fixed})
+            else:
+                logger.warning(
+                    "vocabulary: запись %r отброшена — перевод %r (%s), починка вернула %r",
+                    term,
+                    translation,
+                    problem,
+                    fixed,
+                )
+        return kept
+
+    async def translate_term(self, term: str, *, example: str = "") -> str:
+        """Один термин на голосовой модели (qwen2.5), а НЕ на R1.
+
+        Публичный не ради красоты: разовый скрипт чистки банка
+        (`scripts/repair_vocabulary.py`) чинит записи ТОЙ ЖЕ функцией, что
+        продуктовый путь. Второй перевод «почти так же» разъехался бы с первым.
+
+        D-8: R1 живёт только в офлайн-разборе, и он же — источник утечки
+        китайского, которую мы чиним. Просить починку у того, кто сломал, —
+        худший из возможных выборов.
+        """
+        user = f"{term}\n\nUsage: {example}" if example.strip() else term
+        raw = await self._complete(
+            [
+                {"role": "system", "content": self._prompts.system("translate_term_system")},
+                {"role": "user", "content": user},
+            ],
+            model=self._settings.ollama_model_interview,
+            max_tokens=TERM_TRANSLATION_MAX_TOKENS,
+            num_ctx=self._settings.ollama_num_ctx,
+        )
+        text = strip_thinking(raw).strip().strip('"').strip()
+        # Модель иногда добавляет пояснение со второй строки — берём перевод.
+        return text.splitlines()[0].strip() if text else ""
 
     async def _complete(
         self, messages: list[ChatMessage], *, model: str, max_tokens: int, num_ctx: int

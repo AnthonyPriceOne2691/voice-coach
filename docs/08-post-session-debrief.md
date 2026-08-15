@@ -201,10 +201,26 @@ Speak as a peer mentor, not a hiring manager rejecting a candidate.
 - Be specific: cite moments from the transcript
 - Flag positioning mistakes (SEO vs automation engineer)
 - Suggested rephrases: natural spoken English, not essay style
-- Vocabulary items: each MUST include translation_ru (Russian) — required for Vocabulary Bank tab
+- Vocabulary items: each MUST include translation_ru (Russian, Cyrillic — never Chinese/Japanese/Korean characters) — required for Vocabulary Bank tab
 - Output valid JSON matching the schema
 - Language of debrief: English only — all fields, UI copy, voice summary script
 ```
+
+## `translation_ru` — русский, и это проверяется (S-H6, 2026-08-15)
+
+Поле исключено из `S-H2_en_body` («все текстовые поля по-английски») — и до
+2026-08-15 его не проверяло **ничто**: исключение из одного правила молча стало
+«может быть чем угодно». `deepseek-r1:14b` мультиязычен и на длинной генерации
+срывается на китайский, поэтому в банке слов оказалось `выразительный陳述`.
+
+Правило `S-H6_translation_is_russian`: перевод обязан содержать кириллицу и не
+содержать иероглифов/каны/хангыля. Латиница законна — `автоматизация outreach`
+и `очередь задач (Redis/RQ)` нормальны, запрет дал бы ложные срабатывания.
+
+Запись с испорченным переводом **чинится** повторным переводом термина на
+`qwen2.5` (не на R1: он и есть источник) и отбрасывается, только если починка не
+удалась — с термином в логе, потому что молчаливая пропажа неотличима от
+«модель не предложила слово».
 
 ## Язык debrief: English only ✅
 

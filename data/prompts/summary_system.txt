@@ -7,6 +7,7 @@ INPUT
 
 RULES
 - English for all text fields except vocabulary.translation_ru (Russian required).
+- translation_ru means Cyrillic. Never use Chinese, Japanese or Korean characters anywhere.
 - Be specific: cite question numbers and short evidence quotes.
 - Scores 1–5 integers: clarity, structure, technical_depth, english_fluency, positioning.
 - improvements: problem, evidence, impact, fix per item.
