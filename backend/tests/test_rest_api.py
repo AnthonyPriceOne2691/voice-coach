@@ -121,6 +121,30 @@ def test_speech_pace_setting_is_exposed_and_validated(tmp_path: Path) -> None:
         assert client.get("/settings").json()["speech_length_scale"] == 1.45  # не тронуто
 
 
+def test_mic_device_setting_is_exposed_and_validated(tmp_path: Path) -> None:
+    """M3 + M7: выбор входа хранится рядом с остальными настройками, форма сторожится.
+
+    `null` — не «пусто», а осмысленное значение: системный вход по умолчанию,
+    то есть поведение до появления настройки. Поэтому сбросить выбор можно, и
+    422 на это НЕ отвечают.
+    """
+    container = make_container(tmp_path, FakeLlm(["x. "]), FakeStt())
+    with TestClient(create_app(container)) as client:
+        assert client.get("/settings").json()["mic_device_id"] is None
+
+        saved = client.patch("/settings", json={"mic_device_id": "abc123"})
+        assert saved.status_code == 200
+        assert client.get("/settings").json()["mic_device_id"] == "abc123"
+
+        assert client.patch("/settings", json={"mic_device_id": None}).status_code == 200
+        assert client.get("/settings").json()["mic_device_id"] is None
+
+        client.patch("/settings", json={"mic_device_id": "abc123"})
+        for bad in (42, True, ["a"], {"id": "a"}, "x" * 257):
+            assert client.patch("/settings", json={"mic_device_id": bad}).status_code == 422
+        assert client.get("/settings").json()["mic_device_id"] == "abc123"  # не тронуто
+
+
 def test_settings_defaults_agree_with_the_config() -> None:
     """L11: два файла, каждый со своей половиной правды, — уже случившийся дефект.
 

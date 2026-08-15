@@ -10,9 +10,13 @@ from app.orchestrator.pace import PACE_FASTEST, PACE_SLOWEST, in_range
 router = APIRouter()
 
 PACE_SETTING = "speech_length_scale"
+MIC_SETTING = "mic_device_id"
+# Ограничение от мусора, а не от злоумышленника: `deviceId` у Chromium — 44
+# символа base64, у Firefox короче. Локальный инструмент на одного человека.
+MIC_ID_MAX_LEN = 256
 
 
-def _validate(patch: dict[str, Any]) -> None:
+def _validate_pace(patch: dict[str, Any]) -> None:
     """Темп вне коридора отвергается, а не зажимается молча.
 
     Молчаливый зажим неотличим от принятого значения: клиент получил бы 200 и
@@ -30,6 +34,32 @@ def _validate(patch: dict[str, Any]) -> None:
                 f"got {value!r}"
             ),
         )
+
+
+def _validate_mic(patch: dict[str, Any]) -> None:
+    """Идентификатор входа — строка или `null` (системный по умолчанию).
+
+    Сервер не знает и не может знать, существует ли такое устройство: `deviceId`
+    выдаёт браузер, и он же его «солит» под origin. Поэтому здесь проверяется
+    только форма, а живучесть выбора — забота клиента, который при пропаже входа
+    обязан сказать об этом вслух, а не тихо переехать на другой микрофон.
+    """
+    if MIC_SETTING not in patch:
+        return
+    value = patch[MIC_SETTING]
+    if value is not None and (not isinstance(value, str) or len(value) > MIC_ID_MAX_LEN):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{MIC_SETTING} must be a string of at most {MIC_ID_MAX_LEN} chars or null, "
+                f"got {value!r}"
+            ),
+        )
+
+
+def _validate(patch: dict[str, Any]) -> None:
+    _validate_pace(patch)
+    _validate_mic(patch)
 
 
 @router.get("/settings")

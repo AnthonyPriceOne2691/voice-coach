@@ -9,7 +9,20 @@ const SETTINGS = {
   interview_duration_min: 15,
   silence_threshold_ms: 1200,
   speech_length_scale: 1.15,
+  mic_device_id: null,
 };
+
+function stubMicDevices() {
+  vi.stubGlobal("navigator", {
+    mediaDevices: {
+      enumerateDevices: () =>
+        Promise.resolve([{ kind: "audioinput", deviceId: "yeti", label: "Blue Yeti" }]),
+      getUserMedia: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    },
+  });
+}
 
 function mockFetch(patchResponse?: { ok: boolean; status: number }) {
   const calls: { url: string; method: string; body?: string }[] = [];
@@ -61,6 +74,18 @@ describe("SettingsPage", () => {
 
     await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
     expect(calls.at(-1)?.body).toContain("1.45");
+  });
+
+  it("выбор микрофона сохраняется одним PATCH", async () => {
+    const calls = mockFetch(); // M3
+    stubMicDevices();
+    render(<SettingsPage />);
+
+    const select = await screen.findByRole("combobox", { name: "Microphone" });
+    fireEvent.change(select, { target: { value: "yeti" } });
+
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect(calls.at(-1)?.body).toBe(JSON.stringify({ mic_device_id: "yeti" }));
   });
 
   it("показывает, что сервер отверг значение", async () => {

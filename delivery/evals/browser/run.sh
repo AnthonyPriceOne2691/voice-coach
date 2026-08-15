@@ -25,7 +25,11 @@ usage() {
              посередине хода. Проверяет: сессия завершена, ended_at заполнен.
   tabs       открыть History и Useful Words, снять экран. Проверяет: REST
              доходит через dev-прокси, состояние сессии читается с экрана.
-  all        оба по очереди.
+  mic        выбор микрофонного входа на экране Settings. Проверяет: имена
+             устройств, сохранение выбора, ВИДИМЫЙ отказ при пропаже входа
+             (настоящее имя ошибки Chromium) и живую полоску уровня.
+             Голосового стека не требует — только vite и backend.
+  all        все по очереди.
 
 Переменные: APP_URL (по умолчанию http://localhost:5273), API_URL, BROWSER_EVAL_OUT.
 
@@ -90,13 +94,33 @@ print("  готово:", out / "answer.wav")
 PYGEN
 }
 
+# Сценарию `mic` не нужны ни ollama, ни whisper, ни Piper: он не говорит и не
+# слушает агента, а проверяет выбор входа. Полный preflight отказал бы ему в
+# запуске из-за инструментов, которые он не трогает.
+preflight_light() {
+  echo "Проверка предпосылок (облегчённая):"
+  need "python из backend/.venv" "[ -x '$PY' ]" \
+    "нет $PY — выполни: cd backend && uv sync --all-extras"
+  need "websockets в venv" "'$PY' -c 'import websockets'" \
+    "нет пакета websockets (обычно приезжает с uvicorn[standard])"
+  need "Chromium" "[ -x '$CHROME' ]" \
+    "нет Chromium по пути CHROME_BIN; подойдёт любой из кеша Playwright"
+  need "бэкенд на $API" "curl -s --max-time 3 '$API/health'" \
+    "подними: uvicorn app.main:app --port 8000"
+  need "фронт на $APP" "curl -s --max-time 3 '$APP/'" \
+    "подними: cd frontend && npm run dev"
+  [ "$fail" = "0" ] || { echo; echo "Стенд не запущен: не хватает перечисленного выше."; exit 2; }
+}
+
 case "${1:-mid-turn}" in
   -h|--help|help) usage; exit 0 ;;
   mid-turn) preflight; make_wav; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/stand.py" ;;
   tabs)     preflight; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" History
             BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" "Useful Words" ;;
+  mic)      preflight_light; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/mic.py" ;;
   all)      preflight; make_wav; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/stand.py"
             BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" History
-            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" "Useful Words" ;;
+            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" "Useful Words"
+            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/mic.py" ;;
   *) echo "неизвестный сценарий: $1"; echo; usage; exit 64 ;;
 esac

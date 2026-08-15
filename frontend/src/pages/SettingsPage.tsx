@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { MicrophoneSetting } from "../components/MicrophoneSetting";
 import { api } from "../lib/api";
 import type { UserSettings } from "../types/api";
 
@@ -162,6 +163,16 @@ function SettingsForm({
           ]}
           value={settings.show_live_transcript}
           onPick={(on) => save({ show_live_transcript: on })}
+        />
+      </Setting>
+
+      <Setting
+        name="Microphone"
+        hint="Which input Henry listens to. Hit Test and say something — if the bar stays below the mark, he will not hear you. Applies to your next session."
+      >
+        <MicrophoneSetting
+          value={settings.mic_device_id}
+          onPick={(deviceId) => save({ mic_device_id: deviceId })}
         />
       </Setting>
     </div>

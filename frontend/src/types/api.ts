@@ -74,4 +74,6 @@ export interface UserSettings {
   interview_duration_min: number;
   silence_threshold_ms: number;
   speech_length_scale: number;
+  /** `MediaDeviceInfo.deviceId` выбранного входа; `null` — системный по умолчанию. */
+  mic_device_id: string | null;
 }

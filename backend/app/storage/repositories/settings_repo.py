@@ -15,6 +15,11 @@ DEFAULTS: dict[str, Any] = {
     # самодостаточен вне приложения, и сторожится тестом на совпадение с
     # конфигом: два файла, каждый со своей половиной правды, — это L11.
     "speech_length_scale": 1.15,
+    # Микрофонный вход. `None` = системный по умолчанию, то есть поведение до
+    # появления настройки. Значение браузерное (`MediaDeviceInfo.deviceId`) и
+    # протухает при очистке данных сайта — потерю обязан ЗАМЕТИТЬ клиент, здесь
+    # это просто строка.
+    "mic_device_id": None,
 }
 
 
@@ -27,9 +32,9 @@ class SettingsRepository:
         values = dict(self._defaults)
         async with self._db.session() as s:
             for row in (await s.execute(Setting.__table__.select())).all():
-                # DEFAULTS — четыре ключа, выборка ограничена ими же: это не
+                # DEFAULTS — пять ключей, выборка ограничена ими же: это не
                 # растущая коллекция, а фиксированный набор настроек.
-                values[row.key] = json.loads(row.value_json)  # cpu-ok: 4 ключа настроек
+                values[row.key] = json.loads(row.value_json)  # cpu-ok: 5 ключей настроек
         return values
 
     async def update(self, patch: dict[str, Any]) -> dict[str, Any]:
@@ -39,10 +44,10 @@ class SettingsRepository:
                     continue
                 row = await s.get(Setting, key)
                 if row is None:
-                    payload = json.dumps(value)  # cpu-ok: цикл по patch ⊆ DEFAULTS (4 ключа)
+                    payload = json.dumps(value)  # cpu-ok: цикл по patch ⊆ DEFAULTS (5 ключей)
                     s.add(Setting(key=key, value_json=payload, updated_at=utcnow_iso()))
                 else:
-                    row.value_json = json.dumps(value)  # cpu-ok: тот же цикл на 4 ключа
+                    row.value_json = json.dumps(value)  # cpu-ok: тот же цикл на 5 ключей
                     row.updated_at = utcnow_iso()
             await s.commit()
         return await self.get_all()

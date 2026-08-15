@@ -2,7 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { api } from "../lib/api";
 import { AudioQueue } from "../lib/audioQueue";
+import { openMicrophone, stopStream } from "../lib/mic";
 import { SilenceDetector, rmsDbfs } from "../lib/vad";
 import { clientMessage, parseServerMessage, type SessionState } from "../types/messages";
 
@@ -181,7 +183,18 @@ export function useVoiceSession() {
       setTranscript([]);
       setEnded(null);
       const r = refs.current;
-      r.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Настройка микрофона — не условие старта: если бэкенд не ответил, сессия
+      // всё равно начинается на системном входе, а о нерабочем бэкенде скажет
+      // ближайший же WebSocket.
+      const preferred = await api
+        .getSettings()
+        .then((s) => s.mic_device_id)
+        .catch(() => null);
+      const mic = await openMicrophone(preferred);
+      r.stream = mic.stream;
+      if (mic.fellBackToDefault) {
+        setError("Your saved microphone is not available — using the system default instead.");
+      }
       r.audioContext = new AudioContext();
       r.queue = new AudioQueue(r.audioContext, () => {
         // Agent finished speaking through the speakers — now it's safe to open the mic.
@@ -221,7 +234,7 @@ export function useVoiceSession() {
     r.ws?.send(clientMessage("end_session", { reason: "user" }));
     if (r.vadTimer !== null) window.clearInterval(r.vadTimer);
     if (r.recorder?.state === "recording") r.recorder.stop();
-    r.stream?.getTracks().forEach((track) => track.stop());
+    stopStream(r.stream);
     void r.audioContext?.close();
     r.ws?.close();
     Object.assign(refs.current, {
