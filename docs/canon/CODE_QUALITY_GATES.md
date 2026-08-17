@@ -8,7 +8,7 @@
 > домена — в OKF. Если в проекте ещё нет `delivery/` — сначала Delivery
 > ([AGENT_STACK.md](AGENT_STACK.md) §2.A), потом этот канон.
 
-**Canon version:** `cqg@2.16` · 2026-08-13 (Changelog — в конце файла). Версию впиши в
+**Canon version:** `cqg@2.20` · 2026-08-17 (Changelog — в конце файла). Версию впиши в
 `delivery/CONSTITUTION.md` / `STATUS.md` (`stack:`) при развёртывании.
 
 **Самодостаточный документ.** Всё, что нужно для этой системы качества, — здесь: правила с порогами,
@@ -726,6 +726,50 @@ soft-режим (печатает предупреждение, `exit 0`) — а
 | `blind-error` | `raise (Exception\|BaseException)(` \| `raise <X>Error("короткая константа")` — тип или текст без контекста | `\.py$` |
 | `unstructured-log` | `logger.<level>(f"…` \| `logger.<level>("…".format(` — значение вплавлено в текст вместо `extra={…}` | `\.py$` |
 
+### 3.1e. «Тестовый файл» — одно понятие, пять реализаций, одно выражение
+
+Понятие нужно **пяти** местам: grep-ратчетам, AST-ратчетам, гейту длины,
+мутационному гейту и метрике `harness_hardened`. Общего кода у них быть не может
+(три на shell, два на python), поэтому держится **дифференциальное согласие** —
+тот же ход, что свёл два парсера блоков (`cqg@2.10`) и четыре читалки шапки
+(`cqg@2.12`): `tests/test_what_is_a_test_file.py` спрашивает все пять на одном
+корпусе и краснеет на расхождении.
+
+**Принцип, по которому судится новый случай:** файл существует, чтобы проверять
+другой код, и это видно ИЗ ПУТИ, не открывая файл. Признак — любое из:
+каталог `test`/`tests`/`__tests__`/`spec`/`specs` элементом пути · `conftest.py` ·
+имя начинается с `test_`/`test-` · оканчивается на `_test`/`_spec`/`-test`/`-spec`
+либо `Test`/`Tests`/`Spec`/`Specs` (заглавная — манера Java/C#) · содержит
+`.test.`/`.spec.` (манера JS/TS).
+
+⚠ **Сверяется отделённое слово, а не подстрока**, и это не педантизм: `latest.py`,
+`contest.py`, `testing_utils.py`, `protest_helper.py` оканчиваются или начинаются
+на `test` и тестами НЕ являются. Слабая форма увела бы продуктовый код из-под
+проверок целиком.
+
+**Замер, ради которого понятие сведено:** на корпусе из 16 путей пять реализаций
+расходились в **девяти**. `FooTests.cs` не узнавала ни одна; `conftest.py` — одна
+из пяти; `test_util.py` вне `tests/` получал ПРОДОВЫЙ лимит длины. Ошибка ходит в
+обе стороны и обе тихие: тест, принятый за продукт, судится чужим лимитом и
+попадает в население мутантов; продукт, принятый за тест, выпадает из проверок.
+
+### 3.1f. «Не наш код» — принцип, а не список каталогов
+
+Установленное, вендоренное и кэши инструментов не судятся НИ ОДНИМ правилом: их
+никто в проекте не писал. **Новый случай судится так: этот файл писал кто-то из
+проекта? Нет — сюда.** Это НЕ настройка развёртывания, поэтому список правит
+канон: чужой код не наш ни при какой маске.
+
+Отличать от второго принципа — «наш код, но данным правилом не судим» (`tests/`,
+`migrations/`): вот он как раз настройка, законно разная у проектов. Смешение
+этих двух в одном списке и было дефектом.
+
+⚠ **Сверяется ЭЛЕМЕНТ пути, а не подстрока:** `my_node_modules_util/` и
+`venv_helper.py` — продуктовый код. Владельцев три (`check_ast_gate.py`,
+`check_file_length.sh`, `delivery_base.py`), согласие держит
+`tests/test_what_is_not_our_code.py`. Замер до сведения: **9 расхождений из 15**,
+причём `node_modules/` в корне гейт длины чужим не считал вовсе.
+
 ### 3.2. `check_ast_gate.py` — AST-ратчеты (4 правила)
 
 Только stdlib `ast`. `--rule silent-except|inline-prompt|cpu-in-async|unbounded-list`
@@ -734,7 +778,8 @@ soft-режим (печатает предупреждение, `exit 0`) — а
 появился в скрипте и не появился здесь), и это ловит кросс-payload тест.
 
 **silent-except**: нарушение = broad-except (`except:`, `except Exception`, `except BaseException`, Tuple с ними)
-**И НЕ** оставляет след **И НЕ** помечен escape. «След» = `raise`; или вызов `logger.*`/`logging.*`/`log.*`/`warnings.*`;
+**И НЕ** оставляет след **И НЕ** помечен escape. «След» = `raise`; или вызов на ЛОГГЕРЕ — имя оканчивается словом
+`log`/`logger`/`logging` (регистр не важен, `_` в начале допустим, цепочка `self.logger` узнаётся), плюс `warnings.*`;
 или вызов метода/функции с именем на `log`/`warn`/`exception`/`error`/`record`/`capture`/`notify`.
 **Escape:** `# silent-ok: <причина>` внутри тела хендлера.
 
@@ -3267,7 +3312,16 @@ case "$RULE" in
     # print() сознательно НЕ ловим: в CLI и скриптах он законен, и правило стало
     # бы стабильно красным на легальном коде (§4.3b Delivery). Фронт закрыт
     # ESLint-правилом no-console через гейт eslint-warnings, а не здесь.
-    PATTERN='(^|[^A-Za-z_.])(logger|logging|log|_log)\.(debug|info|warning|warn|error|critical|exception)\([[:space:]]*(f["'"'"']|["'"'"'][^"'"'"']*["'"'"'][[:space:]]*\.format\()'
+    # Имя логгера — тем же ПРИНЦИПОМ, что у брата `silent-except` (`ast_rules.py`,
+    # `_LOGGER_WORDS`): имя оканчивается словом log/logger/logging, отделённым
+    # началом или `_`, регистр не важен, цепочка `self.logger` узнаётся. Списком
+    # имён правило не видело ни `LOG.info(f"…")`, ни `self.logger.info(f"…")` —
+    # то есть молчало на самых частых формах. Общего кода у шелла с питоном нет,
+    # поэтому согласие двух ответов держит ПРОГОН на общем списке форм
+    # (`tests/test_silent_except_logger.py`), а не чтение: разъедутся — красное.
+    # Регистр берётся классами, а не `-i`: флаг пришлось бы тянуть в общий
+    # `count_hits`, то есть на все шесть правил разом.
+    PATTERN='(^|[^A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*\.)*_*([A-Za-z0-9]+_)*[Ll][Oo][Gg]([Gg][Ee][Rr]|[Gg][Ii][Nn][Gg])?\.(debug|info|warning|warn|error|critical|exception)\([[:space:]]*(f["'"'"']|["'"'"'][^"'"'"']*["'"'"'][[:space:]]*\.format\()'
     FILTER='\.py$'
     BASELINE="$SCRIPT_DIR/unstructured_log_baseline.txt"
     LABEL='unstructured-log: значение вплавлено в текст лога вместо extra={...}'
@@ -3292,7 +3346,7 @@ list_targets() {
   # какой бы паттерн правила ни задать. Дефолт прежний.
   out=$(git ls-files "$PY_SRC/" 2>/dev/null \
     | grep -E "${LINT_SRC_EXT_RE:-\.py\$}" \
-    | grep -vE '/tests/|/test_[^/]*\.')
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.')
   [[ -n "${FILTER:-}" ]] && out=$(printf '%s\n' "$out" | grep -E "$FILTER")
   # `|| true`: grep -v без остатка выходит 1, и под `set -e` это уронило бы гейт на
   # проекте, где ВСЯ выборка попала в исключение — законный случай, не ошибка.
@@ -3456,6 +3510,7 @@ from __future__ import annotations
 import argparse
 import ast
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -3463,7 +3518,52 @@ from ast_rules import find_inline_prompt, find_silent_except
 from ast_web_rules import find_cpu_in_async, find_unbounded_list
 
 FEATURES = Path(os.environ.get("LINT_PY_SRC", "backend/features"))
-SKIP_PARTS = ("/tests/", "/migrations/")
+
+# Население гейта отбирают ДВА принципа, и они разной природы. Держать их одним
+# кортежем и было дефектом: почему в списке лежат `/tests/` и `/migrations/`, не
+# сказано нигде, поэтому про `.venv` не с чем было спорить — он просто не похож
+# на прежние записи и проваливался молча.
+#
+# ① «НЕ НАШ КОД» — установленное, вендоренное, кэши инструментов. Новый случай
+# судить так: этот файл писал кто-то из проекта? Нет — сюда. Это НЕ настройка
+# развёртывания: чужой код не наш ни при какой маске, поэтому список правит канон.
+# Замер `local-web-agent`: прод-код лежит в двух корнях (`backend/app` И `cli/`),
+# поэтому `LINT_PY_SRC=.` — законная настройка, а `.venv`/`node_modules` лежат
+# ВНУТРИ дерева, и rglob затянул site-packages в снимок — 168 чужих записей на
+# первом прогоне. Остальные три проекта флота везли ту же пару без изменений и
+# уцелели лишь тем, что их маска смотрит в подкаталог: везение раскладки, не защита.
+NOT_OUR_CODE = frozenset((
+    ".venv", "venv", "site-packages", "node_modules", "vendor", ".tox", ".nox",
+    ".eggs", "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    "build", "dist", ".git",
+))
+# ② «НАШ КОД, НО НЕ СУДИМ ЭТИМ ПРАВИЛОМ» — написано в проекте, правило не
+# применяем сознательно. Новый случай судить так: файл наш и останется нашим?
+# Тогда сюда — и вот это как раз НАСТРОЙКА развёртывания, законно разная у разных
+# проектов, в отличие от ①.
+NOT_JUDGED_HERE = frozenset(("tests", "migrations"))
+
+# «Тестовый файл» — понятие §3.1e, и это ЕДИНОЕ выражение: тот же ERE стоит в
+# `check_grep_gate.sh`, `check_file_length.sh`, `mutation_ts.sh` и
+# `check_diff_coverage.sh`, а согласие всех пяти держит прогон
+# `tests/test_what_is_a_test_file.py`. Прежняя форма (`test_` в начале имени плюс
+# `conftest.py`) знала три случая из одиннадцати: `util_test.py`, `__tests__/`,
+# `api.spec.ts`, `FooTest.java`, `FooTests.cs` в неё не попадали.
+IS_TEST = re.compile(
+    r"(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]"
+    r"|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.")
+
+
+def in_population(rel_posix: str) -> bool:
+    """Судит ли гейт этот файл. Один вход на оба принципа отбора.
+
+    Сверяется ЭЛЕМЕНТ пути, а не подстрока: `my_node_modules_util/` и
+    `venv_helper.py` — продуктовый код, и слабая форма (`"venv" in path`)
+    объявила бы их чужими. Путь берётся ОТНОСИТЕЛЬНЫМ repo-root — на абсолютном
+    совпал бы ещё и каталог НАД репозиторием (`/home/u/build/proj/...`).
+    """
+    parts = set(rel_posix.split("/"))
+    return not (parts & NOT_OUR_CODE) and not (parts & NOT_JUDGED_HERE)
 
 
 RULES = {
@@ -3496,10 +3596,9 @@ RULES = {
 
 def iter_target_files(repo_root: Path):
     for path in sorted((repo_root / FEATURES).rglob("*.py")):
-        rel = path.as_posix()
-        if any(part in rel for part in SKIP_PARTS):
+        if not in_population(repo_rel(path, repo_root)):
             continue
-        if path.name.startswith("test_") or path.name == "conftest.py":
+        if IS_TEST.search(repo_rel(path, repo_root)):
             continue
         yield path
 
@@ -3643,7 +3742,28 @@ import ast
 
 SILENT_OK_MARKER = "# silent-ok:"
 
-_LOG_BASES = {"logger", "logging", "log", "warnings"}
+# ПРИНЦИП «что такое логгер», общий с грепом (`unstructured-log`): имя
+# ОКАНЧИВАЕТСЯ словом log/logger/logging, отделённым началом имени или
+# подчёркиванием; регистр не важен; цепочка (`self.logger`, `cls._log`) судится
+# по последнему звену. По принципу отвечают про НОВЫЙ случай, не спрашивая
+# автора: `LOG`, `_log`, `app_logger`, `audit_log` — логгер; `catalog`, `dialog`,
+# `blog`, `lock_manager` — нет, совпадения подстроки мало (слабая форма держится
+# прогоном `tests/test_silent_except_logger.py`).
+#
+# Список имён вместо принципа давал ЛОЖНОЕ КРАСНОЕ на двух самых частых формах:
+# `LOG = logging.getLogger(__name__)` (сравнение было регистрозависимым) и
+# `self.logger` (база — `ast.Attribute`, а не `ast.Name`). Дыра была ровно в
+# размер трёх методов: `.debug()`, `.info()`, `.critical()` не начинаются ни с
+# одного префикса ниже, а `.error`/`.warning`/`.exception` спасал именно он.
+# Цена тут несимметрична: штатный ответ на ложное красное — вписать
+# `# silent-ok:`, то есть ВЫКЛЮЧИТЬ правило на живом логирующем обработчике.
+_LOGGER_WORDS = {"log", "logger", "logging"}
+# Канал следа, логгером НЕ являющийся, и потому вынесенный из общего понятия:
+# `warnings.warn(...)`. Граница названа, чтобы расхождение с братом было
+# решением, а не забывчивостью: `unstructured-log` про `warnings` молчит
+# законно — `extra=` у него нет, и требовать его значило бы держать правило
+# красным на легальном коде (§4.3b).
+_TRACE_MODULES = {"warnings"}
 _LOG_ATTR_PREFIXES = ("log", "warn", "exception", "error", "record", "capture", "notify")
 _PROMPT_MARKERS = ("ты —", "ты -", "you are", "you classify", "act as", "роль:", "system:")
 _PROMPT_MIN_LINES = 8
@@ -3700,6 +3820,20 @@ def _print_shows_the_error(handler: ast.ExceptHandler) -> bool:
     return False
 
 
+def _is_logger_name(name: str) -> bool:
+    """Логгер ли это — по принципу выше, а не по списку имён."""
+    return name.lstrip("_").rsplit("_", 1)[-1].lower() in _LOGGER_WORDS
+
+
+def _call_base(node: ast.AST) -> str:
+    """На чём висит вызов: `LOG` у `LOG.debug`, `logger` у `self.logger.info`."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
+
+
 def _handler_leaves_trace(handler: ast.ExceptHandler) -> bool:
     for node in ast.walk(handler):
         if isinstance(node, ast.Raise):
@@ -3707,8 +3841,8 @@ def _handler_leaves_trace(handler: ast.ExceptHandler) -> bool:
         if isinstance(node, ast.Call):
             func = node.func
             if isinstance(func, ast.Attribute):
-                base = func.value
-                if isinstance(base, ast.Name) and base.id in _LOG_BASES:
+                base = _call_base(func.value)
+                if _is_logger_name(base) or base in _TRACE_MODULES:
                     return True
                 if func.attr.startswith(_LOG_ATTR_PREFIXES):
                     return True
@@ -4014,21 +4148,26 @@ reset=$(printf '\033[0m')
 
 # --- helpers ---------------------------------------------------------------
 
-# Пропустить путь (генерируемое / vendored). Настрой под свой проект.
+# Путь вне населения: «не наш код» (§3.1f) ИЛИ «наш, но не судим длиной».
+# Первый список — общий для контура и правится каноном, второй — настройка проекта.
+# ⚠ Прежняя форма `*/node_modules/*` требовала ведущего слэша, поэтому
+# `node_modules/` В КОРНЕ чужим не считался вовсе, а `.venv`, `vendor`, `.tox`,
+# `build`, `dist` не считались нигде: 9 расхождений из 15 с двумя соседями.
 is_excluded() {
+  printf '%s\n' "$1" | grep -qE '(^|/)(\.venv|venv|site-packages|node_modules|vendor|\.tox|\.nox|\.eggs|__pycache__|\.mypy_cache|\.pytest_cache|\.ruff_cache|build|dist|\.git)(/|$)' && return 0
   case "$1" in
-    */migrations/*) return 0 ;;
-    */node_modules/*) return 0 ;;
+    */migrations/*) return 0 ;;   # наш код, длиной не судим — настройка проекта
   esac
   return 1
 }
 
-# Тестовый файл? (feature-local tests/ тоже считаются.)
+# Тестовый файл? Принцип и полное выражение — §3.1e. Выражение здесь БАЙТ-В-БАЙТ
+# такое же, как в `check_grep_gate.sh`, `mutation_ts.sh` и `check_diff_coverage.sh`;
+# согласие всех пяти реализаций держит `tests/test_what_is_a_test_file.py`.
+# Прежняя форма знала три случая из одиннадцати: `conftest.py`, `util_test.py`,
+# `__tests__/`, `FooTest.java` и `FooTests.cs` получали ПРОДОВЫЙ лимит длины.
 is_test() {
-  case "$1" in
-    *.test.ts | *.test.tsx | */tests/*) return 0 ;;
-  esac
-  return 1
+  printf '%s\n' "$1" | grep -qE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.'
 }
 
 # Файлы под exemption (нет шва для сплита — держим сознательно, лимит = снимок+EXEMPTION_HEADROOM).
@@ -4663,14 +4802,14 @@ cd "$REPO_ROOT/$BE_DIR" || exit 1
 # git diff — от repo-root (git -C): pathspec от корня не матчится из cwd backend/.
 list_changed() { # $1 = base-реф; закоммиченный дифф prod-файлов (без тестов)
   git -C "$REPO_ROOT" diff --name-only "$1"...HEAD -- "$PY_SRC/*.py" 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.py$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
     | sed "s#^$BE_DIR/##"
 }
 
 # Незакоммиченные правки — их дифф-списком не увидеть, а сьют их исполняет:
 # источник ложного зелёного.
 dirty=$(git -C "$REPO_ROOT" status --porcelain -- "$PY_SRC/*.py" 2>/dev/null \
-  | cut -c4- | grep -vE '/tests/|/test_[^/]*\.py$' || true)
+  | cut -c4- | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
 
 changed=$(list_changed "$BASE")
 
@@ -4703,7 +4842,8 @@ if [[ -z "$changed" ]]; then
   # Отсутствие оракула для языка — непокрытая область, и по доктрине канона её
   # НАЗЫВАЮТ, а не роняют DoD-шаг (так же ведут себя ветки «нет pytest-cov» и jscpd).
   other=$(git -C "$REPO_ROOT" diff --name-only "$BASE"...HEAD 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.|\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
+    | grep -vE '\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
     | grep -vE "${LINT_SRC_EXT_RE:-\.py$}" || true)
   if [[ -n "$other" ]]; then
     cnt=$(printf '%s\n' "$other" | wc -l | tr -d ' ')
@@ -7161,7 +7301,7 @@ ts_stryker_setup() {
   # дефолта Stryker намеренно — проекты зовут каталог и `test`, и `tests`, и `__tests__`.
   changed=$(git diff --name-only "$BASE"...HEAD -- "$TS_SRC" 2>/dev/null \
     | grep -E '\.(ts|tsx|js|jsx|mts|cts)$' \
-    | grep -vE '(^|/)__tests__/|(^|/)tests?/|\.(test|spec)\.' || true)
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
   if [[ -z "$changed" ]]; then
     printf '%smutation: изменённых prod-файлов нет (BASE=%s, смотрел в %s)%s\n' \
       "$green" "$BASE" "$TS_SRC" "$reset"
@@ -7658,7 +7798,22 @@ num() { local v=${1//[!0-9]/}; printf '%s' "${v:-0}"; }
 # --- backend: pip-audit -------------------------------------------------------
 PIP_AUDIT="$VENV/bin/pip-audit"
 [[ -x "$PIP_AUDIT" ]] || PIP_AUDIT=$(command -v pip-audit 2>/dev/null || true)
-if [[ -n "$PIP_AUDIT" && -d "$BE_DIR" ]]; then
+# ⚠ Применимость судится по МАНИФЕСТУ проекта, а не по наличию каталога, и
+# разница не косметическая: джоба §8.3 сама ставит оснастку гейтов в
+# `$BE_DIR/.venv` и тем СОЗДАЁТ `$BE_DIR`. Охрана `-d "$BE_DIR"` после этого
+# истинна на проекте, где питона нет вовсе, и `pip-audit` аудитит не продукт, а
+# собственную оснастку контура. Замер portfolio-site 07.08: `py_total: 6 (было
+# 0)`, джоба упала — гейт измерил сам себя и предъявил счёт проекту.
+# Каталог создаёт соседний шаг того же workflow; манифест — не создаёт никто.
+# js-половина ниже так устроена с самого начала (`-f package-lock.json`):
+# расходились не принципы, а одна из двух половин.
+py_manifest=""
+for cand in "$BE_DIR/pyproject.toml" "$BE_DIR/requirements.txt" "$BE_DIR/setup.py" \
+            "$BE_DIR/setup.cfg" "$BE_DIR/Pipfile" \
+            pyproject.toml requirements.txt setup.py setup.cfg Pipfile; do
+  [[ -f "$cand" ]] && { py_manifest="$cand"; break; }
+done
+if [[ -n "$PIP_AUDIT" && -n "$py_manifest" ]]; then
   # pip-audit не различает severity в базовом выводе, поэтому считаем уязвимости:
   # число записей = число (пакет, CVE). Точнее и без парсинга HTML.
   #
@@ -7686,7 +7841,14 @@ print(sum(len(x.get("vulns",[])) for x in deps))' 2>/dev/null) || py_total=""
     py_total=0
   fi
 else
-  skipped+=("pip-audit (установка: pip install pip-audit)")
+  # Две разные причины — два разных совета. Слитые в одну строку, они советовали
+  # ставить pip-audit проекту, у которого питона нет: совет невыполним, а значит
+  # его не выполнят, и пропуск станет привычным (тот же класс, что рутинный waiver).
+  if [[ -z "$PIP_AUDIT" ]]; then
+    skipped+=("pip-audit (установка: pip install pip-audit)")
+  else
+    skipped+=("python-манифеста нет ни в $BE_DIR/, ни в корне — python-половина не применима")
+  fi
   py_unchecked=1
 fi
 
@@ -7861,7 +8023,7 @@ import subprocess
 import sys
 
 
-from dependency_manifests import extractor_for
+from dependency_manifests import extractor_for, is_lock_text, unreadable_manifests
 
 def git(*args: str) -> str:
     """git с подавлением ошибок: пустая строка = не смог (файла нет в ревизии)."""
@@ -7896,28 +8058,36 @@ def declared(status: str) -> tuple[set[str], list[str]]:
 
 
 
-def scan_manifests(merge_base: str) -> tuple[list[str], int]:
-    """→ (что появилось нового, сколько манифестов проверено).
+def scan_manifests(merge_base: str, paths: list[str]) -> tuple[list[str], int, list[str]]:
+    """→ (что появилось нового, сколько манифестов проверено, что оказалось локом).
 
     Манифест, которого в базе НЕ БЫЛО, даёт одну находку — путь целиком, а не по
     пакету на строку: появление файла это ОДНО решение, иначе первый коммит с
     тридцатью зависимостями требовал бы тридцати строк в STATUS.
     """
     findings: list[str] = []
+    locks: list[str] = []
     checked = 0
-    for path in git("ls-files").splitlines():
+    for path in paths:
         fn = extractor_for(path)
         if fn is None:
             continue
-        checked += 1
         head_text = git("show", f"HEAD:{path}")
         base_text = git("show", f"{merge_base}:{path}")
+        # Лок распознаётся ДО разбора и ДО счётчика. До: имя `requirements.txt`
+        # обещало манифест прямых зависимостей, а `pip-compile` кладёт туда
+        # транзитивные. И зачесть его в «проверено» тоже нельзя — слепота,
+        # прикрытая чужим числом, читается как покрытие.
+        if is_lock_text(head_text):
+            locks.append(path)
+            continue
+        checked += 1
         if not base_text.strip():
             if head_text.strip():
                 findings.append(path.lower())
             continue
         findings.extend(sorted(fn(head_text) - fn(base_text)))
-    return findings, checked
+    return findings, checked, locks
 
 
 def report(findings: list[str], strict: bool) -> int:
@@ -7957,6 +8127,33 @@ def report(findings: list[str], strict: bool) -> int:
     return 1
 
 
+def coverage_note(checked: int, blind: list[str], locks: list[str]) -> None:
+    """Ноль проверенных манифестов — не «чисто», а «нечего было читать».
+
+    Форма взята у сестринского `check_deps_audit.sh` (полевая находка lab-3 F17:
+    на Swift-проекте с двумя зависимостями он печатал `OK — py_total=0`): WARNING
+    с названной причиной, exit 0. Ронять нельзя — репозиторий вообще без
+    зависимостей законен, а гейт, красный на пустом дереве, снимут первым
+    (§4.3b). Но и молчать нельзя: на ruby/maven-проекте `проверено 0` читалось
+    как «новых зависимостей нет» НАВСЕГДА — там не была бы объявлена ни одна
+    зависимость, и об этом не сказал бы никто.
+
+    Слепота называется и при `checked > 0`: ЧАСТИЧНАЯ опаснее полной, потому что
+    читается как успех (`cqg@1.80`) — `Gemfile` рядом с `pom.xml` даёт непустое
+    число, за которым java-половина не проверена вовсе.
+    """
+    for path in locks:
+        print(f"  ○ {path}: лок (pip-compile/uv) — транзитивное, не разбирается")
+    if blind:
+        print("WARNING: new-dependency: манифесты, которых разбор НЕ знает: "
+              f"{', '.join(blind)} — их прямые зависимости гейт не судит. "
+              "Объяви роль в scripts/lint/not-applicable.json с причиной: "
+              "объявление попадает в карту ролей, а WARNING читают один раз.")
+    if checked == 0:
+        print("WARNING: new-dependency: 0 манифестов проверено — ноль здесь "
+              "ничего не доказывает (§6), это не «новых зависимостей нет».")
+
+
 def main() -> int:
     base = os.environ.get("BASE", "origin/main")
     strict = os.environ.get("STRICT", "1") != "0"
@@ -7970,10 +8167,21 @@ def main() -> int:
         return 0
 
     merge_base = git("merge-base", base, "HEAD").strip() or base
-    findings, checked = scan_manifests(merge_base)
+    paths = git("ls-files").splitlines()
+    blind = unreadable_manifests(paths)
+    findings, checked, locks = scan_manifests(merge_base, paths)
     print(f"new-dependency: манифестов проверено {checked}, база {merge_base}")
+    coverage_note(checked, blind, locks)
     if not findings:
-        print("new-dependency: OK — новых прямых зависимостей нет")
+        # ⚠ Словом «OK» непроверенное не называется — иначе правка бессмысленна:
+        # `cqg@1.61` мерит это прямо («заявленный успех БЬЁТ названный пропуск:
+        # гейт может шепнуть „пропущено“ в теле и напечатать „OK“ в итоге, а
+        # читают итог»). Ветка скопирована с `check_deps_audit.sh`: «числа
+        # печатаем, но словом OK их не называем».
+        print("new-dependency: OK — новых прямых зависимостей нет"
+              if checked and not blind else
+              "new-dependency: новых зависимостей нет В ПРОЧИТАННОМ — "
+              "проверено не всё (причины выше)")
         return 0
     return report(findings, strict)
 
@@ -7994,7 +8202,8 @@ if __name__ == "__main__":
 остался во входном скрипте.
 
 Лок-файлы сознательно не разбираются: они перечисляют ТРАНЗИТИВНЫЕ пакеты, и
-решение «взяли новую зависимость» там утонет в шуме обновлений.
+решение «взяли новую зависимость» там утонет в шуме обновлений. Признак лока —
+СОДЕРЖИМОЕ, а не имя: `pip-compile` пишет обычный `requirements.txt`.
 """
 
 from __future__ import annotations
@@ -8011,6 +8220,37 @@ LOCKFILES = (
     "Gemfile.lock",
     "uv.lock",
 )
+
+#: Манифесты, которых разбор НЕ знает: XML (`pom.xml`, `*.csproj`) и DSL на языке
+#: проекта (`build.gradle`, `mix.exs`) стоят дорого, `pubspec.yaml` требует YAML,
+#: которого у контура нет. Список нужен не для чтения, а для честного молчания
+#: (`coverage_note`): НЕНАЗВАННАЯ слепота дороже недостающего разбора.
+UNREADABLE = ("pom.xml", "build.gradle", "build.gradle.kts", "mix.exs",
+              "pubspec.yaml", "Podfile")
+UNREADABLE_EXT = (".csproj", ".fsproj", ".vbproj")
+
+#: Шапка генератора: `pip-compile` и `uv pip compile` кладут результат в файл с
+#: именем `requirements.txt`, поэтому ПО ИМЕНИ лок неотличим от манифеста.
+_LOCK_HEADER = re.compile(r"(?im)^#.*autogenerated by (pip-compile|uv)")
+
+
+def is_lock_text(text: str) -> bool:
+    """Лок ли это — ПО СОДЕРЖИМОМУ, а не по имени файла.
+
+    `requirements.txt` от `pip-compile` перечисляет ТРАНЗИТИВНЫЕ пакеты, то есть
+    подпадает ровно под запрет из шапки модуля, — но имя обещает манифест прямых
+    зависимостей, и `extractor_for` отдавал его `names_requirements`. Цена:
+    обновился `requests`, притянул `charset-normalizer` — гейт требует подписи
+    человека за решение, которого никто не принимал, и его снимут (§4.3b).
+
+    ⚠ ПОРЯДОК: сначала распознать, потом срезать. Признак живёт в КОММЕНТАРИЯХ
+    (шапка и аннотации `# via <кто затянул>`), а `names_requirements` срезает их
+    первой же строкой (`raw.split("#")[0]`) — то есть уничтожает улику до разбора.
+    """
+    if _LOCK_HEADER.search(text):
+        return True
+    # Одной аннотации мало: `# via` встречается и в рукописном комментарии.
+    return len(re.findall(r"#\s+via\b", text)) >= 2
 
 
 def _toml(text: str):
@@ -8136,22 +8376,39 @@ def names_cargo(text: str) -> set[str]:
     return out
 
 
-def names_package_json(text: str) -> set[str]:
+def _json_sections(text: str, keys: tuple[str, ...]) -> set[str]:
+    """Имена ключей перечисленных секций JSON-манифеста. Не объект — пусто."""
     try:
         data = json.loads(text)
     except ValueError:
+        data = None
+    if not isinstance(data, dict):
         return set()
     out: set[str] = set()
-    for key in (
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-    ):
+    for key in keys:
         section = data.get(key)
         if isinstance(section, dict):
             out.update(n.lower() for n in section)
     return out
+
+
+def names_package_json(text: str) -> set[str]:
+    return _json_sections(text, ("dependencies", "devDependencies",
+                                 "peerDependencies", "optionalDependencies"))
+
+
+def names_composer(text: str) -> set[str]:
+    """PHP: `php` и `ext-*` — требования к рантайму, а не зависимости (тот же
+    случай, что `python` в pyproject)."""
+    return {n for n in _json_sections(text, ("require", "require-dev"))
+            if n != "php" and not n.startswith("ext-")}
+
+
+def names_gemfile(text: str) -> set[str]:
+    """Ruby: имя — первый строковый аргумент `gem`. Закомментированная строка
+    сюда не попадает: `^\\s*gem` с `#` в начале не совпадает."""
+    return {m.group(1).lower() for m in
+            re.finditer(r"""(?m)^\s*gem\s+['"]([A-Za-z0-9._-]+)['"]""", text)}
 
 
 def names_requirements(text: str) -> set[str]:
@@ -8204,12 +8461,21 @@ EXTRACTORS = (
     ("pyproject.toml", names_pyproject),
     ("Cargo.toml", names_cargo),
     ("package.json", names_package_json),
+    # Ruby и PHP: разбор короток и надёжен, а стеки контур уже объявил своими
+    # (`.rb`/`.php` есть и в `SOURCE_EXT` доктора, и в `TEST_TEXT_SUFFIXES`).
+    # `Gemfile.lock` при этом с начала лежал в `LOCKFILES` — Ruby был известен
+    # ровно с той стороны, где его надо НЕ читать.
+    ("composer.json", names_composer),
+    ("Gemfile", names_gemfile),
     ("go.mod", names_go_mod),
     ("Package.swift", names_swift),
 )
 
 
 def extractor_for(path: str):
+    """Выбор разбора по ИМЕНИ — дёшево, зовётся на каждый путь из `git ls-files`.
+    Содержимое (лок или манифест) судит `is_lock_text` у того, кто уже прочёл файл.
+    """
     base = path.rsplit("/", 1)[-1]
     if base in LOCKFILES:
         return None
@@ -8219,6 +8485,12 @@ def extractor_for(path: str):
     if base.startswith("requirements") and base.endswith(".txt"):
         return names_requirements
     return None
+
+
+def unreadable_manifests(paths) -> list[str]:
+    """Манифесты, которые гейт ВИДИТ в дереве, но читать не умеет (`UNREADABLE`)."""
+    return sorted(p for p in paths
+                  if p.rsplit("/", 1)[-1] in UNREADABLE or p.endswith(UNREADABLE_EXT))
 
 ```
 
@@ -10494,6 +10766,10 @@ import-linter>=2.0
 
 | Дата | Версия | Изменение |
 |---|---|---|
+| 2026-08-17 | **2.20** | **«Не наш код» было определено трижды и расходилось в девяти случаях из пятнадцати — и часть разрыва создала предыдущая ревизия этого же дня.** Замер: гейт длины знал ровно `*/node_modules/*`, **шаблон требовал ведущего слэша**, поэтому `node_modules/` В КОРНЕ чужим не считался вовсе; `.venv`, `vendor`, `.tox`, `build`, `dist` не знал никто, кроме AST-гейта; `delivery_base` знал пять имён из пятнадцати. ⚠ **Происхождение расхождения названо честно:** его не было древним. `cqg@2.17` расширила `NOT_OUR_CODE` до пятнадцати имён и двух соседей не тронула — правка, закрывшая класс в одном месте, УВЕЛИЧИЛА расхождение в двух других. Это было записано тогда же остатком с адресом, и здесь закрывается. Такой остаток дороже обычного: он выглядит как прогресс. **Сведено понятие, не поведение.** §3.1f называет принцип один раз: установленное, вендоренное и кэши инструментов не писал никто из проекта, и новый случай судится вопросом «этот файл писал кто-то из проекта?». Это НЕ настройка развёртывания — чужой код не наш ни при какой маске, поэтому список правит канон. Второй принцип — «наш код, но данным правилом не судим» (`tests/`, `migrations/`) — остаётся настройкой проекта, и отдельный прогон держит, что `migrations` в общий список НЕ переехал: смешение этих двух и было исходным дефектом. **Согласие держит `tests/test_what_is_not_our_code.py`**, и у него две разные проверки: поведенческая на корпусе из 15 путей с обеими сторонами и **равенство множеств** у двух python-владельцев — два списка могут совпасть на пятнадцати путях и разойтись на шестнадцатом. Обратная сторона отдельно: `venv_helper.py` и `my_node_modules_util/` — продуктовый код, слабая форма (подстрока) на них краснеет. **Обратный прогон: 2 из 5 красных**, и падение перечисляет расхождения ПОИМЁННО — по пути и по владельцу. **вес: +13 строк, за что** — `delivery_base.py` +9 (список сведён и принцип назван) и `check_file_length.sh` +4 (сверка элементом пути вместо шаблона с ведущим слэшем). **объём: +19 строк, за что** — §3.1f с принципом, различением двух списков и замером. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md §3.1f |
+| 2026-08-17 | **2.19** | **«Тестовый файл» было определено ПЯТЬ раз, и на корпусе из 16 путей пять ответов расходились в ДЕВЯТИ.** Замер перед правкой, каждую реализацию спрашивал её же кодом: `FooTests.cs` не узнавала НИ ОДНА; `conftest.py` — одна из пяти; `src/__tests__/api.ts` — одна; `FooTest.java` — одна; `test_util.py` вне каталога `tests/` — три из пяти, и потому получал ПРОДОВЫЙ лимит длины и падал на 700 строках. **Ошибка ходит в обе стороны, и обе тихие:** тест, принятый за продукт, судится чужим лимитом и попадает в население мутантов; продукт, принятый за тест, выпадает из проверок целиком. Ни один прогон об этом не говорил. **Сведено НЕ поведение, а понятие.** Действия у пяти владельцев разные и обязаны такими остаться — гейт длины применяет другой лимит, мутационный исключает из населения, метрика `harness_hardened` считает новый тест усилением. Общего кода быть не может: три на shell, два на python. Поэтому §3.1e называет ПРИНЦИП один раз, выражение стоит в четырёх shell-владельцах **байт-в-байт**, а согласие всех шести держит `tests/test_what_is_a_test_file.py` — тот же ход, которым `cqg@2.10` свёл два парсера блоков, а `cqg@2.12` четыре читалки шапки. **Принцип, по которому судится новый случай:** файл существует, чтобы проверять другой код, и это видно ИЗ ПУТИ. Каталог `test`/`tests`/`__tests__`/`spec`/`specs` элементом пути · `conftest.py` · имя начинается с `test_`/`test-` · оканчивается на `_test`/`_spec`/`-test`/`-spec` либо `Test`/`Tests`/`Spec`/`Specs` заглавной (манера Java/C#) · содержит `.test.`/`.spec.` (манера JS/TS). ⚠ **Сверяется отделённое слово, а не подстрока:** `latest.py`, `contest.py`, `testing_utils.py`, `protest_helper.py` тестами НЕ являются, и слабая форма увела бы продуктовый код из-под проверок. Корпус несёт обе стороны — 11 положительных и 6 отрицательных, — потому что корпус из одних тестов удовлетворяется реализацией «всё есть тест». **Найдено сьютом по дороге, и это стоит записать отдельно:** первая редакция правки добавила `re.compile` в `check_ast_gate.py`, где **`import re` отсутствовал**, — гейт падал `NameError` ЦЕЛИКОМ, то есть переставал судить что-либо. Поймали не глаза и не селфтест, а девять чужих прогонов, покрасневших разом: гейт, который не стартовал, не печатает нарушений, и «нарушений нет» читается как успех. Ровно тот класс, против которого написан §6 («0 просмотренных — не чисто»), только на самом гейте. ⚠ **Названный предел оракула, и он честный.** До этой ревизии `is_test()` в `check_file_length.sh` был на `case`, а не на `grep`: выражения там не было ВОВСЕ, поэтому обратный прогон падает на извлечении, не дойдя до сравнения. Оракул доказывает «на старом коде красное», но перечислить девять расхождений не может — их назвал отдельный замер, таблица которого и стоит в этой записи. Красный по неверной причине не то же, что зелёный, но и не полноценная улика. **вес: +20 строк, за что** — `check_ast_gate.py` +11 (общее выражение и пропущенный импорт), `delivery_metrics.py` +7 (метрика перешла с подстрок на признак), `check_file_length.sh` и `check_diff_coverage.sh` по +1. **объём: +29 строк, за что** — §3.1e с принципом, замером и обеими сторонами ошибки. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md §3.1e |
+| 2026-08-17 | **2.18** | **Гейт новых зависимостей был зелёным навсегда на четырёх стеках, и ноль в его отчёте читался как «чисто».** `EXTRACTORS` знал пять видов манифестов; на ruby-проекте гейт печатал `манифестов проверено 0` и выходил нулём — ни одна зависимость там не была бы объявлена никогда, и никто бы не узнал. ⚠ **Улика, закрывшая спор:** `Gemfile.lock` лежал в списке ИСКЛЮЧЕНИЙ `LOCKFILES`. Ruby контуру был известен — но ровно с той стороны, где его надо НЕ читать. Область свою контур заявляет и в двух других местах: `SOURCE_EXT` и `TEST_TEXT_SUFFIXES` оба содержат `.rb`, `.php`, `.cs`, `.java`, `.kt`. **Форма ответа взята у сестринского гейта, а не изобретена:** `check_deps_audit.sh` прошёл этот же класс полевой находкой F17 (`cqg@1.21`) на Swift-проекте, где печатал `OK — py_total=0` при двух SPM-зависимостях, и у него уже есть две ветки — «нет ни одного поддерживаемого манифеста» и «checked == 0 → нули ничего не доказывают», обе WARNING + exit 0. Переиспользованы дословно по структуре. **Три решения внутри формы, каждое с причиной.** ① **Hard fail НЕ вводится:** репозиторий без зависимостей законен, а гейт, красный на пустом дереве, снимут первым (§4.3b) — держит прогон «чистый shell/docs остаётся зелёным». ② **Но слово `OK` на нуле больше не печатается,** и это несущая часть: `cqg@1.61` мерит прямо — заявленный успех БЬЁТ названный пропуск, потому что «пропущено» шепчут в теле, а читают итог. Итоговая строка стала «новых зависимостей нет В ПРОЧИТАННОМ — проверено не всё». ③ **Слепота называется и при `checked > 0`** — этого не было в задании и следует из `cqg@1.80`: частичная слепота опаснее полной, потому что читается как успех. `Gemfile` рядом с `pom.xml` даёт честное «проверено 1», за которым java-половина не проверена вовсе. **Второе, из того же класса подклассом:** `requirements.txt`, собранный `pip-compile`, разбирался как манифест ПРЯМЫХ зависимостей — при том что канон строкой выше объявляет принцип «локи не разбираем, они перечисляют транзитивные пакеты». Добивала деталь: `names_requirements` первой строкой делала `raw.split("#")[0]`, то есть **срезала аннотации `# via`, единственный признак транзитивности, ДО разбора**. Следствие — обновился `requests`, притянул `charset-normalizer`, и гейт требовал подписи человека за решение, которого никто не принимал. Починен ПОРЯДОК: лок распознаётся по содержимому (шапка `autogenerated by pip-compile|uv` либо ≥2 аннотаций `# via`) до разбора и до счётчика. Отдельным классом не объявлено: принцип здесь НАЗВАН, список ему не следовал — это подкласс `list-without-its-principle`, а не второй класс. **Что добавлено в разбор:** `Gemfile` и `composer.json` — там, где разбор короткий и надёжный. **Что НЕ добавлено и почему:** `pom.xml`, `*.csproj`/`*.fsproj`/`*.vbproj` (XML — разбор дорогой), `build.gradle`/`mix.exs` (DSL на языке проекта, нужен настоящий парсер), `pubspec.yaml` (нужен YAML, которого у контура нет и который плавает даже в selftest'е), `Podfile`. Все шесть внесены в `UNREADABLE` и называются в предупреждении ПОИМЁННО — «не умею читать» отделено от «нечего проверять», и в выводе это видно. **Обратный прогон: 9 из 18 красных** на прежнем каноне, и зелёными остались ровно девять «обратных сторон» — пустой репозиторий, рукописный `requirements.txt`, одиночное `# via`, закомментированный `gem`, пять прогонов на `pyproject`/`package.json`/`poetry.lock`. Они обязаны проходить на ОБОИХ канонах: иначе правка куплена шумом. Прямая проба на трёх раскладках подтвердила разведение: здоровый python печатает `OK`, ruby+maven — имя нечитаемого и «проверено не всё», пустой репозиторий — «ноль ничего не доказывает» при exit 0. **вес: +110 строк, за что** — `dependency_manifests.py` +64 (распознавание лока по содержимому, два новых разборщика, список нечитаемых) и `check_new_dependency.py` +46 (отчёт о покрытии и разведённый итог). **объём: +1 строк, за что** — эта запись. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md dependency_manifests.py::EXTRACTORS |
+| 2026-08-17 | **2.17** | **Три гейта обвиняли правильный код, и все три — по списку без принципа.** Ревизия закрывает один класс в трёх местах, каждое с полевым замером. **① `deps-audit` аудитил СОБСТВЕННУЮ оснастку.** Джоба §8.3 ставит инструменты гейтов в `$BE_DIR/.venv` и тем СОЗДАЁТ `$BE_DIR`; охрана `-d "$BE_DIR"` после этого истинна на проекте, где питона нет вовсе. Замер `portfolio-site` 07.08: `py_total: 6 (было 0)`, джоба упала — гейт измерил себя и предъявил счёт проекту. **Условие применимости создавал соседний шаг того же workflow.** Стало: применимость по МАНИФЕСТУ (`pyproject.toml`/`requirements.txt`/`setup.py`/`setup.cfg`/`Pipfile` в `$BE_DIR/` или корне) — каталог создаёт установка, манифест не создаёт никто. js-половина так устроена с самого начала (`-f package-lock.json`): расходились не принципы, а одна из двух половин. Заодно разведены два совета: «поставь pip-audit» проекту, у которого питона нет, невыполним, а невыполнимый совет не выполняют — и пропуск становится привычным, как рутинный waiver. ⚠ **Решающее утверждение оракула — не «вердикт мягче», а «аудит не запускался»:** мягкий вердикт можно получить и сломав гейт, а запуск ловится уликой, которую подделать нечем. Обратный прогон: 2 из 4 красных. **② AST-гейт затягивал `.venv` в собственный снимок.** Замер `local-web-agent`: **168 чужих записей** на первом прогоне. `LINT_PY_SRC=.` — законная настройка (прод-код в двух корнях), а `.venv`/`node_modules` лежат ВНУТРИ дерева. Остальные три проекта флота везли ту же пару без изменений и уцелели лишь тем, что их маска смотрит в подкаталог: **везение раскладки, а не защита.** `SKIP_PARTS` разведён на ДВА принципа разной природы: `NOT_OUR_CODE` (чужой код не наш ни при какой маске — список правит канон) и `NOT_JUDGED_HERE` (наш код, правило не применяем — а вот это настройка проекта). Смешение их в одном кортеже и было дефектом. Сверка идёт по ЭЛЕМЕНТУ пути: `my_node_modules_util/` и `venv_helper.py` — продуктовый код. Попутно закрыт скрытый второй дефект: сверка шла по АБСОЛЮТНОМУ пути, поэтому совпадал бы и каталог НАД репозиторием (`/home/u/build/proj/…`). Два обратных прогона: полный откат — 2 красных, слабая форма (подстрока вместо элемента) — 1. Второй и доказывает, что оракул отличает эту правку от правдоподобной дешёвой. **③ `silent-except` краснел на честном логировании.** Логгер узнавался списком из четырёх имён в нижнем регистре, поэтому `LOG.debug(...)` не узнавался (сравнение регистрозависимое), а `self.logger.debug(...)` — потому что база это `ast.Attribute`, а не `ast.Name`. Дыра ровно в три метода: `.debug`, `.info`, `.critical`; формы `LOG.error`/`self.logger.exception` спасал запасной признак по имени метода. **Цена этой ошибки выше обычного ложного красного:** штатный обход — вписать `# silent-ok:`, то есть выключить правило на живом обработчике; гейт своими руками создавал дыру. Стало: имя ОКАНЧИВАЕТСЯ словом `log`/`logger`/`logging`, отделённым началом или подчёркиванием, регистр не важен, цепочка (`self.logger`, `cls._log`) судится по последнему звену. Признак судит новый случай без спроса у автора: `LOG`, `_log`, `app_logger`, `audit_log` — логгер; `catalog`, `dialog` — нет. Проверено прямой пробой на пяти формах: молчуны (`pass`, `return None`) остаются нарушением, `catalog.debug` остаётся нарушением, честный лог чист. ⚠ **Заодно сведены два ответа на «что такое логгер»:** AST-правило знало `warnings`, но не `_log`, grep-правило `unstructured-log` — наоборот. Эти два правила уже расходились однажды (про `print()`, класс F15) и были сведены; про имя логгера — нет. Теперь согласие держит ПРОГОН, а не чтение. **Что объединяет все три:** список стоит вместо понятия, принцип отбора нигде не назван, и случай, не похожий на прежние записи, проваливается молча — спорить не с чем, потому что спорить не о чем. Во всех трёх местах принцип теперь НАЗВАН так, что по нему судится новый случай. ⚠ **Названный остаток, который эта ревизия НЕ закрывает:** «не наш код» определён в контуре ТРИЖДЫ — здесь (15 записей, принцип назван), `SKIP_DIR_PARTS` в `delivery_base.py` (5 записей, принципа нет) и `is_excluded()` в `check_file_length.sh` (одна запись этого рода, и она смешана со вторым принципом). **Правка увеличила расхождение, а не сократила** — это сказано, а не замолчано. Замера на два последних нет, а ужесточать из симметрии канон себе запрещает; записано остатком с адресом. Там же кандидат в близнецы ①: `check_diff_coverage.sh` держит ту же охрану по каталогу, но последствие безвредное. **вес: +130 строк, за что** — на ОБЕ ревизии этого дня (`cqg@2.17` и `stack-map@1.50`): `ast_rules.py` +35 (признак логгера), `check_ast_gate.py` +34 (два принципа населения), `stack_selftest.py` +30 (счётчик пропущенного, см. карту), `check_deps_audit.sh` +22 (охрана по манифесту), `check_grep_gate.sh` +9 (согласие с AST-правилом). **объём: +31 строк, за что** — эта запись строкой таблицы, строка §3.2 про признак логгера и **раздел карты на 29 строк**: changelog карты ведётся прозой, а не строкой таблицы, поэтому её ревизия стоит на порядок дороже — цену взял ЗАМЕР, а не оценка, и первая редакция записи назвала +3. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md check_deps_audit.sh, CODE_QUALITY_GATES.md check_ast_gate.py, CODE_QUALITY_GATES.md ast_rules.py, AGENT_STACK.md stack_selftest.py |
 | 2026-08-15 | **2.16** | **Первое живое ОБНОВЛЕНИЕ чужого проекта (шаги 4–5 алгоритма) нашло три дефекта канона, и все три поймали прогоны, а не чтение.** `voice-interview-coach` переехал `cqg@2.02→2.15`: 15 файлов приехали сами, 3 порта, 1 стоп. ① **Порядок кандидатов `tsconfig` был неверен, и неверен всегда, а не иногда.** `2.15` завела поиск конфига по кандидатам и поставила первым `<fe>/tsconfig.json` — живой гейт слоёв немедленно упал `TS18003: No inputs were found` РОВНО в той раскладке, ради которой кандидаты и заводились: `include` подкаталожного конфига считается от каталога КОНФИГА, а depcruise зовётся из КОРНЯ. ⚠ И приём, которым `2.15` починила eslint — «запускать из каталога конфига», — здесь НЕ ГОДИТСЯ: правила пишутся путями `^<fe>/src` и от каталога конфига совпадать перестанут. **У двух половин одной роли разные правильные ответы**, и перенос приёма с половины на половину бесплатным не бывает. Поэтому канон теперь НАЗЫВАЕТ приём вместо молчания: корневой `tsconfig.depcruise.json`, наследующий фронтовый. Он был у проекта в разделе «где я обошёл канон» — а канон сам же признавал это законным ходом, о котором молчит. Теперь адаптация проекта исчезает целиком, а не сокращается. ② **Канон выдавал артефакт, валящий собственный гейт.** §5 шаг 11 генерирует `docs/canon/VENDORED.json` с полем `sha256`, а `detect-secrets` считает хеши Hex High Entropy String: первый же коммит после перевендоривания получил ДЕВЯТЬ находок на файле, который канон предписывает создать. Шаг 11 теперь несёт команду обновления базы секретов строкой рядом. ③ **Две копии канона на одной машине** — `docs/canon/` и незакоммиченная `Prepare/` внутри проекта: вторая протухла, и хук проекта честно назвал дрейф. Это соглашение проекта, а не дефект канона, поэтому записано полевой находкой, а не правкой. ⚠ **Главное про сам метод:** ни одну из трёх сьют увидеть не мог — он герметичен, а эти дефекты живут в СТЫКЕ канона с чужой раскладкой. Обновление окупилось не тем, что проект переехал, а тем, что нашлись три дефекта; и найдены они обратными прогонами гейтов ПОСЛЕ каждой правки, а не чтением диффа. **вес: не рос** — payload не тронут, правка в прозе шага 11 и в шаблоне конфига. **объём: +44 строк, за что** — названный приём с примером конфига, команда обновления базы секретов с замером и эта запись. **класс:** canon-misses-its-own-layout @ CODE_QUALITY_GATES.md .dependency-cruiser.cjs, §5 шаг 11 |
 | 2026-08-15 | **2.15** | **Первый НАСТОЯЩИЙ обход флота нашёл три дефекта за один прогон, и ни одного из них сьют не видел по построению.** Приборы строились два дня и ловили до сих пор только мои же дефекты; здесь они впервые поработали по живым проектам — четырём, с диска. ① **Обход упал целиком:** `KeyError: 'stack-map'`. `cqg@2.12` научил `declared_versions()` читать обе формы шапки, пины проектов немедленно получили ЧЕТВЁРТЫЙ канон, а `preflight.CANON_FILE` перечислял три. Первая правка была заплаткой — дописать карту строкой; настоящая причина в том, что **список файлов канонов ЖИВЁТ У ИЗВЛЕКАТЕЛЯ**, а здесь лежала его копия. Это `one-notion-one-place`, ПЯТОЕ место, и копия разъехалась ровно так, как разъезжаются все копии. Теперь список берётся у владельца, перевод ключа `stack` → `stack-map` назван один раз, и пятый канон не сломает это молча. ② **Число врало:** «stack-map 1.42→1.49 (0 рев.)» при семи ревизиях разницы. Форм changelog оказалось ТРИ — три канона ведут его строками таблицы, карта разделами `## `stack-map@X.Y``, — а разбор знал две. Ноль значил «мы не посчитали» и читался как «отставания нет». Заведён класс **`number-without-its-denominator`**: контур ловил его у себя дважды до реестра (отставание по индексу вместо changelog, окна только из `active/STATUS.md`), но те места записью не адресованы и домыслены не будут. ③ **Удаление кэша индекса было НЕПОЛНЫМ:** `2.13` убрала файл, а `main()` продолжал его создавать — первый же запуск команды вернул `versions.json` обратно. Поймал это **собственный оракул «кэш не вернулся»**, написанный сутками раньше ровно на этот случай: проверка на возвращение предмета окупилась в первый же день. Запись файла убрана, флаг `--check` исчез вместе с предметом сверки. ⚠ **Общее у всех трёх — почему их не мог найти сьют.** Он герметичен и ходит по синтетическим пинам из трёх канонов; настоящие пины приходят с диска чужих проектов. Это не дефект сьюта, а его названная граница, и она означает: **обход обязан гоняться по-настоящему, а не считаться проверенным по своим оракулам.** Заодно сняты две записи, ставшие неправдой рядом с кодом (ловушка п.27): «остаток: карту не считаем» и `note` про три канона. **вес: не рос.** **field: +17 строк, за что** — вывод списка канонов у владельца, третья форма changelog и снятие записи файла. **объём: +1 строк, за что** — эта запись. **класс:** one-notion-one-place @ field/fleet/preflight.py::CANON_FILE |
 | 2026-08-14 | **2.14** | **Обход флота по триггерам, и печатает он ТОЛЬКО дельту (часть III плана сходимости).** Ось не «постоянная связь», а «есть адресат»: сводка нашла отставание в 18 ревизий и просроченное окно за ОДИН прогон, значит ценность не в частоте, а в том, что отчёт попадается человеку на глаза. Демон, пишущий в лог, который никто не читает, — это inert-прогон, только дороже. **Триггеров ровно два, и они выведены из того, что меняется:** бамп версии канона (меняет отставание у всего флота разом) и суточный тик (даты проходят без чьего-либо участия — просрочка окна наступает сама). Календарное «раз в неделю» хуже обоих: после бампа отчёт устарел бы сразу, а просрочку показал бы через шесть дней после факта. ⚠ **В сьют обход не встроен и не будет:** он читает ЧУЖИЕ проекты с диска, а сьют обязан быть герметичным — зависимость от того, что лежит на машине, уже роняла прогоны (`cqg@2.03`). Поэтому обход разделён надвое: диск читает команда, а сьют проверяет ЧИСТУЮ функцию `delta()` — два словаря на входе, строки на выходе. **Тишина имеет форму:** прогон без изменений печатает число проектов и дату, с которой сверялся, а «сравнивать не с чем» — ОТДЕЛЬНАЯ фраза; слить их значило бы объявить первый обход спокойным, хотя он ничего не сравнивал (тот же класс, что `inert this run` с кодом 0, `okf@1.16`). ⚠ **Форма снимка ЗАМЕРЕНА, и первая редакция аксессоров была угадана.** Они читали `observations["open"]` и `adaptations["undeclared"]`; на живых снимках обе ветки молча возвращали пусто — то есть обход печатал бы «изменений нет», не посмотрев ни на окна, ни на дрейф. Настоящая форма: `observations` — список `{where, until}`. **Названный пробел, а не покрытая ветка:** классификации `UNDECLARED` в снимке НЕТ вовсе — `collect_one` хранит только объявленные адаптации, а классификацию считает `preflight`. Обход поэтому видит появление и исчезновение ОБЪЯВЛЕННЫХ адаптаций и НЕ видит молчаливого дрейфа; адрес починки — расширить `collect_one`, отдельной ревизией. Написать `snap["adaptations"]["undeclared"]` и получить пустое множество было бы `green-without-the-thing` в чистом виде. **Просрочка называется ТОЛЬКО в день наступления** — иначе одно окно кричит каждый день, и через неделю отчёт перестают читать, то есть исход ровно тот, против которого обход и заведён. **Сильный признак остался сильным:** совпадение ПЕРЕМЕННЫХ у двух проектов, а не имён файлов; обратная ветка «одна переменная у одного проекта — не признак» стоит рядом, иначе проверка выродилась бы в шум. ⚠ **Триггеры положены файлами, но НЕ УСТАНОВЛЕНЫ:** хук `post-commit` и launchd-plist лежат в `field/fleet/schedule/` с командами установки в комментариях. Установка — действие на машине человека, и решает его он. Отчёт пишется в `field/fleet/WATCH.md` и ПЕРЕЗАПИСЫВАЕТСЯ: копящийся отчёт читают один раз. **вес: не рос.** **field: +231 строк, за что** — `watch.py` (203) и хук `post-commit.sh` (28). **объём: +1 строк, за что** — эта запись. **класс:** none reason=вводит обход, дефекта не закрывает |

@@ -39,8 +39,8 @@ Team+, приватный репо — Pro+), поэтому гейт мержа
 
 | # | Файл | Версия | Отвечает на | Не делает |
 |---|---|---|---|---|
-| ① | [AGENT_DELIVERY_HARNESS.md](AGENT_DELIVERY_HARNESS.md) | `delivery@1.75` | Что строить, в каком порядке, когда «готово»; evals; hooks; CI-контракт; права на действия; журналы поведения; метрики | Не задаёт ruff/eslint; не формат OKF |
-| ② | [CODE_QUALITY_GATES.md](CODE_QUALITY_GATES.md) | `cqg@2.16` | Форма кода, commit-гейты, CI-workflow, secrets в git | Не ведёт поставку фичи; не knowledge wiki |
+| ① | [AGENT_DELIVERY_HARNESS.md](AGENT_DELIVERY_HARNESS.md) | `delivery@1.79` | Что строить, в каком порядке, когда «готово»; evals; hooks; CI-контракт; права на действия; журналы поведения; метрики | Не задаёт ruff/eslint; не формат OKF |
+| ② | [CODE_QUALITY_GATES.md](CODE_QUALITY_GATES.md) | `cqg@2.20` | Форма кода, commit-гейты, CI-workflow, secrets в git | Не ведёт поставку фичи; не knowledge wiki |
 | ③ | [OKF_KNOWLEDGE_BUNDLE.md](OKF_KNOWLEDGE_BUNDLE.md) | `okf@1.17` | Канон смысла (политики, ADR, метрики) | Не фазы delivery; не lint-пороги; не тела skills |
 
 Версии — из шапок соответствующих файлов. При развёртывании они пишутся в проект
@@ -48,7 +48,7 @@ Team+, приватный репо — Pro+), поэтому гейт мержа
 `delivery/CONSTITUTION.md` и `delivery/active/STATUS.md`: без этого нельзя сказать,
 какую ревизию канона репозиторий получил и что менялось с тех пор.
 
-**Эта карта:** `stack-map@1.49` · 2026-08-13. Владеет двумя сквозными вещами:
+**Эта карта:** `stack-map@1.50` · 2026-08-17. Владеет двумя сквозными вещами:
 приёмкой контура (**§6**) и самопроверкой канонов (**§7** + Приложение A).
 
 ### 1.1. Словарь (читать до всего остального)
@@ -434,19 +434,27 @@ Usage:
   * python-блоки  -> ast.parse
   * bash-блоки    -> bash -n
   * yaml-блоки    -> yaml.safe_load (или запрет табов, если PyYAML нет)
+  * json/toml     -> json.loads / tomllib.loads
   * сбалансированность ``` в каждом файле
   * версии в шапках канонов == таблица §1 в AGENT_STACK.md
   * объявленная стоимость чтения == измеренная (selftest_sizes, допуск ±10%)
 
 Exit 0 = всё чисто. Exit 1 = хоть один блок не парсится / версии разошлись.
+«Чисто» = чисто ПРОВЕРЕННОЕ: языки без парсера в stdlib (javascript, ini) и проза
+(markdown, text) пропускаются — но пропуск ИМЕНУЕТСЯ числом с разбивкой в той же
+итоговой строке. Измерено: 159 фенсов, 102 проверялось, 57 уходило МОЛЧА, и «Exit 0
+= всё чисто» врало не неумением, а молчанием о нём.
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 import sys
+import tomllib
+from collections import Counter
 from pathlib import Path
 
 import selftest_sizes
@@ -457,7 +465,10 @@ CANONS = (
     "CODE_QUALITY_GATES.md",
     "OKF_KNOWLEDGE_BUNDLE.md",
 )
-CHECKED_LANGS = {"python", "bash", "sh", "yaml", "yml"}
+# json/toml добавлены сюда парсерами из stdlib. javascript и ini НЕ добавлены
+# намеренно: парсера в stdlib нет, а `node --check` сделал бы сьют зависимым от
+# машины. Они уходят в счётчик пропущенного — названы, а не спрятаны.
+CHECKED_LANGS = {"python", "bash", "sh", "yaml", "yml", "json", "toml"}
 
 
 def blocks(text: str) -> tuple[list[tuple[int, str, str]], int]:
@@ -738,6 +749,7 @@ def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     failures: list[str] = []
     total = 0
+    skipped: Counter[str] = Counter()
 
     for name in CANONS:
         path = root / name
@@ -749,8 +761,13 @@ def main() -> int:
         if unbalanced:
             failures.append(f"{name}: unbalanced ``` fence (unterminated block)")
         checked = 0
+        gone: Counter[str] = Counter()
         for line_no, lang, code in found:
             if lang not in CHECKED_LANGS or not code.strip():
+                # Здесь стоял голый `continue`, и это была вся находка: 57 фенсов
+                # из 159 уходили без следа, а итог печатал только проверенные.
+                # Теперь пропуск считается по языку — знаменатель обязан сходиться.
+                gone["<empty>" if lang in CHECKED_LANGS else (lang or "<none>")] += 1
                 continue
             checked += 1
             total += 1
@@ -769,15 +786,22 @@ def main() -> int:
                     pass
                 elif proc.returncode:
                     err = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "bash -n failed"
+            elif lang in {"json", "toml"}:
+                # Оба декодера наследуют ValueError (JSONDecodeError, TOMLDecodeError).
+                try:
+                    (json.loads if lang == "json" else tomllib.loads)(code)
+                except ValueError as exc:
+                    err = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
             else:
                 err = check_yaml(code)
             if err:
                 failures.append(f"{name}:{line_no} [{lang}] {err}")
+        skipped += gone
         for problem in section_order(text):
             failures.append(f"{name}: порядок секций — {problem}")
         for problem in broken_tables(text):
             failures.append(f"{name}: таблица не отрендерится — {problem}")
-        print(f"{name}: {checked} executable block(s) checked")
+        print(f"{name}: {checked} executable block(s) checked, {sum(gone.values())} skipped")
 
     # Объявленная стоимость чтения против измеренной. Числа, по которым агент
     # решает, что НЕ открывать, до stack-map@1.43 расходились с фактом в 4.6 раза
@@ -813,7 +837,7 @@ def main() -> int:
 
     # Непокрытость называется в ИТОГОВОЙ строке, а не только в предупреждении выше:
     # именно итоговую строку копируют в отчёт и читают как «всё проверено».
-    covered = f"{total} block(s)"
+    covered = f"{total} block(s) checked"
     if yaml_unparsed:
         covered += f" (из них {yaml_unparsed} yaml БЕЗ парсера — PyYAML не установлен)"
         print(
@@ -822,6 +846,12 @@ def main() -> int:
             "иначе битый конфиг проходит самопроверку молча.",
             file=sys.stderr,
         )
+    # Пропущенное стоит в ТОЙ ЖЕ строке, что и проверенное, а не отдельной: в отчёт
+    # копируют итоговую строку, и отдельную можно не заметить. Разбивка по языкам
+    # называет, ЧЕГО мы не умеем; сумма с проверенным = все верхнеуровневые фенсы.
+    lost = ", ".join(f"{lang} {n}" for lang, n
+                     in sorted(skipped.items(), key=lambda kv: (-kv[1], kv[0])))
+    covered += f", {sum(skipped.values())} skipped" + (f" ({lost})" if lost else "")
     print(f"\nstack_selftest: {covered}, {len(failures)} failure(s)")
     for f in failures:
         print(f"FAIL {f}", file=sys.stderr)
@@ -1368,6 +1398,35 @@ upstream как **«рабочая копия человека, не комми�
 **веса эта правка не добавила** — тронута проза §7.1, а ратчет веса считает
 `scripts/**`; названо, чтобы отсутствие цены не читалось как забытая запись.
 **объём: +42 строк, за что** — требование к снимку с названным пределом и эта запись.
+
+## `stack-map@1.50` — самопроверка молчала о трети своих блоков
+
+`Exit 0 = всё чисто` было неправдой не потому, что проверка чего-то не умеет, а
+потому, что она об этом **молчала**. Замер: верхнеуровневых фенсов **159**,
+проверялось 102, пропускалось **57 голым `continue`** — без счётчика, без строки в
+отчёте. Среди пропущенных девять машинночитаемых, и два из них — поставляемые в
+проекты конфиги `<frontend>/eslint.config.js` и `.dependency-cruiser.cjs`:
+сломанная запятая уезжала в чужой проект незамеченной, и **проверяльщика для этих
+блоков в репозитории не было ни одного**.
+
+Стало: **108 проверено, 51 пропущено**, оба числа в ОДНОЙ итоговой строке с
+разбивкой по языкам (`markdown 35, text 11, <none> 2, javascript 2, ini 1`).
+Знаменатель сходится: 108 + 51 = 159, и это отдельный прогон — счётчик, не
+покрывающий популяцию, врал бы ровно так же, как молчание.
+
+Научилась `json` и `toml` (обе стандартной библиотекой). `javascript` и `ini`
+осознанно НЕ парсятся: в stdlib парсера нет, а `node --check` сделал бы сьют
+зависимым от того, что установлено на машине. Они названы в счётчике — это и есть
+честный ответ: чего не умеем, то названо, а не спрятано.
+
+⚠ Класс — `list-without-its-principle`: `CHECKED_LANGS` был списком без принципа,
+и язык, не похожий на прежние записи, проваливался молча. Обратный прогон: **5 из
+5 новых прогонов краснеют** на прежнем коде. Чётность тела `stack_selftest.py` с
+приложением A проверена дословным прогоном шага CI.
+
+**вес: см. `cqg@2.17`** — цена этой ревизии названа там одной строкой на обе:
+из +130 строк тридцать дал `stack_selftest.py`.
+**класс:** list-without-its-principle @ AGENT_STACK.md stack_selftest.py::CHECKED_LANGS
 
 ## `stack-map@1.49` — приложение A синхронизировано с файлом
 
