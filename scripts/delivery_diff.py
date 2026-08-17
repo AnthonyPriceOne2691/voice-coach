@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import re
 
-from delivery_base import BREAKER_EXCLUDE, git
+from delivery_base import out_of_blast_radius, git
 from delivery_decisions import DECISION_STOPWORDS
 
 def diff_stats(base: str) -> tuple[int, int, int, int, list[str]] | None:
     """(files, added, deleted, excluded, paths) для base..HEAD; None если ref недоступен.
 
     `paths` — только код: процессные артефакты отфильтрованы тем же
-    BREAKER_EXCLUDE, потому что оба потребителя (breaker'ы §3.4 и сопоставление
-    уроков §2.2a) спрашивают про изменения в коде, а не в его описании.
+    `out_of_blast_radius`, потому что оба потребителя (breaker'ы §3.4 и
+    сопоставление уроков §2.2a) спрашивают про изменения в коде, а не в его
+    описании. Сгенерированное (lock-файлы) не код в том же смысле: его никто не
+    пишет и не читает построчно.
     """
     if not git("rev-parse", "--verify", "--quiet", base).strip():
         return None
@@ -30,7 +32,7 @@ def diff_stats(base: str) -> tuple[int, int, int, int, list[str]] | None:
         if len(parts) != 3:
             continue
         a, d, path = parts
-        if path.startswith(BREAKER_EXCLUDE):
+        if out_of_blast_radius(path):
             excluded += 1
             continue
         files += 1

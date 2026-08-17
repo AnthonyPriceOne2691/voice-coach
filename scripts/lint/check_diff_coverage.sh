@@ -67,14 +67,14 @@ cd "$REPO_ROOT/$BE_DIR" || exit 1
 # git diff — от repo-root (git -C): pathspec от корня не матчится из cwd backend/.
 list_changed() { # $1 = base-реф; закоммиченный дифф prod-файлов (без тестов)
   git -C "$REPO_ROOT" diff --name-only "$1"...HEAD -- "$PY_SRC/*.py" 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.py$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
     | sed "s#^$BE_DIR/##"
 }
 
 # Незакоммиченные правки — их дифф-списком не увидеть, а сьют их исполняет:
 # источник ложного зелёного.
 dirty=$(git -C "$REPO_ROOT" status --porcelain -- "$PY_SRC/*.py" 2>/dev/null \
-  | cut -c4- | grep -vE '/tests/|/test_[^/]*\.py$' || true)
+  | cut -c4- | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
 
 changed=$(list_changed "$BASE")
 
@@ -107,7 +107,8 @@ if [[ -z "$changed" ]]; then
   # Отсутствие оракула для языка — непокрытая область, и по доктрине канона её
   # НАЗЫВАЮТ, а не роняют DoD-шаг (так же ведут себя ветки «нет pytest-cov» и jscpd).
   other=$(git -C "$REPO_ROOT" diff --name-only "$BASE"...HEAD 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.|\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
+    | grep -vE '\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
     | grep -vE "${LINT_SRC_EXT_RE:-\.py$}" || true)
   if [[ -n "$other" ]]; then
     cnt=$(printf '%s\n' "$other" | wc -l | tr -d ' ')

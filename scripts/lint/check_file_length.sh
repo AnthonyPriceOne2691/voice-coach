@@ -42,21 +42,26 @@ reset=$(printf '\033[0m')
 
 # --- helpers ---------------------------------------------------------------
 
-# Пропустить путь (генерируемое / vendored). Настрой под свой проект.
+# Путь вне населения: «не наш код» (§3.1f) ИЛИ «наш, но не судим длиной».
+# Первый список — общий для контура и правится каноном, второй — настройка проекта.
+# ⚠ Прежняя форма `*/node_modules/*` требовала ведущего слэша, поэтому
+# `node_modules/` В КОРНЕ чужим не считался вовсе, а `.venv`, `vendor`, `.tox`,
+# `build`, `dist` не считались нигде: 9 расхождений из 15 с двумя соседями.
 is_excluded() {
+  printf '%s\n' "$1" | grep -qE '(^|/)(\.venv|venv|site-packages|node_modules|vendor|\.tox|\.nox|\.eggs|__pycache__|\.mypy_cache|\.pytest_cache|\.ruff_cache|build|dist|\.git)(/|$)' && return 0
   case "$1" in
-    */migrations/*) return 0 ;;
-    */node_modules/*) return 0 ;;
+    */migrations/*) return 0 ;;   # наш код, длиной не судим — настройка проекта
   esac
   return 1
 }
 
-# Тестовый файл? (feature-local tests/ тоже считаются.)
+# Тестовый файл? Принцип и полное выражение — §3.1e. Выражение здесь БАЙТ-В-БАЙТ
+# такое же, как в `check_grep_gate.sh`, `mutation_ts.sh` и `check_diff_coverage.sh`;
+# согласие всех пяти реализаций держит `tests/test_what_is_a_test_file.py`.
+# Прежняя форма знала три случая из одиннадцати: `conftest.py`, `util_test.py`,
+# `__tests__/`, `FooTest.java` и `FooTests.cs` получали ПРОДОВЫЙ лимит длины.
 is_test() {
-  case "$1" in
-    *.test.ts | *.test.tsx | */tests/*) return 0 ;;
-  esac
-  return 1
+  printf '%s\n' "$1" | grep -qE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.'
 }
 
 # Файлы под exemption (нет шва для сплита — держим сознательно, лимит = снимок+EXEMPTION_HEADROOM).

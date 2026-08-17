@@ -58,7 +58,22 @@ num() { local v=${1//[!0-9]/}; printf '%s' "${v:-0}"; }
 # --- backend: pip-audit -------------------------------------------------------
 PIP_AUDIT="$VENV/bin/pip-audit"
 [[ -x "$PIP_AUDIT" ]] || PIP_AUDIT=$(command -v pip-audit 2>/dev/null || true)
-if [[ -n "$PIP_AUDIT" && -d "$BE_DIR" ]]; then
+# ⚠ Применимость судится по МАНИФЕСТУ проекта, а не по наличию каталога, и
+# разница не косметическая: джоба §8.3 сама ставит оснастку гейтов в
+# `$BE_DIR/.venv` и тем СОЗДАЁТ `$BE_DIR`. Охрана `-d "$BE_DIR"` после этого
+# истинна на проекте, где питона нет вовсе, и `pip-audit` аудитит не продукт, а
+# собственную оснастку контура. Замер portfolio-site 07.08: `py_total: 6 (было
+# 0)`, джоба упала — гейт измерил сам себя и предъявил счёт проекту.
+# Каталог создаёт соседний шаг того же workflow; манифест — не создаёт никто.
+# js-половина ниже так устроена с самого начала (`-f package-lock.json`):
+# расходились не принципы, а одна из двух половин.
+py_manifest=""
+for cand in "$BE_DIR/pyproject.toml" "$BE_DIR/requirements.txt" "$BE_DIR/setup.py" \
+            "$BE_DIR/setup.cfg" "$BE_DIR/Pipfile" \
+            pyproject.toml requirements.txt setup.py setup.cfg Pipfile; do
+  [[ -f "$cand" ]] && { py_manifest="$cand"; break; }
+done
+if [[ -n "$PIP_AUDIT" && -n "$py_manifest" ]]; then
   # pip-audit не различает severity в базовом выводе, поэтому считаем уязвимости:
   # число записей = число (пакет, CVE). Точнее и без парсинга HTML.
   #
@@ -86,7 +101,14 @@ print(sum(len(x.get("vulns",[])) for x in deps))' 2>/dev/null) || py_total=""
     py_total=0
   fi
 else
-  skipped+=("pip-audit (установка: pip install pip-audit)")
+  # Две разные причины — два разных совета. Слитые в одну строку, они советовали
+  # ставить pip-audit проекту, у которого питона нет: совет невыполним, а значит
+  # его не выполнят, и пропуск станет привычным (тот же класс, что рутинный waiver).
+  if [[ -z "$PIP_AUDIT" ]]; then
+    skipped+=("pip-audit (установка: pip install pip-audit)")
+  else
+    skipped+=("python-манифеста нет ни в $BE_DIR/, ни в корне — python-половина не применима")
+  fi
   py_unchecked=1
 fi
 

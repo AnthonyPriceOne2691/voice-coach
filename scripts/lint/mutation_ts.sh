@@ -52,7 +52,7 @@ ts_stryker_setup() {
   # дефолта Stryker намеренно — проекты зовут каталог и `test`, и `tests`, и `__tests__`.
   changed=$(git diff --name-only "$BASE"...HEAD -- "$TS_SRC" 2>/dev/null \
     | grep -E '\.(ts|tsx|js|jsx|mts|cts)$' \
-    | grep -vE '(^|/)__tests__/|(^|/)tests?/|\.(test|spec)\.' || true)
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
   if [[ -z "$changed" ]]; then
     printf '%smutation: изменённых prod-файлов нет (BASE=%s, смотрел в %s)%s\n' \
       "$green" "$BASE" "$TS_SRC" "$reset"

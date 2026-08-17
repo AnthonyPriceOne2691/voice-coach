@@ -51,7 +51,14 @@ HARDENING_PATHS = (
 # Считаются только ДОБАВЛЕННЫЕ файлы (`--diff-filter=A`), а не любая правка тестов:
 # иначе метрика стала бы всегда `yes` — тесты трогает каждая поставка — и перестала
 # бы отвечать на свой вопрос.
-TEST_PATH_MARKERS = ("test_", "_test.", "/tests/", "spec.")
+# ⚠ Признак — ТОТ ЖЕ, что у §3.1e CQG, и это не совпадение, а одно понятие:
+# подстроки промахивались на Maven (`src/test/java/FooTest.java`), Jest
+# (`__tests__/foo.tsx`) и xUnit (`FooTests.cs`), то есть метрика снова
+# советовала «добавь oracle» тому, кто его добавил, — уже второй раз.
+# Согласие с четырьмя реализациями CQG держит `tests/test_what_is_a_test_file.py`.
+TEST_PATH_RE = re.compile(
+    r"(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]"
+    r"|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.")
 DOC_PREFIXES = ("delivery/", "knowledge/")
 
 
@@ -174,11 +181,11 @@ def _hardened_line(span: str, hardened: list[str]) -> str:
     Шов по данным: сюда входит список из `_diff_stats`, отсюда выходит строка
     метрики — пополненный список за границей не читает никто.
     """
-    # Новые тест-файлы — отдельный источник усиления (см. TEST_PATH_MARKERS).
+    # Новые тест-файлы — отдельный источник усиления (см. TEST_PATH_RE).
     found = list(hardened)
     for line in git("diff", "--name-only", "--diff-filter=A", span).splitlines():
         path = line.strip()
-        if path and any(mark in path for mark in TEST_PATH_MARKERS):
+        if path and TEST_PATH_RE.search(path):
             found.append(f"{path} (новый оракул)")
     return f"yes — {', '.join(sorted(set(found))[:4])}" if found else "no"
 
