@@ -168,12 +168,25 @@ async def main():
                 log(f"НЕ дождался «{needle}» за {limit:.0f} с (последнее {last!r})")
                 return False
 
+            # ⚠ Крючок СНАЧАЛА, подпись — фолбэком. Стенд четыре дня отчитывался
+            # `mic-never-opened` не потому, что микрофон не открылся, а потому что
+            # искал кнопку «Start Mock Interview»: переработка интерфейса
+            # (2026-08-13) переименовала её в «Start interview». Оракул, привязанный
+            # к ПРОЗЕ, умирает от правки копирайта и врёт при этом про предмет.
             ok = await cdp.js("""(() => {
-                const b = [...document.querySelectorAll('button')]
-                  .find(x => x.textContent.toLowerCase().includes('start mock'));
+                const b = document.querySelector('[data-testid="start-interview"]')
+                  || [...document.querySelectorAll('button')]
+                       .find(x => /^start/i.test(x.textContent.trim()));
                 if (!b) return false; b.click(); return true; })()""")
-            log(f"клик «Start Mock Interview»: {ok}")
+            log(f"клик по кнопке старта: {ok}")
             await cdp.shot("01-started")
+            if not ok:
+                # Быстрый отказ: без этого прогон ждал 90 + 240 с и объявлял
+                # `mic-never-opened` — то есть называл СЛЕДСТВИЕ вместо причины и
+                # тратил пять минут на то, что видно сразу.
+                log("кнопка старта не найдена — стенд разошёлся с интерфейсом")
+                result["verdict"] = "start-button-not-found"
+                return
 
             await wait_ring("Speaking", 90, "Генри заговорил")
             await cdp.shot("02-henry-speaking")

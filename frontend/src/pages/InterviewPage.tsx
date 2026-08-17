@@ -79,7 +79,11 @@ function Invitation({
               Review together
             </button>
           ) : (
-            <button className="btn" onClick={onStart}>
+            // `data-testid` — крючок для браузерного стенда
+            // (delivery/evals/browser): он искал кнопку по ПОДПИСИ и умер молча,
+            // когда переработка интерфейса её переименовала — четыре дня отчёт
+            // врал «микрофон не открылся». Атрибут переживает копирайт.
+            <button className="btn" data-testid="start-interview" onClick={onStart}>
               Start interview
             </button>
           )}
