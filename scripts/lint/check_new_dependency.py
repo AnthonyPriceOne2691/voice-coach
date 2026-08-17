@@ -41,7 +41,7 @@ import subprocess
 import sys
 
 
-from dependency_manifests import extractor_for
+from dependency_manifests import extractor_for, is_lock_text, unreadable_manifests
 
 def git(*args: str) -> str:
     """git с подавлением ошибок: пустая строка = не смог (файла нет в ревизии)."""
@@ -76,28 +76,36 @@ def declared(status: str) -> tuple[set[str], list[str]]:
 
 
 
-def scan_manifests(merge_base: str) -> tuple[list[str], int]:
-    """→ (что появилось нового, сколько манифестов проверено).
+def scan_manifests(merge_base: str, paths: list[str]) -> tuple[list[str], int, list[str]]:
+    """→ (что появилось нового, сколько манифестов проверено, что оказалось локом).
 
     Манифест, которого в базе НЕ БЫЛО, даёт одну находку — путь целиком, а не по
     пакету на строку: появление файла это ОДНО решение, иначе первый коммит с
     тридцатью зависимостями требовал бы тридцати строк в STATUS.
     """
     findings: list[str] = []
+    locks: list[str] = []
     checked = 0
-    for path in git("ls-files").splitlines():
+    for path in paths:
         fn = extractor_for(path)
         if fn is None:
             continue
-        checked += 1
         head_text = git("show", f"HEAD:{path}")
         base_text = git("show", f"{merge_base}:{path}")
+        # Лок распознаётся ДО разбора и ДО счётчика. До: имя `requirements.txt`
+        # обещало манифест прямых зависимостей, а `pip-compile` кладёт туда
+        # транзитивные. И зачесть его в «проверено» тоже нельзя — слепота,
+        # прикрытая чужим числом, читается как покрытие.
+        if is_lock_text(head_text):
+            locks.append(path)
+            continue
+        checked += 1
         if not base_text.strip():
             if head_text.strip():
                 findings.append(path.lower())
             continue
         findings.extend(sorted(fn(head_text) - fn(base_text)))
-    return findings, checked
+    return findings, checked, locks
 
 
 def status_sources(window: str) -> list[str]:
@@ -170,6 +178,33 @@ def report(findings: list[str], strict: bool, window: str) -> int:
     return 1
 
 
+def coverage_note(checked: int, blind: list[str], locks: list[str]) -> None:
+    """Ноль проверенных манифестов — не «чисто», а «нечего было читать».
+
+    Форма взята у сестринского `check_deps_audit.sh` (полевая находка lab-3 F17:
+    на Swift-проекте с двумя зависимостями он печатал `OK — py_total=0`): WARNING
+    с названной причиной, exit 0. Ронять нельзя — репозиторий вообще без
+    зависимостей законен, а гейт, красный на пустом дереве, снимут первым
+    (§4.3b). Но и молчать нельзя: на ruby/maven-проекте `проверено 0` читалось
+    как «новых зависимостей нет» НАВСЕГДА — там не была бы объявлена ни одна
+    зависимость, и об этом не сказал бы никто.
+
+    Слепота называется и при `checked > 0`: ЧАСТИЧНАЯ опаснее полной, потому что
+    читается как успех (`cqg@1.80`) — `Gemfile` рядом с `pom.xml` даёт непустое
+    число, за которым java-половина не проверена вовсе.
+    """
+    for path in locks:
+        print(f"  ○ {path}: лок (pip-compile/uv) — транзитивное, не разбирается")
+    if blind:
+        print("WARNING: new-dependency: манифесты, которых разбор НЕ знает: "
+              f"{', '.join(blind)} — их прямые зависимости гейт не судит. "
+              "Объяви роль в scripts/lint/not-applicable.json с причиной: "
+              "объявление попадает в карту ролей, а WARNING читают один раз.")
+    if checked == 0:
+        print("WARNING: new-dependency: 0 манифестов проверено — ноль здесь "
+              "ничего не доказывает (§6), это не «новых зависимостей нет».")
+
+
 def main() -> int:
     base = os.environ.get("BASE", "origin/main")
     strict = os.environ.get("STRICT", "1") != "0"
@@ -183,10 +218,21 @@ def main() -> int:
         return 0
 
     merge_base = git("merge-base", base, "HEAD").strip() or base
-    findings, checked = scan_manifests(merge_base)
+    paths = git("ls-files").splitlines()
+    blind = unreadable_manifests(paths)
+    findings, checked, locks = scan_manifests(merge_base, paths)
     print(f"new-dependency: манифестов проверено {checked}, база {merge_base}")
+    coverage_note(checked, blind, locks)
     if not findings:
-        print("new-dependency: OK — новых прямых зависимостей нет")
+        # ⚠ Словом «OK» непроверенное не называется — иначе правка бессмысленна:
+        # `cqg@1.61` мерит это прямо («заявленный успех БЬЁТ названный пропуск:
+        # гейт может шепнуть „пропущено“ в теле и напечатать „OK“ в итоге, а
+        # читают итог»). Ветка скопирована с `check_deps_audit.sh`: «числа
+        # печатаем, но словом OK их не называем».
+        print("new-dependency: OK — новых прямых зависимостей нет"
+              if checked and not blind else
+              "new-dependency: новых зависимостей нет В ПРОЧИТАННОМ — "
+              "проверено не всё (причины выше)")
         return 0
     return report(findings, strict, f"{merge_base}..HEAD")
 
