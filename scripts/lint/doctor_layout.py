@@ -199,17 +199,53 @@ class LayoutChecks:
     #: `scripts/lint/*`, поэтому не сказал никто — а §5.5 ради этого и написана.
     #: Конфиги адаптируют ШТАТНО (§6: значения живут в `env:`/`entry:`), значит
     #: расхождение тут нормально — но объявленное, а не молчаливое.
-    CANON_CONFIGS = {
-        ".pre-commit-config.yaml": ("### `.pre-commit-config.yaml`", "yaml"),
-        ".github/workflows/quality.yml": ("### 8.3. Workflow (GitHub Actions)", "yaml"),
+    #: ⚠ Это список ИСКЛЮЧЕНИЙ, а не инвентарь конфигов, и разница стоила
+    #: молчания на шести файлах из десяти. Тело большинства конфигов лежит в
+    #: каноне под заголовком вида ``### `путь` `` — маркер выводится ПРАВИЛОМ,
+    #: ровно как у скриптов. Здесь перечислены только те, чьё тело живёт под
+    #: ПРОЗАИЧЕСКИМ заголовком, из имени не выводимым.
+    #:
+    #: Прежняя редакция держала таблицу инвентарём и знала четыре файла из
+    #: десяти: `.dependency-cruiser.cjs`, `backend/.importlinter`,
+    #: `backend/pyproject.toml`, `backend/requirements-dev.txt`,
+    #: `<frontend>/.prettierrc` и `<frontend>/eslint.config.js` не сверялись
+    #: НИКОГДА — адаптированный без объявления конфиг проходил молча, тогда как
+    #: `plan_update.py` на том же файле давал «стоп». Два инструмента одного
+    #: контура расходились об одном файле, и слепым был тот, что ЕЗДИТ в проект
+    #: и стоит в CI. Список рос дважды (`1.91`, `2.01`) и оба раза строкой, а не
+    #: выводом из манифеста. Нашло третье полевое развёртывание.
+    CANON_CONFIG_MARKERS = {
+        ".github/workflows/quality.yml": "### 8.3. Workflow (GitHub Actions)",
         ".github/workflows/main-guard.yml":
-            ("**④ Красное на `main` не остаётся незамеченным.**", "yaml"),
+            "**④ Красное на `main` не остаётся незамеченным.**",
         # Адаптер GitLab сверяется так же, как оба workflow'а (`cqg@2.01`). Без
         # этой строки §5.5 на GitLab-проекте не находила НИЧЕГО и молчала: и
         # «адаптер устарел», и «адаптирован без объявления» проходили тихо —
         # ровно та половина класса, которую `cqg@1.91` закрыл для GitHub.
-        ".gitlab-ci.yml": ("### 8.3a. GitLab: тот же контракт, тонкий адаптер", "yaml"),
+        ".gitlab-ci.yml": "### 8.3a. GitLab: тот же контракт, тонкий адаптер",
     }
+
+    def canon_configs(self, text: str) -> dict[str, str]:
+        """{путь конфига: маркер} — ИНВЕНТАРЬ из самого канона, не из списка.
+
+        Заголовки ``### `путь` `` вычитываются из снимка, поэтому новый конфиг
+        попадает под сверку тем, что канон его вообще описывает, — руками
+        дописывать нечего и забыть нечего. Скрипты отсеиваются: у них свой обход.
+
+        Две формы заголовка канон использует и обе разобраны: суффикс-пояснение
+        (``### `backend/pyproject.toml (фрагмент)` ``) и плейсхолдер каталога
+        фронта (``### `<frontend>/eslint.config.js` ``), который разворачивается
+        в настоящий каталог проекта.
+        """
+        fe = os.environ.get("LINT_FE_DIR", "frontend")
+        out = dict(self.CANON_CONFIG_MARKERS)
+        for m in re.finditer(r"^### `([^`]+)`\s*$", text, re.M):
+            raw = m.group(1)
+            rel = raw.split(" (", 1)[0].replace("<frontend>", fe)
+            if rel.startswith("scripts/") or rel in out:
+                continue
+            out[rel] = f"### `{raw}`"
+        return out
 
     def _compare_with_snapshot(self, text: str, rel: str, marker: str, lang: str,
                                declared: dict) -> None:
@@ -272,6 +308,8 @@ class LayoutChecks:
                     text, f"scripts/lint/{script.name}",
                     f"### `scripts/lint/{script.name}`", lang, declared)
 
-        for rel, (marker, lang) in sorted(self.CANON_CONFIGS.items()):
-            self._compare_with_snapshot(text, rel, marker, lang, declared)
+        # Язык блока для конфигов — `yaml` исторически; на деле сверяется ТЕЛО,
+        # а не подсветка, поэтому одного значения хватает всем формам.
+        for rel, marker in sorted(self.canon_configs(text).items()):
+            self._compare_with_snapshot(text, rel, marker, "yaml", declared)
 

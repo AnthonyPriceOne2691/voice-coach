@@ -135,11 +135,29 @@ class VersionChecks:
             if rel.endswith("STATUS.md"):
                 return "" if v.endswith("@absent") else v
         st = self.root / "delivery" / "active" / "STATUS.md"
-        if not st.is_file():
-            return ""
-        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
-                      "\n".join(self._prose_lines(st)))
-        return m.group(1) if m else ""
+        if st.is_file():
+            m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
+                          "\n".join(self._prose_lines(st)))
+            if m:
+                return m.group(1)
+        # ⚠ Раньше здесь стоял `return ""`, и это выключало сверку «снимок против
+        # заявления» ЦЕЛИКОМ. Замер на живом проекте: записи говорили `cqg@2.02`,
+        # снимок нёс `2.16` — расхождение в ЧЕТЫРНАДЦАТЬ ревизий, — а доктор
+        # напечатал обе строки зелёными и подытожил «Лжи нет».
+        #
+        # Пустой `delivery/active/` — состояние ШТАТНОЕ (§2.3a Delivery), то есть
+        # слепота включалась в нормальном режиме между поставками, а не в
+        # поломанном. Заявление живёт ещё в двух записях (`STACK_RECORDS`), и
+        # взять его оттуда можно: расходятся они между собой или нет — говорит
+        # `check_stack_records`, здесь нужен сам факт заявления.
+        #
+        # Класс — `green-without-the-thing`, и файл болел им уже дважды по
+        # собственным пометкам выше: «тишину покупали УДАЛЕНИЕМ строки» и
+        # «молчание выдавалось за здоровье». Оба раза чинили ОДНУ форму пропажи.
+        for _rel, v in found:
+            if not v.endswith("@absent"):
+                return v
+        return ""
 
     def check_stack_records(self) -> None:
         """Записи о версии стека обязаны СОГЛАСОВАТЬСЯ между собой.

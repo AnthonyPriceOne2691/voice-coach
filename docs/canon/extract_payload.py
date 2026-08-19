@@ -90,6 +90,7 @@ SCRIPTS = {
     "scripts/lint/doctor_area_verdicts.py": ("cqg", "### `scripts/lint/doctor_area_verdicts.py`", "python"),
     "scripts/lint/doctor_canaries.py": ("cqg", "### `scripts/lint/doctor_canaries.py`", "python"),
     "scripts/lint/doctor_probes.py": ("cqg", "### `scripts/lint/doctor_probes.py`", "python"),
+    "scripts/lint/doctor_deployment.py": ("cqg", "### `scripts/lint/doctor_deployment.py`", "python"),
     "scripts/lint/assert_digest.sh": ("cqg", "### `scripts/lint/assert_digest.sh`", "bash"),
     "scripts/lint/check_ci_status.sh": ("cqg", "### `scripts/lint/check_ci_status.sh`", "bash"),
     "scripts/lint/check_gate_value.sh": ("cqg", "### `scripts/lint/check_gate_value.sh`", "bash"),
@@ -131,7 +132,8 @@ PARTS = {
         "scripts/lint/doctor_hooks.py", "scripts/lint/doctor_areas.py",
         "scripts/lint/doctor_area_verdicts.py",
         "scripts/lint/doctor_canaries.py",
-        "scripts/lint/doctor_probes.py"),
+        "scripts/lint/doctor_probes.py",
+        "scripts/lint/doctor_deployment.py"),
     "scripts/lint/check_ast_gate.py": (
         "scripts/lint/ast_rules.py", "scripts/lint/ast_web_rules.py"),
     "scripts/lint/check_new_dependency.py": ("scripts/lint/dependency_manifests.py",),
@@ -180,6 +182,12 @@ CONFIGS = {
 }
 
 # Шаблоны delivery/**: маркер приложения -> путь в дереве §2.3.
+#: Шаблоны дерева живут ТОЛЬКО в Delivery, и это одно знание на двух
+#: потребителей: `template()` читает их оттуда, `--manifest --by-canon`
+#: этим же отвечает, какому канону они принадлежат. Константа вместо двух
+#: литералов — `one-notion-one-place` из собственного реестра классов.
+TEMPLATES_CANON = "delivery"
+
 TEMPLATES = {
     "delivery/CONSTITUTION.md": "### A.1. ",
     "delivery/active/STATUS.md": "### A.2. ",
@@ -357,7 +365,7 @@ class Payload:
         return block_after(self.canon_text(key), marker, lang)
 
     def template(self, rel: str) -> str:
-        return block_after(self.canon_text("delivery"), TEMPLATES[rel], "markdown")
+        return block_after(self.canon_text(TEMPLATES_CANON), TEMPLATES[rel], "markdown")
 
     def config(self, rel: str) -> str:
         key, marker, lang = CONFIGS[rel]
@@ -420,12 +428,28 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--canon-dir", default=str(Path(__file__).resolve().parent))
     ap.add_argument("--manifest", action="store_true")
+    # ⚠ Отдельный флаг, а не смена формата `--manifest`: его вывод («путь на
+    # строку») стоит в рецепте сверки в шапке этого файла и в §5.0, и менять
+    # его значило бы сломать чужие однострочники ради своего потребителя.
+    #
+    # Зачем канон вообще нужен в выводе: снимок в проекте несёт ВСЕ четыре
+    # канона даже там, где развёрнуто три (вариант A/B). Кто судит полноту
+    # состава, обязан выбросить payload канона, объявленного `@absent`, иначе
+    # он обвинит законную раскладку — а ложное срабатывание снимают вместе с
+    # проверкой (§4.3b).
+    ap.add_argument("--by-canon", action="store_true",
+                    help="с --manifest: печатать `канон<TAB>путь`")
     ap.add_argument("--extract", metavar="DIR")
     args = ap.parse_args(argv)
     pl = Payload(args.canon_dir)
 
     if args.manifest:
-        print("\n".join(pl.manifest()))
+        if args.by_canon:
+            owner = {rel: spec[0] for rel, spec in {**SCRIPTS, **CONFIGS}.items()}
+            print("\n".join(f"{owner.get(rel, TEMPLATES_CANON)}\t{rel}"
+                             for rel in pl.manifest()))
+        else:
+            print("\n".join(pl.manifest()))
         return 0
 
     if args.extract:

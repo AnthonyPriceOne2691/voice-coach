@@ -8,7 +8,7 @@
 > домена — в OKF. Если в проекте ещё нет `delivery/` — сначала Delivery
 > ([AGENT_STACK.md](AGENT_STACK.md) §2.A), потом этот канон.
 
-**Canon version:** `cqg@2.20` · 2026-08-17 (Changelog — в конце файла). Версию впиши в
+**Canon version:** `cqg@2.27` · 2026-08-19 (Changelog — в конце файла). Версию впиши в
 `delivery/CONSTITUTION.md` / `STATUS.md` (`stack:`) при развёртывании.
 
 **Самодостаточный документ.** Всё, что нужно для этой системы качества, — здесь: правила с порогами,
@@ -1155,6 +1155,7 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 | `scripts/lint/doctor_area_verdicts.py` (сколько просмотрено против дерева) | Приложение A |
 | `scripts/lint/doctor_canaries.py` (данные проб и объявления проекта) | Приложение A |
 | `scripts/lint/doctor_probes.py` (пробы исполнением) | Приложение A |
+| `scripts/lint/doctor_deployment.py` (состав контура против канона) | Приложение A |
 | `scripts/lint/assert_digest.sh` (инструмент) | Приложение A |
 | `scripts/delivery_check.py` — 11 файлов (`delivery@1.53`) | Delivery, Приложение B и B1–B10 |
 | **`scripts/lint/check_baseline_ratchet.sh`** (мета) | **§8.2 — не в приложении** |
@@ -1164,11 +1165,11 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 | `.github/workflows/main-guard.yml` (issue на красное в main) | §8.5.1 ④ |
 
 **Правило:** сверяйся с этой таблицей, а не с оглавлением приложений. Если
-скриптовый обход даёт меньше 35 файлов в `scripts/**` — обход неполон, и
+скриптовый обход даёт меньше 36 файлов в `scripts/**` — обход неполон, и
 `check_gate_coverage.sh` это подтвердит.
 
 ⚠ **Скрипт может быть КОМПЛЕКТОМ, а не файлом** (`cqg@1.82`–`1.83`, планка 300
-строк §9.1a п.5). Доктор — девять файлов, `check_ast_gate.py` — три,
+строк §9.1a п.5). Доктор — десять файлов, `check_ast_gate.py` — три,
 `check_new_dependency.py` — два, мутационный и мета-гейт — по четыре и три,
 гейт сложности — два. Копировать надо все: без своей части вход не
 стартует вовсе, и это выбрано сознательно — стартовать с частью проверок значило
@@ -1188,7 +1189,7 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 нужен ровно в момент развёртывания.
 
 ```bash
-python3 extract_payload.py                     # всё ли извлекается (76 из 76)
+python3 extract_payload.py                     # всё ли извлекается (77 из 77)
 python3 extract_payload.py --manifest          # пути payload'а, по одному на строку
 python3 extract_payload.py --extract КАТАЛОГ   # разложить
 # ⚠ Плейсхолдер БЕЗ угловых скобок: блоки канона проверяются `bash -n` (§7), а
@@ -1860,6 +1861,15 @@ TS-половина.
 (`<count>:<path>`), и с global-count (одно число) снимками; секции
 `[baseline]`/`[exemption]` в `file_length_baseline.txt` схлопываются в один map по пути.
 
+**И падает на снимке, который не умеет прочесть.** Файл под глобом, где есть строки
+данных и не разобрана ни одна запись, сверяется с базой пустым множеством — а прогон
+при этом печатает «сверено». Это ровно та ложь, против которой скрипт и поставлен,
+только этажом ниже: не «снимок переснят вверх», а «снимка для ратчета здесь нет
+вовсе». Проверка идёт **до** обращения к `BASE`, потому что чужой формат приезжает
+новым файлом, а новый уходит в `skip`. Снимок с другой семантикой (например «не
+меняется без сопровождения» — Delivery §14.3) держат вне `scripts/lint/`: два ратчета
+с противоположными правилами в одном каталоге разъедутся на первой же правке.
+
 ```bash
 #!/usr/bin/env bash
 # Ратчет над самими снимками: baseline может только ТАЯТЬ.
@@ -1928,12 +1938,38 @@ normalize() {
     }' "$1"
 }
 
+# Сколько в снимке строк ДАННЫХ: не комментарий, не секция, не пустая. Вопрос
+# другой, чем у normalize(): та отвечает «сколько записей разобрано», эта — «было
+# ли что разбирать». Разность двух чисел и есть ложь: файл под глобом ратчета, из
+# которого не разобрано ни одной записи, сверяется с базой ПУСТЫМ множеством и
+# уходит в «OK, снимков сверено N».
+data_lines() {
+  awk '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*\[/ { next }
+    { n++ }
+    END { print n + 0 }' "$1"
+}
+
 violations=0
+unreadable=0
 checked=0
 
 shopt -s nullglob
 for cur in "$LINT_DIR"/*_baseline.txt; do
   name=$(basename "$cur")
+  # Формат проверяется ДО обращения к BASE, и порядок здесь несущий: снимок в
+  # чужом формате приходит НОВЫМ файлом, а новый уходит в `skip` строкой ниже —
+  # то есть единственный случай, ради которого проверка написана, разбирался бы
+  # последним и молча. Класс тот же, что закрыт ниже про `FILENAME == oldf`, но
+  # на уровне ЗАПИСИ, а не файла: сверено ноль читается как «проверено».
+  data=$(data_lines "$cur")
+  if [[ "$data" -gt 0 && "$(normalize "$cur" | wc -l | tr -d ' ')" -eq 0 ]]; then
+    echo "  $name: формат не читается ратчетом — 0 записей из $data строк(и) данных" >&2
+    unreadable=$((unreadable + 1))
+    continue
+  fi
   if ! git show "$BASE:$cur" >"$tmp/old.raw" 2>/dev/null; then
     echo "  skip (нет в $BASE, новый гейт): $name"
     continue
@@ -1964,6 +2000,23 @@ for cur in "$LINT_DIR"/*_baseline.txt; do
     violations=$((violations + 1))
   fi
 done
+
+# Нечитаемый снимок судится ОТДЕЛЬНО от роста и waiver'ом роста не гасится:
+# `baseline_growth_waiver` объявляет законным РОСТ, а здесь неизвестно даже, был
+# ли он — сравнивать было нечем. Разные вопросы, разные выходы.
+if [[ "$unreadable" -gt 0 ]]; then
+  if [[ "$STRICT" == "0" ]]; then
+    echo "baseline-ratchet: WARNING (STRICT=0) — $unreadable снимок(ов) нечитаем(ы)" >&2
+  else
+    echo "baseline-ratchet: FAIL — $unreadable снимок(ов) под глобом ратчета в чужом формате." >&2
+    echo "Читаются '<count>:<path>' и '<N>'; из остального разбирается НОЛЬ записей, и" >&2
+    echo "мета-гейт отчитывается «сверено», не сверив ничего. Варианты: (1) привести" >&2
+    echo "снимок к формату; (2) если у него ДРУГАЯ семантика (например «не меняется без" >&2
+    echo "сопровождения» вместо «только вниз») — держать его вне '$LINT_DIR', у своего" >&2
+    echo "владельца: два ратчета с противоположными правилами в одном каталоге разъедутся." >&2
+    exit 1
+  fi
+fi
 
 if [[ "$violations" -eq 0 ]]; then
   # Сверено НОЛЬ — это не «проверено», а «сверять было нечего»: снимки в базе
@@ -4791,9 +4844,23 @@ red=$(printf '\033[31m'); yellow=$(printf '\033[33m'); green=$(printf '\033[32m'
 # ровно то, что уже было починено у eslint-ратчета и не перенесено сюда. Нашлось
 # не глазами, а пробником по всем path-зависимым гейтам сразу (см. регрессию
 # `test_no_gate_dies_with_a_raw_shell_error`).
-if [[ ! -d "$REPO_ROOT/$BE_DIR" ]]; then
-  printf '%s⚠ нет каталога backend (%s) — diff-coverage пропущен. Настройка: LINT_BE_DIR%s\n' \
-    "$yellow" "$BE_DIR" "$reset"
+# Применимость — по МАНИФЕСТУ проекта, а не по наличию каталога. Тот же класс,
+# что закрыт у check_deps_audit.sh (cqg@2.17), и здесь он оставался жив: джоба
+# §8.3 ставит оснастку гейтов в $BE_DIR/.venv и тем СОЗДАЁТ $BE_DIR, после чего
+# охрана -d истинна на проекте, где питона нет. Замер третьего развёртывания:
+# без каталога — честный пропуск, с созданным соседним шагом — гейт отчитывается
+# об 11 не-python файлах. Правка была на СЛУЧАЙ, а не на класс.
+# ⚠ Применимость судится по ОТСЛЕЖИВАЕМОМУ КОДУ, а не по наличию каталога:
+# джоба §8.3 ставит оснастку гейтов в `$BE_DIR/.venv` и тем СОЗДАЁТ `$BE_DIR`,
+# после чего охрана `-d` истинна на проекте, где питона нет. Тот же класс закрыт
+# у `check_deps_audit.sh` (`cqg@2.17`), но признак ТАМ другой и переносить его
+# сюда нельзя: аудит зависимостей спрашивает про манифест, покрытие — про КОД.
+# Перенос признака через границу класса сьют поймал шестью красными прогонами.
+# `git ls-files` заодно отсекает `.venv`: он не отслеживается.
+py_tracked=$(git -C "$REPO_ROOT" ls-files -- "$PY_SRC" 2>/dev/null | grep -cE '\.py$' || true)
+if [[ "${py_tracked:-0}" -eq 0 ]]; then
+  printf '%s⚠ нет отслеживаемого python-кода в %s — diff-coverage пропущен. Настройка: LINT_PY_SRC%s\n' \
+    "$yellow" "$PY_SRC" "$reset"
   printf 'Покрытие изменённого кода НЕ измерено — отметь непокрытость в verify-report.md.\n'
   exit 0
 fi
@@ -5141,8 +5208,9 @@ exit 0
     doctor_area_verdicts.py  вердикт о площади: просмотрено N из M (1.80/1.88)
     doctor_canaries.py   данные проб и объявления проекта
     doctor_probes.py     сами пробы исполнением
+    doctor_deployment.py состав контура: что канон объявил против того, что лежит
 
-Развёртывание копирует ВСЕ девять файлов: без любого из них доктор не стартует —
+Развёртывание копирует ВСЕ десять файлов: без любого из них доктор не стартует —
 и это лучше, чем стартовать без части проверок (§5.0 инвентарь). Число здесь
 сверяется механикой (`test_ts_stack_coverage`): до `cqg@2.02` стояло «шесть» при
 восьми — счётчик разъехался на `cqg@1.98` и пережил две правки, потому что
@@ -5169,6 +5237,7 @@ from doctor_area_verdicts import AreaVerdicts
 from doctor_areas import AreaChecks
 from doctor_canaries import CanaryData
 from doctor_core import ABSENT, AUTO, COLOR, DEAD, ORDER, RESET, SKIP, TOOL, WEAK, run
+from doctor_deployment import DeploymentScreen
 from doctor_hooks import HookReaders
 from doctor_layout import LayoutChecks
 from doctor_versions import VersionChecks
@@ -5176,10 +5245,15 @@ from doctor_probes import ProbeChecks
 
 
 class Doctor(VersionChecks, LayoutChecks, HookReaders, AreaChecks, AreaVerdicts,
-             CanaryData, ProbeChecks):
+             CanaryData, ProbeChecks, DeploymentScreen):
     def __init__(self, root: Path) -> None:
         self.root = root
         self.rows: list[tuple[str, str, str]] = []
+        #: Гейты, промолчавшие на своей канарейке. Заполняется пробами и читается
+        #: суждением о площади: маска гейта, который НЕ судит, покрытием не
+        #: считается. Данными, а не разбором собственных напечатанных строк —
+        #: второй парсер своего же вывода это `one-notion-one-place`.
+        self.dead_gates: set[str] = set()
         self.own = self._read_own_canaries()
 
     def add(self, verdict: str, point: str, detail: str) -> None:
@@ -5252,8 +5326,11 @@ def main() -> int:
         root = Path(out.strip()) if code == 0 and out.strip() else Path.cwd()
 
     doc = Doctor(root.resolve())
+    doc.check_deployment_completeness()
+    doc.check_white_spots()
     doc.check_canons()
     doc.check_stack_records()
+    doc.check_model_surface_claim()
     doc.check_enforcement()
     doc.check_tools()
     doc.check_snapshots()
@@ -5551,17 +5628,53 @@ class LayoutChecks:
     #: `scripts/lint/*`, поэтому не сказал никто — а §5.5 ради этого и написана.
     #: Конфиги адаптируют ШТАТНО (§6: значения живут в `env:`/`entry:`), значит
     #: расхождение тут нормально — но объявленное, а не молчаливое.
-    CANON_CONFIGS = {
-        ".pre-commit-config.yaml": ("### `.pre-commit-config.yaml`", "yaml"),
-        ".github/workflows/quality.yml": ("### 8.3. Workflow (GitHub Actions)", "yaml"),
+    #: ⚠ Это список ИСКЛЮЧЕНИЙ, а не инвентарь конфигов, и разница стоила
+    #: молчания на шести файлах из десяти. Тело большинства конфигов лежит в
+    #: каноне под заголовком вида ``### `путь` `` — маркер выводится ПРАВИЛОМ,
+    #: ровно как у скриптов. Здесь перечислены только те, чьё тело живёт под
+    #: ПРОЗАИЧЕСКИМ заголовком, из имени не выводимым.
+    #:
+    #: Прежняя редакция держала таблицу инвентарём и знала четыре файла из
+    #: десяти: `.dependency-cruiser.cjs`, `backend/.importlinter`,
+    #: `backend/pyproject.toml`, `backend/requirements-dev.txt`,
+    #: `<frontend>/.prettierrc` и `<frontend>/eslint.config.js` не сверялись
+    #: НИКОГДА — адаптированный без объявления конфиг проходил молча, тогда как
+    #: `plan_update.py` на том же файле давал «стоп». Два инструмента одного
+    #: контура расходились об одном файле, и слепым был тот, что ЕЗДИТ в проект
+    #: и стоит в CI. Список рос дважды (`1.91`, `2.01`) и оба раза строкой, а не
+    #: выводом из манифеста. Нашло третье полевое развёртывание.
+    CANON_CONFIG_MARKERS = {
+        ".github/workflows/quality.yml": "### 8.3. Workflow (GitHub Actions)",
         ".github/workflows/main-guard.yml":
-            ("**④ Красное на `main` не остаётся незамеченным.**", "yaml"),
+            "**④ Красное на `main` не остаётся незамеченным.**",
         # Адаптер GitLab сверяется так же, как оба workflow'а (`cqg@2.01`). Без
         # этой строки §5.5 на GitLab-проекте не находила НИЧЕГО и молчала: и
         # «адаптер устарел», и «адаптирован без объявления» проходили тихо —
         # ровно та половина класса, которую `cqg@1.91` закрыл для GitHub.
-        ".gitlab-ci.yml": ("### 8.3a. GitLab: тот же контракт, тонкий адаптер", "yaml"),
+        ".gitlab-ci.yml": "### 8.3a. GitLab: тот же контракт, тонкий адаптер",
     }
+
+    def canon_configs(self, text: str) -> dict[str, str]:
+        """{путь конфига: маркер} — ИНВЕНТАРЬ из самого канона, не из списка.
+
+        Заголовки ``### `путь` `` вычитываются из снимка, поэтому новый конфиг
+        попадает под сверку тем, что канон его вообще описывает, — руками
+        дописывать нечего и забыть нечего. Скрипты отсеиваются: у них свой обход.
+
+        Две формы заголовка канон использует и обе разобраны: суффикс-пояснение
+        (``### `backend/pyproject.toml (фрагмент)` ``) и плейсхолдер каталога
+        фронта (``### `<frontend>/eslint.config.js` ``), который разворачивается
+        в настоящий каталог проекта.
+        """
+        fe = os.environ.get("LINT_FE_DIR", "frontend")
+        out = dict(self.CANON_CONFIG_MARKERS)
+        for m in re.finditer(r"^### `([^`]+)`\s*$", text, re.M):
+            raw = m.group(1)
+            rel = raw.split(" (", 1)[0].replace("<frontend>", fe)
+            if rel.startswith("scripts/") or rel in out:
+                continue
+            out[rel] = f"### `{raw}`"
+        return out
 
     def _compare_with_snapshot(self, text: str, rel: str, marker: str, lang: str,
                                declared: dict) -> None:
@@ -5624,9 +5737,273 @@ class LayoutChecks:
                     text, f"scripts/lint/{script.name}",
                     f"### `scripts/lint/{script.name}`", lang, declared)
 
-        for rel, (marker, lang) in sorted(self.CANON_CONFIGS.items()):
-            self._compare_with_snapshot(text, rel, marker, lang, declared)
+        # Язык блока для конфигов — `yaml` исторически; на деле сверяется ТЕЛО,
+        # а не подсветка, поэтому одного значения хватает всем формам.
+        for rel, marker in sorted(self.canon_configs(text).items()):
+            self._compare_with_snapshot(text, rel, marker, "yaml", declared)
 
+```
+
+### `scripts/lint/doctor_deployment.py`
+
+```python
+#!/usr/bin/env python3
+"""Состав контура: что канон объявил, против того, что в проекте лежит.
+
+Часть доктора (вход — `contour_doctor.py`). Отдельным модулем, а не строкой в
+соседнем, потому что вопрос ДРУГОЙ, чем у всех остальных проверок. Те спрашивают
+про развёрнутое: подключён ли гейт, умеет ли краснеть, видит ли код, не
+разошлось ли тело. Ни одна не может спросить про НЕразвёрнутое — обход идёт по
+дереву проекта, и файл, который не скопировали, в цикл не попадает по построению.
+
+Замер, из которого модуль родился (2026-08-18): полигон с четырьмя снимками
+канонов и ДВУМЯ скриптами payload'а из пятидесяти доктор объявил здоровым —
+`EXIT 0`, «Лжи нет», ни строки про недостающее.
+
+⚠ Инвентарь берётся у извлекателя, который едет вместе с канонами
+(`docs/canon/extract_payload.py --manifest --by-canon`), а не собирается здесь
+своим разбором: второй парсер payload'а — это `one-notion-one-place`, и цена
+его известна замером («чужой извлекатель нашёл 73 файла из 74»). Рецепт этой
+сверки канон уже носил — командой в три строки в шапке извлекателя. Тем она и
+была: командой, которую никто не запускает.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from doctor_core import AUTO, DEAD, SKIP, WEAK, run
+
+
+class DeploymentScreen:
+    CANON_DIR = "docs/canon"
+    NA_FILE = "scripts/lint/not-applicable.json"
+
+    def _payload_by_canon(self) -> tuple[dict[str, str], str]:
+        """`{путь: канон}` от извлекателя проекта либо причина, почему не вышло."""
+        ex = self.root / self.CANON_DIR / "extract_payload.py"
+        if not ex.is_file():
+            return {}, (f"нет {self.CANON_DIR}/extract_payload.py — состав "
+                        "сверить нечем; извлекатель едет вместе с канонами (§5.0)")
+        code, out = run(["python3", str(ex), "--canon-dir",
+                         str(self.root / self.CANON_DIR),
+                         "--manifest", "--by-canon"], self.root)
+        if code != 0:
+            # Старый извлекатель падает на разборе аргумента. `SKIP` с причиной,
+            # а не сверка без разбивки по канонам: снимок несёт ЧЕТЫРЕ канона и
+            # там, где развёрнуто три, поэтому неотфильтрованный список обвинил
+            # бы законную раскладку варианта A/B — а ложное срабатывание
+            # снимают вместе с проверкой (§4.3b).
+            return {}, ("извлекатель не знает `--manifest --by-canon` (payload "
+                        "старой ревизии) — обнови docs/canon/ по §5.5")
+        table = {}
+        for line in out.splitlines():
+            canon, _, rel = line.partition("\t")
+            if rel and canon:
+                table[rel] = canon
+        return table, "" if table else "извлекатель вернул пустой состав"
+
+    def _canon_refused(self, prefix: str) -> bool:
+        """Канон объявлен НЕразвёрнутым (`<канон>@absent`) — его payload не ждём.
+
+        Записей может не быть вовсе: это не отказ, а молчание, и тогда payload
+        всё равно ждём. Иначе проект без единой записи `stack:` выключал бы
+        сверку состава целиком — ровно тот отказ, который доктор чинил в
+        `cqg@2.22` на соседнем вопросе.
+        """
+        found, _ = self._records(prefix)
+        return bool(found) and all(v.endswith("@absent") for _, v in found)
+
+    def _declared_absent_files(self) -> set[str]:
+        """Чего в проекте нет НАРОЧНО — `not-applicable.json` с причиной.
+
+        Файл уже несёт ровно это понятие («роль не покрыта: на этом стеке у неё
+        нет предмета»), и четвёртого объявления рядом с `adapted.json`,
+        `canaries.json` и ним заводить нельзя. Ключ — путь payload'а либо имя
+        файла; причина обязательна, иначе объявление не считается: пустая
+        строка тут была бы самым дешёвым способом купить тишину.
+        """
+        f = self.root / self.NA_FILE
+        if not f.is_file():
+            return set()
+        try:
+            raw = json.loads(f.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            return set()          # битый файл ругается в своём месте, не тут
+        out = set()
+        for key, spec in raw.items():
+            reason = spec.get("reason") if isinstance(spec, dict) else spec
+            if str(reason or "").strip():
+                out.add(str(key).split(":")[0])
+        return out
+
+    #: Роли, которые контур УМЕЕТ закрыть, и признак, при котором роль применима.
+    #: Форма: (что объявлять и искать · альтернативные имена · признак · роль).
+    #:
+    #: **Принцип отбора назван, потому что список без принципа — класс из
+    #: собственного реестра.** Сюда попадает файл, чьё ОТСУТСТВИЕ означает, что
+    #: роль не закрыта ВОВСЕ, и чьё наличие проверяется по ИМЕНИ, а не по пути из
+    #: канона: раскладки у проектов разные, и сверка по префиксу уже однажды
+    #: увезла наверх дефект, невидимый на раскладке нашедшего (`delivery@1.76`).
+    #:
+    #: Сознательно НЕ здесь, и это решение, а не пропуск: `backend/pyproject.toml`
+    #: и `requirements-dev.txt` — проект законно живёт на uv/poetry, а «применён
+    #: ли фрагмент канона» это вопрос сверки ТЕЛ, и у неё свой владелец;
+    #: `.prettierrc` — формат, а не роль каталога §3; `delivery/active/**` — пуст
+    #: между поставками штатно (§2.3a).
+    ROLES = (
+        (".pre-commit-config.yaml", None, "git", "коммит-гейты"),
+        ("eslint.config.js", r"eslint\.config\.[cm]?js|\.eslintrc(\..+)?",
+         "frontend", "ESLint-половина сложности и ратчет предупреждений"),
+        (".dependency-cruiser.cjs", None, "frontend", "направление зависимостей на TS"),
+        (".importlinter", None, "python", "направление зависимостей на python"),
+        ("quality.yml", None, "github", "CI-роль"),
+        (".gitlab-ci.yml", None, "gitlab", "CI-роль"),
+        ("CONSTITUTION.md", None, "delivery", "конституция поставки"),
+        ("STACK-ACCEPTANCE.md", None, "delivery", "карта ролей"),
+    )
+
+    def _stack_signs(self) -> tuple[dict[str, bool], set[str]]:
+        """Признаки стека и имена отслеживаемых файлов — один обход на все роли.
+
+        ⚠ Файлы САМОГО контура из признака исключаются, и это не тонкость:
+        `docs/canon/extract_payload.py` и `stack_selftest.py` едут в каждый
+        проект, поэтому «есть python» было бы истиной даже на чистом Astro/TS.
+        Замер на `portfolio-site`: единственные `.py` в дереве — контурные, и
+        без исключения проект потребовал бы `.importlinter`, которого ему не
+        нужно. Это ровно ложное срабатывание, по которому проверку снимают.
+
+        Хостинг спрашивается у `remote.origin.url`, а файл — фолбэк: обратный
+        порядок уже ронял GitHub-проект с зеркальным `.gitlab-ci.yml`
+        (`cqg@2.01`). Нет ни remote, ни конфигов — оба признака ложны, и CI-роль
+        отсюда не требуется вовсе: «CI нет» судит §10.4, а не эта проверка.
+        """
+        code, listing = run(["git", "ls-files"], self.root)
+        files = listing.splitlines() if code == 0 else []
+        own = re.compile(r"^(scripts/|docs/canon/|tests/)")
+        names = {f.rsplit("/", 1)[-1] for f in files}
+        gh, gl = self._hosting(files)
+        return {
+            "git": bool(files),
+            "python": any(f.endswith(".py") and not own.match(f) for f in files),
+            "frontend": any(n == "package.json" for n in names)
+                        and not all("node_modules" in f for f in files
+                                    if f.endswith("package.json")),
+            "delivery": bool(self._declared_version("delivery")),
+            "github": gh,
+            "gitlab": gl,
+        }, names
+
+    def _hosting(self, files: list[str]) -> tuple[bool, bool]:
+        """(GitHub, GitLab) — remote спрашивается РАНЬШЕ файла.
+
+        Шов по вопросу: соседний блок отвечает «какой у проекта стек», этот —
+        «где он живёт», и вместе они стоили суждению двенадцати ветвлений при
+        планке §2.1 в десять. Обратный порядок признаков уже ронял GitHub-проект
+        с зеркальным `.gitlab-ci.yml` (`cqg@2.01`), поэтому файл только фолбэк.
+        """
+        code, url = run(["git", "config", "--get", "remote.origin.url"], self.root)
+        url = url.strip().lower() if code == 0 else ""
+        if "github" in url or "gitlab" in url:
+            return "github" in url, "gitlab" in url
+        return (any(f.startswith(".github/workflows/") for f in files),
+                ".gitlab-ci.yml" in files)
+
+    def check_white_spots(self) -> None:
+        """Роль применима к этому стеку — и не закрыта, и не объявлена (§5.0).
+
+        Второй вопрос скрининга. Первый («что канон объявил составом») судит
+        ФАЙЛЫ payload'а безусловно; этот судит РОЛИ, и безусловным он быть не
+        может: `.gitlab-ci.yml` не нужен на GitHub, конфиг фронта — без фронта.
+        Поэтому у каждой роли есть признак, и молчание при ложном признаке —
+        не пропуск, а ответ.
+
+        Замер на флоте перед выбором строгости (2026-08-18): из четырёх
+        развёрнутых проектов трое чисты, а `local-web-agent` при живом
+        `frontend/package.json` не имеет ни `.dependency-cruiser.cjs`, ни
+        объявления — роль «направление зависимостей на TS» не закрыта и не
+        названа. Одна находка на четыре проекта: проверка не шумит и не пуста.
+
+        ⚠ **Вердикт `WEAK`, а не `DEAD`, и граница проведена по природе ответа.**
+        Состав судит ФАКТ: канон перечислил файлы, их либо доложили, либо нет, и
+        молчаливая недостача при заявленной версии — ложь. Здесь же
+        применимость ВЫВЕДЕНА из признаков, а вывод роняющим прогон быть не
+        должен: тот же довод, по которому `WEAK` стоит у сверки записей о версии
+        («быть посреди обновления законно»). Первая редакция ставила `DEAD` — и
+        покраснела на четырёх чужих фикстурах, включая ту, что нарочно проверяет
+        ОТСУТСТВИЕ `CONSTITUTION.md`. Это §4.3b в чистом виде: проверка, которая
+        краснеет на законном состоянии, снимается вместе с пользой.
+        """
+        signs, names = self._stack_signs()
+        absent_ok = self._declared_absent_files()
+        gaps = []
+        for name, alt, sign, label in self.ROLES:
+            if not signs.get(sign) or name in absent_ok:
+                continue
+            if name in names or (alt and any(re.fullmatch(alt, n) for n in names)):
+                continue
+            gaps.append(f"{label} ({name})")
+        if gaps:
+            self.add(WEAK, "белые пятна",
+                     "стек есть, роль не закрыта и не объявлена: " + " · ".join(gaps)
+                     + f" — закрой по §5 либо объяви в {self.NA_FILE} с причиной")
+
+    def check_deployment_completeness(self) -> None:
+        """Скрининг состава: развёрнуто N из M, и чего нет молча.
+
+        ⚠ Судятся только `scripts/**`, и это названный предел, а не забывчивость.
+        Конфиги и шаблоны отсутствуют ЗАКОННО на каждом втором проекте:
+        `.gitlab-ci.yml` не нужен на GitHub, `.dependency-cruiser.cjs` — без
+        фронта, а `delivery/active/*` пуст между поставками штатно (§2.3a).
+        Требовать их значило бы краснеть на здоровом проекте; их судят признаки
+        стека — отдельный вопрос и отдельная проверка. Скрипты же копируются
+        целиком: стек решает, ВПИСАН ли гейт (это `gate-coverage`), а не есть ли
+        файл.
+
+        Вердикт зависит от ЗАЯВЛЕНИЯ, и в этом весь смысл: проект, объявивший
+        версию канона, объявил его развёрнутым — молчаливая недостача у него
+        `DEAD`. Проект без заявления разворачивается прямо сейчас, у него это
+        `WEAK` со списком: не «ты соврал», а «осталось вот это».
+        """
+        payload, why = self._payload_by_canon()
+        if why:
+            self.add(SKIP, "состав контура", why)
+            return
+        expected = [rel for rel, canon in sorted(payload.items())
+                    if rel.startswith("scripts/") and "<" not in rel
+                    and not self._canon_refused(canon)]
+        absent_ok = self._declared_absent_files()
+        missing = [r for r in expected if not (self.root / r).is_file()]
+        undeclared = [r for r in missing
+                      if r not in absent_ok and r.rsplit("/", 1)[-1] not in absent_ok]
+        self._completeness_verdict(len(expected), missing, undeclared)
+
+    def _completeness_verdict(self, total: int, missing: list[str],
+                              undeclared: list[str]) -> None:
+        """Три состояния состава одной строкой — и всегда СО ЗНАМЕНАТЕЛЕМ.
+
+        Шов по вопросу, а не по длине: выше считают, здесь судят. Число без
+        знаменателя («не хватает сорока») не отвечает ни на что — `40 из 51` и
+        `40 из 41` это разные новости, и `number-without-its-denominator` лежит
+        в реестре классов ровно за это.
+        """
+        point = "состав контура"
+        here = total - len(missing)
+        if not missing:
+            self.add(AUTO, point, f"развёрнуто {here} из {total}")
+        elif not undeclared:
+            self.add(AUTO, point, f"развёрнуто {here} из {total}, "
+                                  f"{len(missing)} объявлены неприменимыми")
+        else:
+            claimed = any(self._declared_version(p)
+                          for p in ("cqg", "delivery", "okf"))
+            names = ", ".join(r.rsplit("/", 1)[-1] for r in undeclared[:6])
+            tail = f" … и ещё {len(undeclared) - 6}" if len(undeclared) > 6 else ""
+            self.add(DEAD if claimed else WEAK, point,
+                     f"развёрнуто {here} из {total}, НЕ ОБЪЯВЛЕНО "
+                     f"{len(undeclared)}: {names}{tail} — либо доложи из "
+                     f"payload'а (§5.0), либо объяви в {self.NA_FILE} с причиной")
 ```
 
 ### `scripts/lint/doctor_versions.py`
@@ -5769,11 +6146,29 @@ class VersionChecks:
             if rel.endswith("STATUS.md"):
                 return "" if v.endswith("@absent") else v
         st = self.root / "delivery" / "active" / "STATUS.md"
-        if not st.is_file():
-            return ""
-        m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
-                      "\n".join(self._prose_lines(st)))
-        return m.group(1) if m else ""
+        if st.is_file():
+            m = re.search(rf"\b({re.escape(prefix)}@[0-9][0-9.]*)",
+                          "\n".join(self._prose_lines(st)))
+            if m:
+                return m.group(1)
+        # ⚠ Раньше здесь стоял `return ""`, и это выключало сверку «снимок против
+        # заявления» ЦЕЛИКОМ. Замер на живом проекте: записи говорили `cqg@2.02`,
+        # снимок нёс `2.16` — расхождение в ЧЕТЫРНАДЦАТЬ ревизий, — а доктор
+        # напечатал обе строки зелёными и подытожил «Лжи нет».
+        #
+        # Пустой `delivery/active/` — состояние ШТАТНОЕ (§2.3a Delivery), то есть
+        # слепота включалась в нормальном режиме между поставками, а не в
+        # поломанном. Заявление живёт ещё в двух записях (`STACK_RECORDS`), и
+        # взять его оттуда можно: расходятся они между собой или нет — говорит
+        # `check_stack_records`, здесь нужен сам факт заявления.
+        #
+        # Класс — `green-without-the-thing`, и файл болел им уже дважды по
+        # собственным пометкам выше: «тишину покупали УДАЛЕНИЕМ строки» и
+        # «молчание выдавалось за здоровье». Оба раза чинили ОДНУ форму пропажи.
+        for _rel, v in found:
+            if not v.endswith("@absent"):
+                return v
+        return ""
 
     def check_stack_records(self) -> None:
         """Записи о версии стека обязаны СОГЛАСОВАТЬСЯ между собой.
@@ -6150,10 +6545,18 @@ class AreaChecks:
                      "судить не на чем (bootstrap: контур есть, кода ещё нет)")
             return
         off_commit: list[str] = []
+        self._blind_pending: list = []
+        #: Маски гейтов, которые ДЕЙСТВИТЕЛЬНО судят: попадают сюда только те,
+        #: что просмотрели хоть один файл и не промолчали на своей канарейке.
+        #: Слепой или мёртвый гейт покрытием не считается — иначе объединение
+        #: масок оправдывало бы файл ссылкой на того, кто его не судит, а это
+        #: ровно та ложь, против которой вся проверка площади.
+        self._live_masks: list[str] = []
         for script in sorted(d.glob("check_*")):
             label = self._judge_gate(script, text, files)
             if label:
                 off_commit.append(label)
+        self._judge_blindness_together()
 
         if off_commit:
             self.add(WEAK, "область: не на коммите",
@@ -6200,9 +6603,11 @@ class AreaChecks:
             self._judge_zero(point, out, mine, multi_rule=multi_rule)
             return None
         mask_m = self.MASK_RE.search(out)
+        mask = mask_m.group(1).split() if mask_m else []
+        if name not in self.dead_gates:
+            self._live_masks.extend(mask)
         self._judge_area(point, n, unit, files, mine, multi_rule=multi_rule,
-                         files_re=self._hook_files_re(text, name),
-                         mask=(mask_m.group(1).split() if mask_m else []))
+                         files_re=self._hook_files_re(text, name), mask=mask)
         return None
 
     def _scanned(self, out: str) -> tuple[int, str] | None:
@@ -6295,6 +6700,21 @@ def _covers(token: str, path: str) -> bool:
     `dir/**` (поддерево) и `dir/**/*.py` (то и другое). Голый `fnmatch` не
     годится: `*.py` в нём не совпадает с `pkg/mod.py`, а `**` он не знает вовсе.
     """
+    # ⚠ Маска, укоренённая в КОРНЕ репозитория, приходит как `./**` или
+    # `./**/*.py`: `LINT_PY_SRC=.` — законная настройка (таблица «Применимость»),
+    # а `git ls-files` отдаёт пути БЕЗ `./`. Прежняя форма сравнивала префикс
+    # буквально, поэтому корневая маска не покрывала НИ ОДНОГО файла, и доктор
+    # объявлял три гейта `DEAD` — вердикт, который сам же определяет как «только
+    # это ложь», — на проекте, где гейт в тот же момент печатал «просмотрено 132
+    # файл(ов)». Нашло ТРЕТЬЕ полевое развёртывание; раскладка самого канона
+    # (`backend/features`) работала, и потому дефекта не видел никто: везение
+    # раскладки, а не защита.
+    if token.startswith("./"):
+        token = token[2:]
+    if token in ("**", "**/*"):
+        return True
+    if token.startswith("**/"):
+        return fnmatch.fnmatch(path.rsplit("/", 1)[-1], token[3:])
     if token.endswith("/**"):
         return path.startswith(token[:-2])
     if "/**/" in token:
@@ -6403,6 +6823,45 @@ class AreaVerdicts:
                  f"мимо гейта (в дереве {top}) — так выглядела находка №1, где "
                  "«просмотрено 1» при четырёх файлах читалось как успех. Сверь маску (§6)")
 
+    def _judge_blindness_together(self) -> None:
+        """Слепота судится ОБЪЕДИНЕНИЕМ масок, а не маской одного гейта.
+
+        Файл, которого не покрывает ни одна маска, не судит НИКТО — вот это ложь
+        объявленной роли, и она остаётся `DEAD`. Файл, покрытый соседним гейтом,
+        снимается с этого: у смешанного стека роли делят по языкам, и требовать
+        от python-гейта Swift значит требовать невыполнимого, а невыполнимые
+        правила снимают вместе с ратчетом (§4.3b).
+
+        ⚠ Что этой правкой ТЕРЯЕТСЯ, и это названо, а не замолчано: случай
+        «файл формально под маской, но гейт его не судит своим FILTER» перестаёт
+        ловиться здесь. Он остаётся за `WEAK` по числам («просмотрено N из M»),
+        то есть улика становится слабее — числа вместо имён.
+        """
+        pending = getattr(self, "_blind_pending", [])
+        if not pending:
+            return
+        # ⚠ Объединение берётся из масок ЖИВЫХ гейтов, а не из масок самих
+        # ослепших. Первая редакция считала `covered` по `pending` — то есть по
+        # тем же гейтам, у которых слепота и нашлась: гейт, покрывающий свою
+        # область целиком, в список не попадал вовсе, и оправдание работало
+        # только когда два гейта слепы ДРУГ К ДРУГУ. На `lash-try-on` это
+        # совпало (python и swift слепы взаимно) и выглядело верным.
+        covered = self._live_masks
+        for point, blind, mask in pending:
+            orphan = [f for f in blind
+                      if not any(_covers(tok, f) for tok in covered)]
+            if not orphan:
+                self.add(WEAK, point,
+                         f"маска гейта не покрывает {len(blind)} файл(ов) "
+                         f"области, но их судят соседние гейты (маска — "
+                         f"«{' '.join(mask)}»): роли делятся по языкам")
+                continue
+            self.add(DEAD, point,
+                     f"маска гейта не покрывает {len(orphan)} файл(ов) области: "
+                     f"{', '.join(orphan[:3])}{' …' if len(orphan) > 3 else ''}. "
+                     f"Маска — «{' '.join(mask)}»; этих файлов не видит НИ ОДИН "
+                     "подключённый гейт, а роль объявлена закрытой (§6)")
+
     def _blind_by_mask(self, point: str, area: list[str], mask: list[str]) -> bool:
         """Файлы области мимо маски гейта → DEAD. Возвращает: судил ли этим.
 
@@ -6421,11 +6880,19 @@ class AreaVerdicts:
         blind = [f for f in area if not any(_covers(tok, f) for tok in mask)]
         if not blind:
             return False
-        self.add(DEAD, point,
-                 f"маска гейта не покрывает {len(blind)} файл(ов) области: "
-                 f"{', '.join(blind[:3])}{' …' if len(blind) > 3 else ''}. "
-                 f"Маска — «{' '.join(mask)}»; эти файлы гейт не увидит "
-                 "никогда, а роль объявлена закрытой (§6)")
+        # ⚠ Вердикт ОТЛОЖЕН до конца обхода, и это несущая часть. Судить площадь
+        # маской ОДНОГО гейта — значит объявлять лжецом python-гейт за то, что
+        # рядом лежит Swift: на смешанном стеке, где языки переплетены в одном
+        # каталоге, законного хода не остаётся вовсе (корень сузить нельзя, он
+        # общий). Замер: `lash-try-on`, восемь `.swift` в `scripts/` рядом с
+        # питоновскими — гейт DEAD по построению.
+        #
+        # Свойство, ради которого проверка написана, при этом СОХРАНЯЕТСЯ:
+        # оправдаться собственной маской по-прежнему нельзя. Сузив её, гейт не
+        # спасается — файл переходит в ответственность другого гейта, а если его
+        # не покрывает НИ ОДИН, `DEAD` остаётся. Вопрос стал точнее: не «слеп ли
+        # этот гейт», а «есть ли код, который не судит никто».
+        self._blind_pending.append((point, blind, list(mask)))
         return True
 
     def _judge_zero(self, point: str, out: str, env: dict, *,
@@ -6497,9 +6964,10 @@ class AreaVerdicts:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
-from doctor_core import SKIP, run
+from doctor_core import AUTO, DEAD, SKIP, run
 
 CANARIES: dict[str, tuple[str, str]] = {
     # grep-правила
@@ -6629,6 +7097,106 @@ DIRECT_SETUP = {
 
 
 class CanaryData:
+    #: Признак «продукт зовёт языковую модель» берётся по ПРИНЦИПУ: пакет, у
+    #: которого нет другого применения, кроме вызова модели. Список неполон по
+    #: построению — завтра появится провайдер, которого тут нет, — и сказано это
+    #: здесь, а не в голове: `list-without-its-principle` лежит в собственном
+    #: реестре классов восемью местами, и девятое заводить незачем. Цена ошибки
+    #: несимметрична: пропущенный пакет даёт молчание там, где могло быть
+    #: замечание, лишний — ложное `DEAD`, поэтому список узкий.
+    LLM_PACKAGES = ("anthropic", "openai", "ollama", "mistralai", "cohere",
+                    "langchain", "llama-index", "litellm", "google-generativeai")
+    #: Второй признак ловит проект, который зовёт модель по HTTP без всякого SDK:
+    #: пакета нет, а промпт-стор есть. Один признак из двух был бы у́же обещания.
+    PROMPT_RE = re.compile(r"(^|/)prompts?/")
+    MANIFEST_RE = re.compile(
+        r"(^|/)(pyproject\.toml|requirements[^/]*\.txt|package\.json|"
+        r"Cargo\.toml|go\.mod|Package\.swift)$")
+
+    def _model_signs(self) -> list[str]:
+        """Улики того, что продукт зовёт модель: пакет в манифесте, промпт-стор.
+
+        Считается по `git ls-files`, как судят гейты: неотслеживаемый venv с
+        `openai` внутри — не признак продукта, а установленное окружение, и
+        обход дерева нашёл бы его первым.
+        """
+        code, listing = run(["git", "ls-files"], self.root)
+        if code != 0:
+            return []
+        signs: list[str] = []
+        for rel in listing.splitlines():
+            if self.PROMPT_RE.search(rel):
+                top = rel[:rel.lower().rindex("prompt")] + "prompts/"
+                if top not in signs:
+                    signs.append(top)
+                continue
+            if not self.MANIFEST_RE.search(rel):
+                continue
+            try:
+                text = (self.root / rel).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for pkg in self.LLM_PACKAGES:
+                if re.search(rf"[\"'\s]{re.escape(pkg)}[\"'\s@<>=~^,\]]", text):
+                    signs.append(f"{pkg} в {rel}")
+        return signs
+
+    def check_model_surface_claim(self) -> None:
+        """Заявление о поверхности модели против ДЕРЕВА (Delivery §14.1).
+
+        Разделение труда то же, что во всём контуре: гейт поставки спрашивает,
+        объявлена ли поверхность, и принимает `n/a reason=…` — отказ с причиной
+        законен, требовать иного значило бы краснеть на каждом проекте без
+        модели. Проверить сам ОТВЕТ гейт не может: он смотрит в STATUS, а не в
+        дерево. Ложь ловит доктор — это его единственная работа.
+
+        ⚠ `SKIP` с причиной, а не тишина, когда судить нечем: `delivery/active/`
+        пуст между поставками ШТАТНО (§2.3a Delivery), и молчание в этом
+        состоянии — ровно тот `green-without-the-thing`, который доктор у себя
+        уже дважды чинил. Признаки при этом печатаются: «объявления нет, а модель
+        зовут» — самое полезное, что тут можно сказать человеку.
+        """
+        signs = self._model_signs()
+        point = "поверхность модели"
+        raw = ""
+        st = self.root / "delivery" / "active" / "STATUS.md"
+        if st.is_file():
+            for line in self._prose_lines(st):
+                # `:` и звёздочки вокруг него — как в остальных читалках STATUS
+                # (`baseline_growth_waiver` у мета-гейта): форма канона —
+                # `- **model_surface:** значение`, и жирные метки стоят ПОСЛЕ
+                # двоеточия. Первая редакция ждала их до него и отдавала `**` в
+                # значении — отказ `n/a` переставал распознаваться, то есть
+                # проверка молчала ровно на том входе, ради которого написана.
+                m = re.match(r"\s*[-*]?\s*\**model_surface\**\s*:\**\s*(.*)", line)
+                if m:
+                    raw = m.group(1).split("<!--")[0].strip()
+                    break
+        if not raw or raw.startswith("<"):
+            # Ни объявления, ни признаков — ПРЕДМЕТА нет, и строка была бы шумом
+            # на каждом проекте без модели; шумный инструмент снимают первым
+            # (§4.3b). Тот же ход, что у `check_stack_records`: «слоя delivery в
+            # проекте нет — предмета нет».
+            #
+            # ⚠ Названный предел: признаки неполны по построению (список
+            # пакетов + промпт-стор), поэтому проект, зовущий модель по HTTP из
+            # кода с инлайновыми инструкциями, здесь выглядит безмодельным.
+            # Это молчание купленное, а не забытое: объявление у него всё равно
+            # спросит гейт поставки, а доктор судит ОТВЕТ, которого пока нет.
+            if signs:
+                self.add(SKIP, point, "объявления нет, а модель зовут: "
+                         + ", ".join(signs[:4]) + " — спросит гейт поставки (§14.1)")
+            return
+        if re.match(r"(?i)^(none|n/a)\b", raw):
+            if signs:
+                self.add(DEAD, point,
+                         f"объявлено «{raw[:40]}», а модель зовут: "
+                         + ", ".join(signs[:4]))
+            else:
+                self.add(AUTO, point, "отказ объявлен и совпал с деревом")
+            return
+        self.add(AUTO, point, "объявлена: " + raw[:60])
+
     def _read_own_canaries(self) -> dict[str, list[tuple[str | None, str, str]]]:
         """Канарейки, объявленные проектом. Битый файл — НАЗВАТЬ, а не пропустить.
 
@@ -6929,6 +7497,7 @@ class ProbeChecks:
         elif any(w in after_out for w in SKIP_WORDS):
             self.add(WEAK, point, after_out.strip().splitlines()[0][:80])
         else:
+            self.dead_gates.add(script.name)
             self.add(DEAD, point, "МОЛЧИТ на объявленной канарейке (exit 0): "
                                   f"{after_out.strip()[:60]!r}")
 
@@ -7005,6 +7574,7 @@ class ProbeChecks:
             elif named_skip:
                 self.add(WEAK, point, out.strip().splitlines()[0][:80])
             else:
+                self.dead_gates.add(script.name)
                 self.add(DEAD, point,
                          f"МОЛЧИТ на своём же нарушении (exit 0): {out.strip()[:70]!r}")
 
@@ -10766,6 +11336,13 @@ import-linter>=2.0
 
 | Дата | Версия | Изменение |
 |---|---|---|
+| 2026-08-19 | **2.27** | **Площадь судится ОБЪЕДИНЕНИЕМ масок — и только ЖИВЫХ гейтов.** Замер `lash-try-on`: восемь `.swift` лежат в одном каталоге с питоновскими, корень у гейтов общий, сузить его нельзя — и python-гейт объявлялся `DEAD` за то, что рядом чужой язык. Законного хода не оставалось ВОВСЕ, а правило без выполнимого выхода снимают вместе с ратчетом (§4.3b). Теперь `_blind_by_mask` копит вердикт, а после обхода `_judge_blindness_together` считает объединение: файл, покрытый соседом, — `WEAK` («роли делятся по языкам»), файл, которого не видит НИКТО, — по-прежнему `DEAD` с именем. **Свойство сохранено:** оправдаться СОБСТВЕННОЙ маской нельзя, сузив её гейт не спасается — файл переходит к соседу. Вопрос стал точнее: не «слеп ли этот гейт», а «есть ли код, который не судит никто». ⚠ **Правка пролежала припаркованной сутки НЕ зря — в ней было две дыры, и обе нашлись только оракулом.** ① Объединение строилось из масок ТЕХ ЖЕ гейтов, у которых слепота и нашлась: гейт, покрывший свою область целиком, в `pending` не попадал вовсе, и оправдание работало только когда два гейта слепы ДРУГ К ДРУГУ. На полигоне это совпало и выглядело верным. Теперь маски копятся отдельным списком со ВСЕХ гейтов, дошедших до суждения. ② **Маска мёртвого гейта считалась покрытием** — то есть файл оправдывался ссылкой на гейт, объявленный лжецом в этом же прогоне. Гейты, промолчавшие на своей канарейке, теперь собираются в `dead_gates` ДАННЫМИ (не разбором собственного вывода — второй парсер своей же печати это `one-notion-one-place`), и их маски в объединение не идут. Гейт, просмотревший ноль файлов, не попадает туда по построению: до сбора маски он не доходит. **Названный предел:** случай «файл формально под маской, но гейт не судит его своим `FILTER`» здесь ловиться перестал и остаётся за `WEAK` по числам — улика слабеет с имён до чисел, и это сказано, а не замолчано. **Пять прогонов, три обратных:** объединение из масок ослепших · мёртвый гейт считается покрытием · объединение не считается вовсе — каждый уронил свою пробу; отдельными прогонами стоят «сосед покрывает область целиком» и «сосед просмотрел ноль». **вес: +64 строк, за что** — отложенное суждение, объединение живых масок и сбор мёртвых гейтов. **объём: +1 строк, за что** — только эта запись. **класс:** verdict-without-a-legal-exit @ CODE_QUALITY_GATES.md _blind_by_mask |
+| 2026-08-18 | **2.26** | **Вторая половина скрининга: роль применима к стеку — и не закрыта, и не объявлена.** Состав (`2.25`) судит ФАЙЛЫ payload'а безусловно; здесь судятся РОЛИ, и безусловной проверка быть не может: `.gitlab-ci.yml` не нужен на GitHub, конфиг фронта — без фронта. У каждой роли признак, и молчание при ложном признаке это ответ, а не пропуск. **Восемь ролей с названным ПРИНЦИПОМ отбора** (файл, чьё отсутствие означает, что роль не закрыта вовсе, и чьё наличие проверяется по ИМЕНИ, а не по пути канона — раскладки разные, и сверка по префиксу уже увозила наверх дефект, невидимый на раскладке нашедшего). Названы и сознательные исключения: `pyproject.toml` и `requirements-dev.txt` (проект законно на uv/poetry, а «применён ли фрагмент» — вопрос сверки тел), `.prettierrc` (формат, не роль), `delivery/active/**` (пуст между поставками штатно). ⚠ **Файлы САМОГО контура исключены из признака стека, и это замер:** `docs/canon/extract_payload.py` едет в каждый проект, поэтому наивное «есть python» истинно и на чистом Astro/TS — на `portfolio-site` единственные `.py` в дереве контурные, и без исключения он потребовал бы `.importlinter`, которого ему не нужно. ⚠ **Вердикт `WEAK`, а не `DEAD`, и граница проведена по ПРИРОДЕ ответа:** состав судит факт (канон перечислил файлы — их либо доложили, либо нет), здесь применимость ВЫВЕДЕНА из признаков, а вывод роняющим прогон быть не должен. Первая редакция ставила `DEAD` и покраснела на четырёх чужих фикстурах, включая ту, что нарочно проверяет ОТСУТСТВИЕ `CONSTITUTION.md`, — §4.3b в чистом виде. **Замер на флоте сделан ДО выбора строгости:** трое из четырёх развёрнутых проектов чисты, а `local-web-agent` при живом `frontend/package.json` не имеет ни `.dependency-cruiser.cjs`, ни объявления — роль «направление зависимостей на TS» не закрыта и не названа. Одна находка на четыре проекта: не шумит и не пуста. **Семь прогонов, четыре обратных** — снятый вызов, признак без исключения контурных файлов, игнор признака, игнор объявления; каждый уронил свою пробу. Хостинг вынесен отдельным швом (§2.1: суждение стоило двенадцати ветвлений при планке десять), порядок признаков прежний — remote раньше файла. **вес: +113 строк, за что** — таблица ролей с принципом, признаки стека, суждение и распознавание хостинга. **объём: +1 строк, за что** — только эта запись: проза канона правкой не тронута, вся она в комментариях payload'а. **класс:** rule-without-an-executor @ CODE_QUALITY_GATES.md §5.0 роли |
+| 2026-08-18 | **2.25** | **Контур не умел спросить про НЕразвёрнутое, и это замерено, а не выведено.** Полигон с четырьмя снимками канонов и ДВУМЯ скриптами payload'а из пятидесяти одного доктор объявил здоровым: `EXIT 0`, «Лжи нет», ни строки про недостающее. Причина структурная, а не забывчивость: все проверки обходят ДЕРЕВО проекта (`for script in sorted(d.glob("*"))`), поэтому файл, который не скопировали, в цикл не попадает по построению; `_compare_with_snapshot` вдобавок схлопывает «файла нет» и «канон его не поставляет» в один молчаливый выход. **Новый модуль доктора `doctor_deployment.py`** спрашивает обратное: инвентарь берётся у извлекателя, который едет вместе с канонами (`--manifest --by-canon`), и на каждый скрипт — три состояния: развёрнут · объявлен неприменимым с причиной · **не спрошен**. Третье печатается СО ЗНАМЕНАТЕЛЕМ («развёрнуто 11 из 51, НЕ ОБЪЯВЛЕНО 40») и с именами. ⚠ **Крик привязан к ЗАЯВЛЕНИЮ, а не к факту неполноты:** проект, объявивший версию канона, объявил его развёрнутым — молчаливая недостача у него `DEAD`; проект без записи `stack:` разворачивается прямо сейчас, у него `WEAK` со списком. `DEAD` на всём подряд уронил бы прогон посреди законной работы, и такую проверку снимают первой (§4.3b). ⚠ **Судятся только `scripts/**`, и предел назван:** конфиги и шаблоны отсутствуют законно на каждом втором проекте (`.gitlab-ci.yml` не нужен на GitHub, `delivery/active/` пуст между поставками штатно), их судят признаки стека — отдельный вопрос. ⚠ **Отказ канона учитывается:** снимок несёт четыре канона там, где развёрнуто три, и `okf@absent` снимает его payload с требования — обратный прогон без этого краснеет на законной раскладке варианта A/B. Гасить крик законно можно `not-applicable.json` с ПРИЧИНОЙ; четвёртого объявления рядом с `adapted.json` и `canaries.json` не заводится. **Семь прогонов, четыре обратных — и два из четырёх нашли дефекты в МОИХ ЖЕ оракулах:** проба про «объявление без причины» зеленела через чужие сорок необъявленных файлов, а проба про «старый извлекатель» ходила в ветку «файла нет вовсе» и ветку старого payload'а не трогала. Обе переписаны: первая объявляет всё, кроме одного файла, и спрашивает про него поимённо; вторая получила заглушку, возвращающую код 2. Без обратных прогонов обе так и остались бы зелёными украшениями. **вес: +172 строк, за что** — `doctor_deployment.py` (+145), флаг `--by-canon` и константа владельца шаблонов в извлекателе (+24), сборка десятой части доктора (+3). **объём: +43 строк, за что** — инвентарь §5.0 пополнен строкой модуля, врезка про датированный замер в §9.1a, запись `stack-map@1.51` про флаг владельца и эта запись. **класс:** rule-without-an-executor @ CODE_QUALITY_GATES.md §5.0 |
+| 2026-08-18 | **2.24** | **Гейт спрашивает, доктор проверяет ОТВЕТ: заявление о поверхности модели против дерева.** `delivery@1.84` научил гейт поставки требовать `model_surface:` и принимать `n/a reason=…` — отказ с причиной законен, иначе проверка краснела бы на каждом проекте без модели. Но проверить сам ответ гейт не может: он смотрит в STATUS, а не в дерево, и `n/a` стоит одну строку. Это работа доктора, и она ровно та же, что у него всегда: **не бедность, а ложь**. Признаки вызова модели считаются по `git ls-files` — SDK провайдера в манифесте либо промпт-стор в дереве, — и отказ при найденных признаках это `DEAD`. ⚠ **Два признака, а не один, и это замер, а не симметрия:** проект может звать модель по HTTP без всякого SDK, и тогда пакета нет, а промпты лежат на виду; обратный прогон, снявший промпт-стор из признаков, уронил ровно эту пробу. ⚠ **Список пакетов идёт СО СВОИМ ПРИНЦИПОМ** («пакет, у которого нет другого применения, кроме вызова модели») и объявлен неполным: `list-without-its-principle` лежит в собственном реестре восемью местами, девятое заводить незачем. **Молчание купленное, а не забытое:** ни объявления, ни признаков — строки нет вовсе, потому что предмета нет; строка на каждом проекте без модели сделала бы доктора фоном, а шумный инструмент снимают первым (§4.3b). Тот же ход, что у `check_stack_records`. Предел назван в самой проверке: проект с инлайновыми инструкциями в коде и без SDK здесь выглядит безмодельным. ⚠ **Собственная правка сначала молчала ровно на том входе, ради которого написана:** разбор строки STATUS ждал жирные метки ДО двоеточия, а канон пишет `- **model_surface:** значение` — значение приходило с `**` в начале, и `n/a` переставал распознаваться. Поймал оракул, не глаз; форма приведена к той, которой STATUS читают остальные. **Шесть прогонов, три обратных:** снятый вызов, снятый второй признак, возвращённое молчание при отсутствии объявления — каждый уронил свою пробу; отдельными прогонами стоят «отказ совпал с деревом» и «предмета нет — тишина», без которых не отличить работающую проверку от той, что краснеет или шумит всегда. Слот бюджета §9.1a не занят: доктор — инструмент, не гейт. **вес: +102 строк, за что** — `_model_signs`, `check_model_surface_claim` и два признака с названным принципом. **объём: +1 строк, за что** — только эта запись: проза канона правкой не тронута, вся она в комментариях payload'а. **класс:** none reason=вторая половина вопроса §14.1, механика проверки ответа; сам дефект «правило без исполнителя» закрыт записью `delivery@1.84` и второй раз не считается |
+| 2026-08-18 | **2.23** | **Мета-гейт снимков отчитывался «сверено» о снимке, из которого не разобрал ни одной записи.** Найдено разбором Delivery §14.3: она велела класть снимок поверхности модели строками `<путь><TAB><sha256>` в `scripts/lint/` — то есть **под глоб** `*_baseline.txt`. `normalize()` оставляет строку, только если счётчик числовой, поэтому такой снимок сверялся бы с базой ПУСТЫМ множеством, а прогон печатал бы «OK, снимков сверено N». Четвёртая форма класса `green-without-the-thing` после прозы, фрагмента и пустоты — **зелёное пустым МНОЖЕСТВОМ**, и она опаснее трёх предыдущих: там предмет подменялся, здесь его не искали вовсе. ⚠ **Порядок проверки несущий:** чужой формат приезжает НОВЫМ файлом, а новый уходит в `skip (нет в BASE)`, поэтому проверка стоит ДО обращения к базе. Обратный прогон делался дважды — снятием проверки и **наивной перестановкой** её после `skip`; вторая форма красная так же, как первая, то есть оракул отличает починку от её видимости. ⚠ **Ложное срабатывание отделено замером, а не оговоркой:** свежесгенерированный снимок — одни `#`-комментарии и ноль записей, и это норма, поэтому спрашивается разность «строки данных есть, записей ноль», а не «записей ноль». Без разделения проверка красила бы каждый чистый проект, а такую снимают вместе с правилом (§4.3b); третий прогон её и держит. **Нечитаемый снимок waiver'ом роста не гасится:** `baseline_growth_waiver` объявляет законным РОСТ, а здесь неизвестно даже, был ли он — сравнивать было нечем, и это разные вопросы с разными выходами. **вес: +43 строк, за что** — `data_lines()`, проверка формата до `skip` и отдельный вердикт с двумя выходами и названной развилкой (привести формат / унести снимок к своему владельцу). **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md check_baseline_ratchet.sh |
+| 2026-08-17 | **2.22** | **Доктор молчал в трёх местах, и все три нашли развёртывания на живых проектах — ни одного не видел сьют.** **① «Лжи нет» на лжи в ЧЕТЫРНАДЦАТЬ ревизий.** Записи проекта говорили `cqg@2.02`, снимок нёс `2.16`; доктор напечатал обе строки зелёными и подытожил «Лжи нет». `_declared_version` брал заявление ТОЛЬКО из `delivery/active/STATUS.md`: файла нет → пустая строка → сверка «снимок против заявления» отключалась ЦЕЛИКОМ. ⚠ **Пустой `active/` — состояние ШТАТНОЕ** (§2.3a Delivery), то есть слепота включалась в нормальном режиме между поставками, а не в поломанном. Заявление живёт ещё в двух записях, и фолбэк берёт его оттуда; расходятся ли записи между собой — говорит `check_stack_records`, здесь нужен сам ФАКТ заявления. Класс — `green-without-the-thing`, и файл болел им уже дважды по собственным пометкам: «тишину покупали УДАЛЕНИЕМ строки» и «молчание выдавалось за здоровье». Оба раза чинили ОДНУ форму пропажи; это третья. Обратная сторона сохранена: `@absent` заявлением по-прежнему не считается — иначе снимок варианта C, несущий четыре канона при трёх развёрнутых, объявлялся бы отставшим. **② Инвентарь конфигов был ручным списком и знал 4 файла из 10.** `.dependency-cruiser.cjs`, `backend/.importlinter`, `backend/pyproject.toml`, `backend/requirements-dev.txt`, `<frontend>/.prettierrc` и `<frontend>/eslint.config.js` не сверялись НИКОГДА: адаптированный без объявления конфиг проходил молча, тогда как `plan_update.py` на том же файле давал «стоп». Два инструмента одного контура расходились об одном файле, **и слепым был тот, что ЕЗДИТ в проект и стоит в CI**. Список рос дважды (`1.91`, `2.01`) и оба раза строкой, а не выводом из манифеста. Теперь инвентарь ВЫЧИТЫВАЕТСЯ из канона по заголовкам ``### `путь` ``, а таблица осталась списком ИСКЛЮЧЕНИЙ — только тех, чьё тело лежит под прозаическим заголовком. Разобраны обе формы, которые канон использует: суффикс-пояснение и плейсхолдер каталога фронта. Проверено на живом: `.dependency-cruiser.cjs` появился с его причиной там, где молчал. **③ `check_diff_coverage.sh` судил применимость по КАТАЛОГУ**, который создаёт соседний шаг того же workflow, ставя оснастку гейтов в `$BE_DIR/.venv`. Класс закрыт у `check_deps_audit.sh` в `2.17`, здесь оставался жив — правка была на СЛУЧАЙ. ⚠ **И первая редакция этой правки перенесла признак МЕХАНИЧЕСКИ, через границу класса: сьют дал шесть красных прогонов.** Аудит зависимостей спрашивает про манифест — он судит объявленные пакеты; покрытие спрашивает про КОД — оно мерит строки, и полигоны несут `backend/app/*.py` без манифеста. Признак покрытия — отслеживаемый git'ом `*.py` (`.venv` не отслеживается и в счёт не попадает). Общее свойство пары — отказ от «каталог есть» — держит отдельный прогон. **Формулировка пропуска взята из словаря самого гейта, а не расширен словарь под свой код:** `NAMED_SKIP` — открытый дефект того же рода, и подгонять его под себя значило бы чинить тест вместо кода. **вес: +70 строк, за что** — `doctor_layout.py` +38 (инвентарь из канона, разбор двух форм заголовка), `doctor_versions.py` +18 (фолбэк заявления и его обоснование), `check_diff_coverage.sh` +14 (признак по отслеживаемому коду). **объём: +1 строк, за что** — эта запись. **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md doctor_versions.py::_declared_version |
+| 2026-08-17 | **2.21** | **Доктор объявлял три работающих гейта лжецами — на законной настройке.** Находка ТРЕТЬЕГО полевого развёртывания (`local-web-agent`). Проект держит прод-код в двух корнях (`backend/app` И `cli/`) и потому ставит `LINT_PY_SRC=.` — настройка, которую канон сам называет проектной. Маска приходит в доктора как `./**` или `./**/*.py`, а `git ls-files` отдаёт пути БЕЗ `./`; `_covers` сравнивал префикс буквально, поэтому **корневая маска не покрывала НИ ОДНОГО файла**. Итог: `DEAD область check_ast_gate.py — маска не покрывает 149 файл(ов)`, и то же по `check_grep_gate.sh` и `check_jscpd_gate.sh`. ⚠ **В ту же минуту гейт печатал `просмотрено 132 файл(ов), по маске: ./**/*.py`.** То есть доктор назвал ложью работу трёх гейтов вердиктом, который сам же определяет как «только это ложь». Направление самое дорогое: ложное обвинение, тяжелейшим вердиктом, на проекте, сделавшем всё верно. Замер прямой пробой `_covers`: `("./**/*.py", "backend/app/__init__.py") → False`, а `("backend/features/**/*.py", "backend/features/x/a.py") → True`. **Почему не видел никто:** раскладка самого канона (`backend/features`) префиксом совпадает и работает. Третий раз за день один признак — **везение раскладки, а не защита**. Первые два: `.venv` в населении AST-гейта (`cqg@2.17`) и lock-файлы в blast radius (`delivery@1.76`). Оба тоже нашло поле. **Обратная сторона закрыта тремя прогонами**, потому что «покрывает всё» было бы худшей починкой, чем дефект: расширение НЕ отменяет фильтр (`./**/*.py` не покрывает `.ts`), именованный корень НЕ расширяется (`backend/**` не начинает покрывать `cli/`), прежняя форма `./backend/x.py` не сломана. Без них правка сделала бы проверку площади зелёной по построению. Обратный прогон: **2 из 5 красных, три контроля зелены**. **вес: +15 строк, за что** — нормализация корневой маски и разбор формы `**/…` в `doctor_area_verdicts.py`. **объём: +2 строк, за что** — эта запись и запись `delivery@1.80`. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md doctor_area_verdicts.py::_covers |
 | 2026-08-17 | **2.20** | **«Не наш код» было определено трижды и расходилось в девяти случаях из пятнадцати — и часть разрыва создала предыдущая ревизия этого же дня.** Замер: гейт длины знал ровно `*/node_modules/*`, **шаблон требовал ведущего слэша**, поэтому `node_modules/` В КОРНЕ чужим не считался вовсе; `.venv`, `vendor`, `.tox`, `build`, `dist` не знал никто, кроме AST-гейта; `delivery_base` знал пять имён из пятнадцати. ⚠ **Происхождение расхождения названо честно:** его не было древним. `cqg@2.17` расширила `NOT_OUR_CODE` до пятнадцати имён и двух соседей не тронула — правка, закрывшая класс в одном месте, УВЕЛИЧИЛА расхождение в двух других. Это было записано тогда же остатком с адресом, и здесь закрывается. Такой остаток дороже обычного: он выглядит как прогресс. **Сведено понятие, не поведение.** §3.1f называет принцип один раз: установленное, вендоренное и кэши инструментов не писал никто из проекта, и новый случай судится вопросом «этот файл писал кто-то из проекта?». Это НЕ настройка развёртывания — чужой код не наш ни при какой маске, поэтому список правит канон. Второй принцип — «наш код, но данным правилом не судим» (`tests/`, `migrations/`) — остаётся настройкой проекта, и отдельный прогон держит, что `migrations` в общий список НЕ переехал: смешение этих двух и было исходным дефектом. **Согласие держит `tests/test_what_is_not_our_code.py`**, и у него две разные проверки: поведенческая на корпусе из 15 путей с обеими сторонами и **равенство множеств** у двух python-владельцев — два списка могут совпасть на пятнадцати путях и разойтись на шестнадцатом. Обратная сторона отдельно: `venv_helper.py` и `my_node_modules_util/` — продуктовый код, слабая форма (подстрока) на них краснеет. **Обратный прогон: 2 из 5 красных**, и падение перечисляет расхождения ПОИМЁННО — по пути и по владельцу. **вес: +13 строк, за что** — `delivery_base.py` +9 (список сведён и принцип назван) и `check_file_length.sh` +4 (сверка элементом пути вместо шаблона с ведущим слэшем). **объём: +19 строк, за что** — §3.1f с принципом, различением двух списков и замером. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md §3.1f |
 | 2026-08-17 | **2.19** | **«Тестовый файл» было определено ПЯТЬ раз, и на корпусе из 16 путей пять ответов расходились в ДЕВЯТИ.** Замер перед правкой, каждую реализацию спрашивал её же кодом: `FooTests.cs` не узнавала НИ ОДНА; `conftest.py` — одна из пяти; `src/__tests__/api.ts` — одна; `FooTest.java` — одна; `test_util.py` вне каталога `tests/` — три из пяти, и потому получал ПРОДОВЫЙ лимит длины и падал на 700 строках. **Ошибка ходит в обе стороны, и обе тихие:** тест, принятый за продукт, судится чужим лимитом и попадает в население мутантов; продукт, принятый за тест, выпадает из проверок целиком. Ни один прогон об этом не говорил. **Сведено НЕ поведение, а понятие.** Действия у пяти владельцев разные и обязаны такими остаться — гейт длины применяет другой лимит, мутационный исключает из населения, метрика `harness_hardened` считает новый тест усилением. Общего кода быть не может: три на shell, два на python. Поэтому §3.1e называет ПРИНЦИП один раз, выражение стоит в четырёх shell-владельцах **байт-в-байт**, а согласие всех шести держит `tests/test_what_is_a_test_file.py` — тот же ход, которым `cqg@2.10` свёл два парсера блоков, а `cqg@2.12` четыре читалки шапки. **Принцип, по которому судится новый случай:** файл существует, чтобы проверять другой код, и это видно ИЗ ПУТИ. Каталог `test`/`tests`/`__tests__`/`spec`/`specs` элементом пути · `conftest.py` · имя начинается с `test_`/`test-` · оканчивается на `_test`/`_spec`/`-test`/`-spec` либо `Test`/`Tests`/`Spec`/`Specs` заглавной (манера Java/C#) · содержит `.test.`/`.spec.` (манера JS/TS). ⚠ **Сверяется отделённое слово, а не подстрока:** `latest.py`, `contest.py`, `testing_utils.py`, `protest_helper.py` тестами НЕ являются, и слабая форма увела бы продуктовый код из-под проверок. Корпус несёт обе стороны — 11 положительных и 6 отрицательных, — потому что корпус из одних тестов удовлетворяется реализацией «всё есть тест». **Найдено сьютом по дороге, и это стоит записать отдельно:** первая редакция правки добавила `re.compile` в `check_ast_gate.py`, где **`import re` отсутствовал**, — гейт падал `NameError` ЦЕЛИКОМ, то есть переставал судить что-либо. Поймали не глаза и не селфтест, а девять чужих прогонов, покрасневших разом: гейт, который не стартовал, не печатает нарушений, и «нарушений нет» читается как успех. Ровно тот класс, против которого написан §6 («0 просмотренных — не чисто»), только на самом гейте. ⚠ **Названный предел оракула, и он честный.** До этой ревизии `is_test()` в `check_file_length.sh` был на `case`, а не на `grep`: выражения там не было ВОВСЕ, поэтому обратный прогон падает на извлечении, не дойдя до сравнения. Оракул доказывает «на старом коде красное», но перечислить девять расхождений не может — их назвал отдельный замер, таблица которого и стоит в этой записи. Красный по неверной причине не то же, что зелёный, но и не полноценная улика. **вес: +20 строк, за что** — `check_ast_gate.py` +11 (общее выражение и пропущенный импорт), `delivery_metrics.py` +7 (метрика перешла с подстрок на признак), `check_file_length.sh` и `check_diff_coverage.sh` по +1. **объём: +29 строк, за что** — §3.1e с принципом, замером и обеими сторонами ошибки. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md §3.1e |
 | 2026-08-17 | **2.18** | **Гейт новых зависимостей был зелёным навсегда на четырёх стеках, и ноль в его отчёте читался как «чисто».** `EXTRACTORS` знал пять видов манифестов; на ruby-проекте гейт печатал `манифестов проверено 0` и выходил нулём — ни одна зависимость там не была бы объявлена никогда, и никто бы не узнал. ⚠ **Улика, закрывшая спор:** `Gemfile.lock` лежал в списке ИСКЛЮЧЕНИЙ `LOCKFILES`. Ruby контуру был известен — но ровно с той стороны, где его надо НЕ читать. Область свою контур заявляет и в двух других местах: `SOURCE_EXT` и `TEST_TEXT_SUFFIXES` оба содержат `.rb`, `.php`, `.cs`, `.java`, `.kt`. **Форма ответа взята у сестринского гейта, а не изобретена:** `check_deps_audit.sh` прошёл этот же класс полевой находкой F17 (`cqg@1.21`) на Swift-проекте, где печатал `OK — py_total=0` при двух SPM-зависимостях, и у него уже есть две ветки — «нет ни одного поддерживаемого манифеста» и «checked == 0 → нули ничего не доказывают», обе WARNING + exit 0. Переиспользованы дословно по структуре. **Три решения внутри формы, каждое с причиной.** ① **Hard fail НЕ вводится:** репозиторий без зависимостей законен, а гейт, красный на пустом дереве, снимут первым (§4.3b) — держит прогон «чистый shell/docs остаётся зелёным». ② **Но слово `OK` на нуле больше не печатается,** и это несущая часть: `cqg@1.61` мерит прямо — заявленный успех БЬЁТ названный пропуск, потому что «пропущено» шепчут в теле, а читают итог. Итоговая строка стала «новых зависимостей нет В ПРОЧИТАННОМ — проверено не всё». ③ **Слепота называется и при `checked > 0`** — этого не было в задании и следует из `cqg@1.80`: частичная слепота опаснее полной, потому что читается как успех. `Gemfile` рядом с `pom.xml` даёт честное «проверено 1», за которым java-половина не проверена вовсе. **Второе, из того же класса подклассом:** `requirements.txt`, собранный `pip-compile`, разбирался как манифест ПРЯМЫХ зависимостей — при том что канон строкой выше объявляет принцип «локи не разбираем, они перечисляют транзитивные пакеты». Добивала деталь: `names_requirements` первой строкой делала `raw.split("#")[0]`, то есть **срезала аннотации `# via`, единственный признак транзитивности, ДО разбора**. Следствие — обновился `requests`, притянул `charset-normalizer`, и гейт требовал подписи человека за решение, которого никто не принимал. Починен ПОРЯДОК: лок распознаётся по содержимому (шапка `autogenerated by pip-compile|uv` либо ≥2 аннотаций `# via`) до разбора и до счётчика. Отдельным классом не объявлено: принцип здесь НАЗВАН, список ему не следовал — это подкласс `list-without-its-principle`, а не второй класс. **Что добавлено в разбор:** `Gemfile` и `composer.json` — там, где разбор короткий и надёжный. **Что НЕ добавлено и почему:** `pom.xml`, `*.csproj`/`*.fsproj`/`*.vbproj` (XML — разбор дорогой), `build.gradle`/`mix.exs` (DSL на языке проекта, нужен настоящий парсер), `pubspec.yaml` (нужен YAML, которого у контура нет и который плавает даже в selftest'е), `Podfile`. Все шесть внесены в `UNREADABLE` и называются в предупреждении ПОИМЁННО — «не умею читать» отделено от «нечего проверять», и в выводе это видно. **Обратный прогон: 9 из 18 красных** на прежнем каноне, и зелёными остались ровно девять «обратных сторон» — пустой репозиторий, рукописный `requirements.txt`, одиночное `# via`, закомментированный `gem`, пять прогонов на `pyproject`/`package.json`/`poetry.lock`. Они обязаны проходить на ОБОИХ канонах: иначе правка куплена шумом. Прямая проба на трёх раскладках подтвердила разведение: здоровый python печатает `OK`, ruby+maven — имя нечитаемого и «проверено не всё», пустой репозиторий — «ноль ничего не доказывает» при exit 0. **вес: +110 строк, за что** — `dependency_manifests.py` +64 (распознавание лока по содержимому, два новых разборщика, список нечитаемых) и `check_new_dependency.py` +46 (отчёт о покрытии и разведённый итог). **объём: +1 строк, за что** — эта запись. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md dependency_manifests.py::EXTRACTORS |
