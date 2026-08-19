@@ -42,11 +42,16 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.13
     hooks:
+      # ⚠ `exclude:` держится ОТДЕЛЬНО от `files:` (cqg@2.29): сняв `files:` под
+      # свою раскладку, линтер и форматтер добираются до payload'а КОНТУРА —
+      # кода, который проект не писал и чинить не может.
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         files: ^backend/
+        exclude: ^(docs/canon/|scripts/(lint/|merge_guard\.sh|delivery_|okf_))
       - id: ruff-format
         files: ^backend/
+        exclude: ^(docs/canon/|scripts/(lint/|merge_guard\.sh|delivery_|okf_))
 
   # -------------------------------------------------------------------------
   # Python: mypy strict через проектный venv (local hook, НЕ mirrors-mypy: у того
