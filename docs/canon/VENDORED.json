@@ -1,23 +1,21 @@
 {
-  "_": "Провенанс снимка (AGENT_STACK §7.1, cqg@2.09). Отвечает на вопрос «ОТКУДА он», на который SHA256SUMS не отвечает: хеши держат «копию не правили ПОСЛЕ вендоринга» и молчат о том, из чего вендорили. Сверяет запись обход флота, а не сам проект. ПЕРЕСОЗДАВАТЬ при каждом перевендоривании — команда в CQG §5 шаг 11.",
+  "_": "Провенанс снимка (AGENT_STACK §7.1). Пересоздаётся при каждом перевендоривании — CQG §5 шаг 11.",
   "upstream": "https://github.com/AnthonyPriceOne2691/agent-canon-stack.git",
-  "commit": "fe9a3f67360f41e746ce570dc5d29f2d657b0bb4",
+  "commit": "2de0e84626fb75e4ea235c49c1e9eaa376d6f040",
   "branch": "fix/blast-radius-generated-files",
-  "branch_note": "⚠ Ветка НЕ смержена в main канон-репозитория (PR #23) — осознанное решение владельца канона. Провенанс обязан говорить правду: снимок снят с ветки, а не с main.",
   "dirty": false,
   "vendored_at": "2026-08-19",
   "versions": {
     "delivery": "1.84",
     "stack-map": "1.51",
-    "cqg": "2.28",
+    "cqg": "2.31",
     "okf": "1.17"
   },
   "sha256": {
     "AGENT_DELIVERY_HARNESS.md": "b18486ee529a2428b472f6fa4ff08a0eb2f21012ab60eefa299675f3c13af9b2",
-    "AGENT_STACK.md": "27178d7f5e1ea38d5a844f44f52ddf08143f8621a1c9259809d822fa03b1b9dd",
-    "CODE_QUALITY_GATES.md": "037e2de4a261b29bb03afc742e7ff656ed200bb890929c1f8eb9cf6afe1ab9b5",
+    "AGENT_STACK.md": "971eb351ac8453c406623c97754447783e913d2b0a15cae27f470f1c15995880",
+    "CODE_QUALITY_GATES.md": "b372dd926535cba9c8fe7ec069cde20a4eef738242a47f89fde5db413c630893",
     "OKF_KNOWLEDGE_BUNDLE.md": "5db516213a46a32340896c384f51c098339d628190b44773f573e5a1ceee7d5f",
-    "SHA256SUMS": "c2efd2f8f7a31c5190b4fd3c5700674171c2b21f36518adfdb72d376d44ccb97",
     "VENDORED.md": "0e3cf215724c8b483aff568103af688fe980ee1083d988b7028ca6d946578f3f",
     "extract_payload.py": "0807e3c9f4ac2a249059f2c1eb05b5c519ca04b797b3551a76a31c3b25700a02",
     "selftest_sizes.py": "166511867006a66b6f850209e0e3d6fff81fca4c5518cd8ec11a5d94ea694867",
