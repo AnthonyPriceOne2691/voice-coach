@@ -12,6 +12,17 @@ CYRILLIC = re.compile(r"[Ѐ-ӿ]")
 #: `выразительный陳述`. Ловим весь блок, а не один язык: срыв бывает и в японский.
 CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]")
 
+#: Поля-списки схемы `summary_output` (doc 08). Их форма — обещание модели, а не
+#: факт: на подсказку `next_session_focus [string]` R1 вернул ОДНУ строку, фронт
+#: позвал у неё `.join`, и экран History → Open → Summary падал пустой страницей.
+#: Поэтому форма приводится здесь, до записи в БД, а не там, где её читают.
+STRING_LIST_FIELDS = ("consistency_flags", "next_session_focus")
+#: Списки объектов → поле, которым становится голая строка на месте объекта.
+#: Строку не выбрасываем: это текст модели, и его пропажа была бы молчаливой.
+#: `vocabulary` здесь нет — у записи словаря три обязательных поля (S-H4), и
+#: строка ими стать не может.
+OBJECT_LIST_TEXT_KEYS = {"strengths": "text", "improvements": "problem", "weak_answers": "question"}
+
 
 def translation_problem(text: str) -> str | None:
     """Почему перевод не годится — словами, для лога. `None` = годится (S-H6).
@@ -61,6 +72,41 @@ def extract_json(raw: str) -> dict[str, Any]:
     return data
 
 
+def _as_items(value: object) -> list[object]:
+    """Одиночное значение — список из него, `None` — пустой список."""
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _string_list(value: object) -> list[str]:
+    """S-H1: список непустых строк. Строка → [строка], нестроковое выбрасывается."""
+    return [item.strip() for item in _as_items(value) if isinstance(item, str) and item.strip()]
+
+
+def _object_list(value: object, *, text_key: str | None = None) -> list[dict[str, Any]]:
+    """S-H1: список объектов. Объект → [объект], строка → `{text_key: строка}`."""
+    shaped: list[dict[str, Any]] = []
+    for item in _as_items(value):
+        if isinstance(item, dict):
+            shaped.append(item)
+        elif text_key and isinstance(item, str) and item.strip():
+            shaped.append({text_key: item.strip()})
+    return shaped
+
+
+def _shape_list_fields(data: dict[str, Any]) -> None:
+    """Поле-список схемы — всегда список, что бы ни прислала модель (S-H1).
+
+    Нет поля или `null` — пустой список: фронт рисует секцию только когда в ней
+    что-то есть, а отсутствие ключа и `[]` для него одно и то же.
+    """
+    for field in STRING_LIST_FIELDS:
+        data[field] = _string_list(data.get(field))
+    for field, text_key in OBJECT_LIST_TEXT_KEYS.items():
+        data[field] = _object_list(data.get(field), text_key=text_key)
+
+
 def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[str, Any]:
     scores = data.get("scores")
     if not isinstance(scores, dict):
@@ -73,14 +119,13 @@ def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[
         if not isinstance(value, int) or not 1 <= value <= 5:  # S-H3
             raise SummaryInvalidError(f"scores.{key} must be an integer 1-5, got {value!r}")
 
-    vocabulary = data.get("vocabulary", [])
-    if not isinstance(vocabulary, list):
-        raise SummaryInvalidError("vocabulary must be a list")
+    # Словарь приводится тем же правилом, что остальные поля-списки. Раньше `null`
+    # на его месте у minimal-разбора (где словарь не обязателен) слал разбор на
+    # повтор, а дважды подряд — оставлял сессию без разбора вовсе.
     complete = [
         item
-        for item in vocabulary
-        if isinstance(item, dict)
-        and str(item.get("term_en", "")).strip()
+        for item in _object_list(data.get("vocabulary"))
+        if str(item.get("term_en", "")).strip()
         and str(item.get("translation_ru", "")).strip()  # S-H4 (FR-6.3)
         and str(item.get("example_en", "")).strip()
     ]
@@ -89,6 +134,7 @@ def validate_summary(data: dict[str, Any], *, require_vocabulary: bool) -> dict[
             "vocabulary must contain items with term_en/translation_ru/example_en"
         )
     data["vocabulary"] = complete
+    _shape_list_fields(data)
 
     for field in ("overall_summary",):
         if re.search(r"[Ѐ-ӿ]", str(data.get(field, ""))):  # S-H2: EN body fields

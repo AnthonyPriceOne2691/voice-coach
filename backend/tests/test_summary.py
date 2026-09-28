@@ -1,6 +1,7 @@
 """Summary service: validation contract, retry, minimal degrade, vocabulary merge."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.storage.turns import META_STATE
-from app.summary.service import SummaryService
+from app.summary.service import SCHEMA_HINT, SummaryService
 from app.summary.validate import (
     SummaryInvalidError,
     extract_json,
@@ -97,6 +98,91 @@ def test_cjk_leak_in_translation_is_caught() -> None:
     assert translation_is_russian("очередь задач (Redis/RQ)")
 
 
+# --- Поля-списки: форма схемы, а не «что прислала модель» -------------------------
+#
+# Живая запись от 2026-07-05 хранит `next_session_focus` ОДНОЙ строкой: подсказка
+# говорила `next_session_focus [string]`, R1 прочёл «строка», валидатор тип не
+# проверял, фронт позвал `.join` у строки — и History → Open давал пустую страницу.
+
+#: Поля-списки так, как их объявляет подсказка модели: `имя [` после `: ` или `, `.
+LIST_FIELDS_IN_HINT = re.findall(r"(?:: |, )(\w+) \[", SCHEMA_HINT)
+
+
+def _with(field: str, value: object) -> dict:
+    data = json.loads(json.dumps(VALID))
+    data[field] = value
+    return data
+
+
+def test_string_list_fields_take_any_shape_and_store_a_list() -> None:
+    cases = [
+        ("Lead with the metric.", ["Lead with the metric."]),  # форма живой записи
+        (["metrics first", "STAR"], ["metrics first", "STAR"]),  # список не трогается
+        (None, []),
+        ("   ", []),
+        (42, []),
+        ({"topic": "HITL"}, []),
+        (["  kept  ", "", None, 3, {"x": 1}], ["kept"]),  # мусор внутри списка
+    ]
+    for field in ("next_session_focus", "consistency_flags"):
+        for sent, stored in cases:
+            shaped = validate_summary(_with(field, sent), require_vocabulary=True)[field]
+            assert shaped == stored, f"{field}={sent!r}: ждали {stored!r}, получили {shaped!r}"
+
+
+def test_object_list_fields_keep_objects_and_the_models_text() -> None:
+    """Строка на месте объекта не пропадает: это текст модели, он становится главным полем."""
+    cases = [
+        ("strengths", "Led with the metric.", [{"text": "Led with the metric."}]),
+        ("strengths", {"text": "Calm", "reference": "Q1"}, [{"text": "Calm", "reference": "Q1"}]),
+        (
+            "strengths",
+            [{"text": "Calm"}, "Clear", None, 5, " "],
+            [{"text": "Calm"}, {"text": "Clear"}],
+        ),
+        ("improvements", "Open with the impact.", [{"problem": "Open with the impact."}]),
+        ("weak_answers", ["Q2 had no number."], [{"question": "Q2 had no number."}]),
+        ("weak_answers", None, []),
+    ]
+    for field, sent, stored in cases:
+        shaped = validate_summary(_with(field, sent), require_vocabulary=True)[field]
+        assert shaped == stored, f"{field}={sent!r}: ждали {stored!r}, получили {shaped!r}"
+
+
+def test_missing_list_fields_and_null_vocabulary_become_empty_lists() -> None:
+    data = json.loads(json.dumps(VALID))
+    for field in ("strengths", "improvements", "weak_answers", "consistency_flags"):
+        del data[field]
+    data["next_session_focus"] = None
+    data["vocabulary"] = None  # minimal-разбору словарь не обязателен — не повод для повтора
+
+    shaped = validate_summary(data, require_vocabulary=False)
+
+    for field in LIST_FIELDS_IN_HINT:
+        assert shaped[field] == [], f"{field}: {shaped[field]!r}"
+    with pytest.raises(SummaryInvalidError, match="vocabulary"):  # полному — обязателен (S-H4)
+        validate_summary(_with("vocabulary", "queues"), require_vocabulary=True)
+
+
+def test_every_list_field_declared_in_the_hint_is_shaped() -> None:
+    """Сторож КЛАССА, а не случая.
+
+    Поле, которое подсказка модели объявляет списком (`имя [...]`), обязано
+    доезжать до базы списком, что бы ни прислала модель. Новое поле-список в
+    SCHEMA_HINT без строки в таблицах `validate.py` — красный тест здесь, а не
+    пустая страница на демо.
+    """
+    # регулярка видит подсказку — иначе цикл ниже прошёл бы по пустому списку
+    assert {"strengths", "vocabulary", "next_session_focus"} <= set(LIST_FIELDS_IN_HINT)
+    for field in LIST_FIELDS_IN_HINT:
+        for sent in ("one plain string", None, 7):
+            shaped = validate_summary(_with(field, sent), require_vocabulary=False)[field]
+            assert isinstance(shaped, list), (
+                f"{field}={sent!r} дошёл бы до базы как {type(shaped).__name__}: SCHEMA_HINT "
+                f"объявляет поле списком, а validate.py его не приводит — фронт на нём упадёт"
+            )
+
+
 @pytest.fixture
 def prompts(tmp_path: Path) -> PromptLibrary:
     prompts_dir = tmp_path / "prompts"
@@ -149,6 +235,20 @@ async def test_full_summary_stores_debrief_and_vocabulary(prompts: PromptLibrary
     # R1 with 16K ctx for the offline pass (doc 20)
     assert "INTERVIEW TRANSCRIPT" in llm.calls[0][1]["content"]
     assert "REVIEW TRANSCRIPT" in llm.calls[0][1]["content"]
+
+
+async def test_string_focus_from_the_model_is_stored_as_a_list(prompts: PromptLibrary) -> None:
+    """Форма живой записи 2026-07-05 доезжает до БД уже списком — фронту нечего чинить."""
+    db = Database("sqlite+aiosqlite:///:memory:")
+    await db.create_all()
+    interviews, _ = await _seed_sessions(db)
+    llm = ScriptedLlm([[json.dumps(_with("next_session_focus", "Lead with the metric."))]])
+
+    await _service(llm, db, prompts).generate_full("i1", "r1")
+
+    row = await interviews.get("i1")
+    assert row is not None
+    assert json.loads(row.debrief_json or "{}")["next_session_focus"] == ["Lead with the metric."]
 
 
 def _with_translation(translation: str) -> dict:

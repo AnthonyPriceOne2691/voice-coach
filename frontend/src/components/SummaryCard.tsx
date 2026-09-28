@@ -1,3 +1,4 @@
+import { normalizeDebrief } from "../lib/debrief";
 import type { Debrief } from "../types/api";
 
 const SCORE_LABELS: Record<string, string> = {
@@ -69,7 +70,7 @@ function Improvements({ debrief }: { debrief: Debrief }) {
           <li key={i}>
             <strong>{item.problem}</strong>
             {item.evidence && <span className="muted"> — {item.evidence}</span>}
-            <div>Fix: {item.fix}</div>
+            {item.fix && <div>Fix: {item.fix}</div>}
           </li>
         ))}
       </ul>
@@ -87,7 +88,7 @@ function WeakAnswers({ debrief }: { debrief: Debrief }) {
         {items.map((item, i) => (
           <li key={i}>
             <span className="muted">{item.question}</span>
-            <div>“{item.suggested_rephrase}”</div>
+            {item.suggested_rephrase && <div>“{item.suggested_rephrase}”</div>}
           </li>
         ))}
       </ul>
@@ -118,15 +119,18 @@ function NextFocus({ debrief }: { debrief: Debrief }) {
 }
 
 export function SummaryCard({ debrief }: { debrief: Debrief }) {
+  // Одно приведение на входе: секции выше верят типу `Debrief`, а записи в базе
+  // бывают старше приведения на бэкенде (см. lib/debrief.ts).
+  const shaped = normalizeDebrief(debrief);
   return (
     <div className="glass summary">
-      <Overall debrief={debrief} />
-      <Scores debrief={debrief} />
-      <Strengths debrief={debrief} />
-      <Improvements debrief={debrief} />
-      <WeakAnswers debrief={debrief} />
-      <Vocabulary debrief={debrief} />
-      <NextFocus debrief={debrief} />
+      <Overall debrief={shaped} />
+      <Scores debrief={shaped} />
+      <Strengths debrief={shaped} />
+      <Improvements debrief={shaped} />
+      <WeakAnswers debrief={shaped} />
+      <Vocabulary debrief={shaped} />
+      <NextFocus debrief={shaped} />
     </div>
   );
 }

@@ -47,6 +47,14 @@ thinking-блок, который в диалоге целиком выбрас�
   Повторный перевод термина (`SummaryService.translate_term`) выполняется
   `ollama_model_interview`: просить починку у источника дефекта — худший из
   возможных выборов, а офлайн-путь может позволить себе второй вызов.
+- **Форме вывода R1 не доверяют: поля-списки приводит валидатор.** На подсказку
+  `next_session_focus [string]` R1 вернул одну строку вместо списка, и экран
+  History → Open → Summary падал пустой страницей. `validate_summary` приводит
+  каждое поле-список схемы (doc 08) к списку ДО записи в БД: строка на месте
+  списка строк — список из неё, голая строка на месте объекта — объект с главным
+  полем, мусор выбрасывается. Записи, сохранённые раньше, приводит `SummaryCard`
+  (`frontend/src/lib/debrief.ts`). Сторож выводит поля-списки из самой подсказки
+  модели (`SCHEMA_HINT`): новое поле без приведения — красный тест.
 
 # Related
 
@@ -59,7 +67,7 @@ thinking-блок, который в диалоге целиком выбрас�
 | Клиент Ollama | `backend/app/llm/ollama_client.py` |
 | Вырезание thinking | `backend/app/llm/strip_thinking.py` |
 | Offline summary | `backend/app/summary/service.py` |
-| Проверка перевода (S-H6) | `backend/app/summary/validate.py` |
+| Проверка вывода: перевод (S-H6), форма полей-списков (S-H1) | `backend/app/summary/validate.py` |
 | Промпты офлайн-разбора | `data/prompts/summary_system.txt`, `minimal_summary_system.txt`, `translate_term_system.txt` |
 | Параметры моделей | `backend/app/config.py` |
 

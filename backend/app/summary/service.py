@@ -36,6 +36,10 @@ SHUTDOWN_SUMMARY_TIMEOUT_S = 10.0
 #: рассуждений вслух, которые всё равно пришлось бы отрезать.
 TERM_TRANSLATION_MAX_TOKENS = 64
 
+#: Поля-списки записаны массивом С ПРИМЕРОМ элемента. До 2026-09-29 здесь стояло
+#: `next_session_focus [string]`, и R1 прочёл это как «строка». Форму всё равно
+#: приводит валидатор (`validate.py`), а сторож в `test_summary.py` выводит
+#: поля-списки из ЭТОЙ строки: новое поле `[...]` без приведения — красный тест.
 SCHEMA_HINT = (
     "Output a single JSON object with fields: overall_summary (string), "
     "scores {clarity, structure, technical_depth, english_fluency, positioning: int 1-5}, "
@@ -43,7 +47,9 @@ SCHEMA_HINT = (
     "improvements [{category, problem, evidence, impact, fix}], "
     "weak_answers [{question, user_answer_summary, suggested_rephrase, issue}], "
     "vocabulary [{term_en, translation_ru, example_en, category}], "
-    "consistency_flags [string], next_session_focus [string]."
+    'consistency_flags ["...", "..."], next_session_focus ["...", "..."]. '
+    "Every field shown with [ ] is a JSON array, even when it holds one item: "
+    "consistency_flags and next_session_focus are arrays of strings, never a single string."
 )
 
 
