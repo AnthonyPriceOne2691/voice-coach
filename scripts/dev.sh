@@ -42,6 +42,6 @@ echo "==> frontend : http://localhost:5273  (HMR)"
 (cd "$ROOT/frontend" && exec ./node_modules/.bin/vite) &
 
 echo ""
-echo "    Open http://localhost:5273 and press Start Mock Interview. Ctrl+C stops everything."
+echo "    Open http://localhost:5273 and press Start interview. Ctrl+C stops everything."
 echo ""
 wait
