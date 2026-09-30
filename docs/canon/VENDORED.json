@@ -1,0 +1,24 @@
+{
+  "_": "Провенанс снимка (AGENT_STACK §7.1). Пересоздаётся при каждом перевендоривании — CQG §5 шаг 11.",
+  "upstream": "https://github.com/AnthonyPriceOne2691/agent-canon-stack.git",
+  "commit": "9803dfb06a7c12f361d706cee31d460816f6b283",
+  "branch": "main",
+  "dirty": false,
+  "vendored_at": "2026-09-30",
+  "versions": {
+    "delivery": "1.95",
+    "stack-map": "1.52",
+    "cqg": "2.42",
+    "okf": "1.18"
+  },
+  "sha256": {
+    "AGENT_DELIVERY_HARNESS.md": "d2ccb585d4bef5c5761b8cb4f7d9ad3a00d8c467659ca042b92d95524a3739a1",
+    "AGENT_STACK.md": "990d4328264b8a70b17b4c835e1f60721d211112274b6b4bc5b70de0114c3e03",
+    "CODE_QUALITY_GATES.md": "d3b38485264548b393777b453ef2458468349e138535b72cf4ca8a3e6719ed91",
+    "OKF_KNOWLEDGE_BUNDLE.md": "4bcf04755c18d479782e986d9d82370d663156a4264cb88d6b86505401815df4",
+    "VENDORED.md": "0107e0b581b2fdc8ff142948b3c8f5ad547eec8b86e77c8cfeba5c98cbcde81f",
+    "extract_payload.py": "9957f34a08280b42fa6a2756a47b01a8951ae7eaf390e1c7ef84a675e97dc73d",
+    "selftest_sizes.py": "166511867006a66b6f850209e0e3d6fff81fca4c5518cd8ec11a5d94ea694867",
+    "stack_selftest.py": "bccd7ed8a3c0b7268838d6426aae8b3c091afc0a809f50735f0ccbc34a69d3a6"
+  }
+}
