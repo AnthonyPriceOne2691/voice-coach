@@ -56,9 +56,23 @@ red=$(printf '\033[31m'); yellow=$(printf '\033[33m'); green=$(printf '\033[32m'
 # ровно то, что уже было починено у eslint-ратчета и не перенесено сюда. Нашлось
 # не глазами, а пробником по всем path-зависимым гейтам сразу (см. регрессию
 # `test_no_gate_dies_with_a_raw_shell_error`).
-if [[ ! -d "$REPO_ROOT/$BE_DIR" ]]; then
-  printf '%s⚠ нет каталога backend (%s) — diff-coverage пропущен. Настройка: LINT_BE_DIR%s\n' \
-    "$yellow" "$BE_DIR" "$reset"
+# Применимость — по МАНИФЕСТУ проекта, а не по наличию каталога. Тот же класс,
+# что закрыт у check_deps_audit.sh (cqg@2.17), и здесь он оставался жив: джоба
+# §8.3 ставит оснастку гейтов в $BE_DIR/.venv и тем СОЗДАЁТ $BE_DIR, после чего
+# охрана -d истинна на проекте, где питона нет. Замер третьего развёртывания:
+# без каталога — честный пропуск, с созданным соседним шагом — гейт отчитывается
+# об 11 не-python файлах. Правка была на СЛУЧАЙ, а не на класс.
+# ⚠ Применимость судится по ОТСЛЕЖИВАЕМОМУ КОДУ, а не по наличию каталога:
+# джоба §8.3 ставит оснастку гейтов в `$BE_DIR/.venv` и тем СОЗДАЁТ `$BE_DIR`,
+# после чего охрана `-d` истинна на проекте, где питона нет. Тот же класс закрыт
+# у `check_deps_audit.sh` (`cqg@2.17`), но признак ТАМ другой и переносить его
+# сюда нельзя: аудит зависимостей спрашивает про манифест, покрытие — про КОД.
+# Перенос признака через границу класса сьют поймал шестью красными прогонами.
+# `git ls-files` заодно отсекает `.venv`: он не отслеживается.
+py_tracked=$(git -C "$REPO_ROOT" ls-files -- "$PY_SRC" 2>/dev/null | grep -cE '\.py$' || true)
+if [[ "${py_tracked:-0}" -eq 0 ]]; then
+  printf '%s⚠ нет отслеживаемого python-кода в %s — diff-coverage пропущен. Настройка: LINT_PY_SRC%s\n' \
+    "$yellow" "$PY_SRC" "$reset"
   printf 'Покрытие изменённого кода НЕ измерено — отметь непокрытость в verify-report.md.\n'
   exit 0
 fi
@@ -67,14 +81,14 @@ cd "$REPO_ROOT/$BE_DIR" || exit 1
 # git diff — от repo-root (git -C): pathspec от корня не матчится из cwd backend/.
 list_changed() { # $1 = base-реф; закоммиченный дифф prod-файлов (без тестов)
   git -C "$REPO_ROOT" diff --name-only "$1"...HEAD -- "$PY_SRC/*.py" 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.py$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
     | sed "s#^$BE_DIR/##"
 }
 
 # Незакоммиченные правки — их дифф-списком не увидеть, а сьют их исполняет:
 # источник ложного зелёного.
 dirty=$(git -C "$REPO_ROOT" status --porcelain -- "$PY_SRC/*.py" 2>/dev/null \
-  | cut -c4- | grep -vE '/tests/|/test_[^/]*\.py$' || true)
+  | cut -c4- | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
 
 changed=$(list_changed "$BASE")
 
@@ -107,7 +121,8 @@ if [[ -z "$changed" ]]; then
   # Отсутствие оракула для языка — непокрытая область, и по доктрине канона её
   # НАЗЫВАЮТ, а не роняют DoD-шаг (так же ведут себя ветки «нет pytest-cov» и jscpd).
   other=$(git -C "$REPO_ROOT" diff --name-only "$BASE"...HEAD 2>/dev/null \
-    | grep -vE '/tests/|/test_[^/]*\.|\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' \
+    | grep -vE '\.(md|txt|json|ya?ml|toml|cfg|ini|lock|svg|png|jpg)$' \
     | grep -vE "${LINT_SRC_EXT_RE:-\.py$}" || true)
   if [[ -n "$other" ]]; then
     cnt=$(printf '%s\n' "$other" | wc -l | tr -d ' ')

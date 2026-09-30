@@ -72,6 +72,13 @@ RUFF="$VENV/bin/ruff"
 ESLINT="$FE_DIR/node_modules/.bin/eslint"
 [[ -x "$ESLINT" ]] || ESLINT="node_modules/.bin/eslint"
 [[ -x "$ESLINT" ]] || ESLINT=$(command -v eslint 2>/dev/null || true)
+# АБСОЛЮТНЫЕ пути для TS-половины: она меняет cwd (flat-config eslint ищется от
+# него, а канон кладёт конфиг в `<frontend>/`, §5.0), и относительные значения
+# после `cd` указывали бы не туда. Замер до этого: exit 2 «ESLint couldn't find an
+# eslint.config.(js|mjs|cjs) file» — то есть канон не попадал в раскладку, которую
+# сам же предписывает (`cqg@2.04`, найдено полевым прогоном).
+ESLINT_ABS=$ESLINT; [[ "$ESLINT_ABS" == /* ]] || ESLINT_ABS="$REPO_ROOT/$ESLINT"
+TS_ABS=$TS_SRC;     [[ "$TS_ABS" == /* ]]    || TS_ABS="$REPO_ROOT/$TS_SRC"
 
 # Половина ЖИВА, только если есть И каталог, И инструмент. Причина мёртвой
 # половины называется отдельно от «нашли ноль» — тот же класс, что
@@ -171,7 +178,10 @@ if [[ "$MODE" == "--report" ]]; then
   fi
   if (( ts_live )); then
     printf 'Нарушения сложности по файлам, ts (правила %s):\n' "$TS_RULES"
-    "$ESLINT" "$TS_SRC" --no-color --rule "$TS_RULES" 2>/dev/null
+    # Через ту же обёртку, что и счёт: иначе `--report` (то самое «что именно
+    # длинное», куда посылает красный итог) падал бы с exit 2 на раскладке,
+    # которую канон предписывает сам.
+    ts_eslint --no-color --rule "$TS_RULES" 2>/dev/null
   fi
   exit 0
 fi

@@ -122,7 +122,16 @@ case "$RULE" in
     # print() сознательно НЕ ловим: в CLI и скриптах он законен, и правило стало
     # бы стабильно красным на легальном коде (§4.3b Delivery). Фронт закрыт
     # ESLint-правилом no-console через гейт eslint-warnings, а не здесь.
-    PATTERN='(^|[^A-Za-z_.])(logger|logging|log|_log)\.(debug|info|warning|warn|error|critical|exception)\([[:space:]]*(f["'"'"']|["'"'"'][^"'"'"']*["'"'"'][[:space:]]*\.format\()'
+    # Имя логгера — тем же ПРИНЦИПОМ, что у брата `silent-except` (`ast_rules.py`,
+    # `_LOGGER_WORDS`): имя оканчивается словом log/logger/logging, отделённым
+    # началом или `_`, регистр не важен, цепочка `self.logger` узнаётся. Списком
+    # имён правило не видело ни `LOG.info(f"…")`, ни `self.logger.info(f"…")` —
+    # то есть молчало на самых частых формах. Общего кода у шелла с питоном нет,
+    # поэтому согласие двух ответов держит ПРОГОН на общем списке форм
+    # (`tests/test_silent_except_logger.py`), а не чтение: разъедутся — красное.
+    # Регистр берётся классами, а не `-i`: флаг пришлось бы тянуть в общий
+    # `count_hits`, то есть на все шесть правил разом.
+    PATTERN='(^|[^A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*\.)*_*([A-Za-z0-9]+_)*[Ll][Oo][Gg]([Gg][Ee][Rr]|[Gg][Ii][Nn][Gg])?\.(debug|info|warning|warn|error|critical|exception)\([[:space:]]*(f["'"'"']|["'"'"'][^"'"'"']*["'"'"'][[:space:]]*\.format\()'
     FILTER='\.py$'
     BASELINE="$SCRIPT_DIR/unstructured_log_baseline.txt"
     LABEL='unstructured-log: значение вплавлено в текст лога вместо extra={...}'
@@ -147,7 +156,7 @@ list_targets() {
   # какой бы паттерн правила ни задать. Дефолт прежний.
   out=$(git ls-files "$PY_SRC/" 2>/dev/null \
     | grep -E "${LINT_SRC_EXT_RE:-\.py\$}" \
-    | grep -vE '/tests/|/test_[^/]*\.')
+    | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.')
   [[ -n "${FILTER:-}" ]] && out=$(printf '%s\n' "$out" | grep -E "$FILTER")
   # `|| true`: grep -v без остатка выходит 1, и под `set -e` это уронило бы гейт на
   # проекте, где ВСЯ выборка попала в исключение — законный случай, не ошибка.

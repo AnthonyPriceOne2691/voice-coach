@@ -13,6 +13,8 @@
 # Usage:
 #   scripts/merge_guard.sh <source-branch> [target-branch]   # default target: main
 #   DRY_RUN=1 scripts/merge_guard.sh feat/x                  # только проверить
+# ⚠ ОТКУДА звать: мерж — из дерева, где целевая ветка НЕ занята другим worktree
+# (обычно основной клон). Из worktree поставки (§5.1) — только `DRY_RUN=1`.
 set -euo pipefail
 
 SOURCE=${1:?usage: merge_guard.sh <source-branch> [target-branch]}
@@ -51,6 +53,33 @@ fi
 git rev-parse --verify --quiet "$SOURCE" >/dev/null || die "нет ветки '$SOURCE'"
 git rev-parse --verify --quiet "$TARGET" >/dev/null || die "нет ветки '$TARGET'"
 [[ -z "$(git status --porcelain)" ]] || die "рабочее дерево грязное — закоммить или спрячь правки"
+
+# Целевая ветка может быть ЗАНЯТА другим рабочим деревом, и тогда мерж отсюда
+# невозможен: последний шаг делает `git checkout "$TARGET"` в дереве, откуда
+# позван. Полевой симптом (проект вёл поставку в worktree, как велит §5.1): шесть
+# гейтов зелёные, затем `fatal: 'main' is already used by worktree at …`. Диагноз
+# читается как поломка репозитория, а не как «позвал не оттуда», и приходит в
+# самом дорогом месте — после всей проверки. §5.1 велит вести поставку в worktree,
+# значит это штатный случай, а не редкость.
+#
+# Проверка РАННЯЯ и только для настоящего мержа: `DRY_RUN=1` ничего не
+# переключает, и падать на занятости ему не за что — иначе законный способ
+# «проверить слитое состояние из своего worktree» перестал бы работать.
+if [[ "$DRY_RUN" != "1" ]]; then
+  busy=$(git worktree list --porcelain | awk -v t="refs/heads/$TARGET" \
+    '/^worktree /{wt=substr($0,10)} /^branch /{if (substr($0,8)==t) print wt}')
+  if [[ -n "$busy" && "$busy" != "$REPO_ROOT" ]]; then
+    printf '%smerge_guard: ветка %s занята рабочим деревом:%s\n' "$red" "$TARGET" "$reset" >&2
+    printf '  %s\n' "$busy" >&2
+    printf 'Мерж переключает целевую ветку В ТОМ дереве, откуда позван, поэтому\n' >&2
+    printf 'отсюда он невозможен. Два законных хода:\n' >&2
+    printf '  1) мержить из того дерева:  cd %s && bash scripts/merge_guard.sh %s %s\n' \
+      "$busy" "$SOURCE" "$TARGET" >&2
+    printf '  2) проверить отсюда без мержа:  DRY_RUN=1 bash scripts/merge_guard.sh %s %s\n' \
+      "$SOURCE" "$TARGET" >&2
+    die "не то дерево для мержа (§8.5.2) — гейты не гонялись, время не потрачено"
+  fi
+fi
 
 WT=$(mktemp -d)/merge-check
 cleanup() { git worktree remove --force "$WT" >/dev/null 2>&1 || true; }
@@ -138,16 +167,44 @@ run_gate() {
   return 0
 }
 
-command -v pre-commit >/dev/null 2>&1 && [[ -f .pre-commit-config.yaml ]] \
-  && run_gate "pre-commit (all files)" pre-commit run --all-files
-[[ -f scripts/lint/check_baseline_ratchet.sh ]] \
-  && run_gate "baseline ratchet" env BASE="$TARGET" bash scripts/lint/check_baseline_ratchet.sh
-[[ -f scripts/delivery_check.py ]] \
-  && run_gate "delivery gate + breakers" "$PY" scripts/delivery_check.py --diff-base "$TARGET"
-[[ -f scripts/okf_sync_gate.py ]] \
-  && run_gate "canon sync" "$PY" scripts/okf_sync_gate.py --base "$TARGET"
-[[ -f delivery/evals/smoke/run.sh ]] \
-  && run_gate "smoke evals" bash delivery/evals/smoke/run.sh
+# Гейт, которого может не быть: ПРОПУСК ОБЯЗАН БЫТЬ НАЗВАН.
+#
+# ⚠ Раньше здесь стояло `условие && run_gate …`, а печать метки живёт ВНУТРИ
+# `run_gate` — значит непройденное условие не оставляло в выводе ни строки.
+# Замер: прогон с `PATH` без `pre-commit` печатает «merge_guard: всё зелено» и
+# выходит НУЛЁМ, не прогнав ни одного коммит-гейта; на стенде без файлов молча
+# выпали ПЯТЬ из шести, и вывод сказал то же самое. То есть гейт мержа — тот
+# самый, что стоит между веткой и main, — подтверждал «зелено» по пустоте.
+# Это дословно класс F10 канона («названный пропуск читается как успех»), только
+# здесь пропуск даже не назван, и живёт он в проверяющем слое.
+skipped=()
+gate_or_skip() {                 # gate_or_skip <метка> <причина|пусто> <команда…>
+  local label=$1 why=$2; shift 2
+  if [[ -n "$why" ]]; then
+    printf '  → %s\n' "$label"
+    printf '    %sПРОПУЩЕН%s: %s\n' "$yellow" "$reset" "$why"
+    skipped+=("$label")
+    return 0
+  fi
+  run_gate "$label" "$@"
+}
+
+why=""
+command -v pre-commit >/dev/null 2>&1 || why="нет pre-commit в PATH"
+[[ -n "$why" || -f .pre-commit-config.yaml ]] || why="нет .pre-commit-config.yaml"
+gate_or_skip "pre-commit (all files)" "$why" pre-commit run --all-files
+
+why=""; [[ -f scripts/lint/check_baseline_ratchet.sh ]] || why="нет scripts/lint/check_baseline_ratchet.sh"
+gate_or_skip "baseline ratchet" "$why" env BASE="$TARGET" bash scripts/lint/check_baseline_ratchet.sh
+
+why=""; [[ -f scripts/delivery_check.py ]] || why="нет scripts/delivery_check.py"
+gate_or_skip "delivery gate + breakers" "$why" "$PY" scripts/delivery_check.py --diff-base "$TARGET"
+
+why=""; [[ -f scripts/okf_sync_gate.py ]] || why="нет scripts/okf_sync_gate.py"
+gate_or_skip "canon sync" "$why" "$PY" scripts/okf_sync_gate.py --base "$TARGET"
+
+why=""; [[ -f delivery/evals/smoke/run.sh ]] || why="нет delivery/evals/smoke/run.sh"
+gate_or_skip "smoke evals" "$why" bash delivery/evals/smoke/run.sh
 
 # ПОСЛЕДНИМ и в основном клоне, а не в worktree: всё выше гонялось локально —
 # своим Python, своим venv. Этот шаг спрашивает у CI, зелено ли оно ТАМ. Без него
@@ -160,6 +217,18 @@ if [[ -f scripts/lint/check_ci_status.sh ]]; then
     printf '    %sFAIL%s\n' "$red" "$reset"
     failed+=("ci status")
   fi
+else
+  printf '  → %s\n' "ci status ($SOURCE)"
+  printf '    %sПРОПУЩЕН%s: нет scripts/lint/check_ci_status.sh\n' "$yellow" "$reset"
+  skipped+=("ci status")
+fi
+
+# «Зелено» без этой строки означало бы «зелено по пустоте». Пропуск не роняет
+# мерж — стенд может быть беден законно, — но и молчать о нём нельзя: цена
+# решения видна тому, кто мержит, а не тому, кто потом ищет причину.
+if (( ${#skipped[@]} )); then
+  printf '\n%s⚠ merge_guard: ПРОПУЩЕНО гейтов: %s%s\n' "$yellow" "${skipped[*]}" "$reset"
+  printf '  «зелено» ниже относится только к прогнанным (§8.5.2).\n'
 fi
 
 if (( ${#failed[@]} )); then

@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import ast
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -38,7 +39,52 @@ from ast_rules import find_inline_prompt, find_silent_except
 from ast_web_rules import find_cpu_in_async, find_unbounded_list
 
 FEATURES = Path(os.environ.get("LINT_PY_SRC", "backend/features"))
-SKIP_PARTS = ("/tests/", "/migrations/")
+
+# Население гейта отбирают ДВА принципа, и они разной природы. Держать их одним
+# кортежем и было дефектом: почему в списке лежат `/tests/` и `/migrations/`, не
+# сказано нигде, поэтому про `.venv` не с чем было спорить — он просто не похож
+# на прежние записи и проваливался молча.
+#
+# ① «НЕ НАШ КОД» — установленное, вендоренное, кэши инструментов. Новый случай
+# судить так: этот файл писал кто-то из проекта? Нет — сюда. Это НЕ настройка
+# развёртывания: чужой код не наш ни при какой маске, поэтому список правит канон.
+# Замер `local-web-agent`: прод-код лежит в двух корнях (`backend/app` И `cli/`),
+# поэтому `LINT_PY_SRC=.` — законная настройка, а `.venv`/`node_modules` лежат
+# ВНУТРИ дерева, и rglob затянул site-packages в снимок — 168 чужих записей на
+# первом прогоне. Остальные три проекта флота везли ту же пару без изменений и
+# уцелели лишь тем, что их маска смотрит в подкаталог: везение раскладки, не защита.
+NOT_OUR_CODE = frozenset((
+    ".venv", "venv", "site-packages", "node_modules", "vendor", ".tox", ".nox",
+    ".eggs", "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    "build", "dist", ".git",
+))
+# ② «НАШ КОД, НО НЕ СУДИМ ЭТИМ ПРАВИЛОМ» — написано в проекте, правило не
+# применяем сознательно. Новый случай судить так: файл наш и останется нашим?
+# Тогда сюда — и вот это как раз НАСТРОЙКА развёртывания, законно разная у разных
+# проектов, в отличие от ①.
+NOT_JUDGED_HERE = frozenset(("tests", "migrations"))
+
+# «Тестовый файл» — понятие §3.1e, и это ЕДИНОЕ выражение: тот же ERE стоит в
+# `check_grep_gate.sh`, `check_file_length.sh`, `mutation_ts.sh` и
+# `check_diff_coverage.sh`, а согласие всех пяти держит прогон
+# `tests/test_what_is_a_test_file.py`. Прежняя форма (`test_` в начале имени плюс
+# `conftest.py`) знала три случая из одиннадцати: `util_test.py`, `__tests__/`,
+# `api.spec.ts`, `FooTest.java`, `FooTests.cs` в неё не попадали.
+IS_TEST = re.compile(
+    r"(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]"
+    r"|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.")
+
+
+def in_population(rel_posix: str) -> bool:
+    """Судит ли гейт этот файл. Один вход на оба принципа отбора.
+
+    Сверяется ЭЛЕМЕНТ пути, а не подстрока: `my_node_modules_util/` и
+    `venv_helper.py` — продуктовый код, и слабая форма (`"venv" in path`)
+    объявила бы их чужими. Путь берётся ОТНОСИТЕЛЬНЫМ repo-root — на абсолютном
+    совпал бы ещё и каталог НАД репозиторием (`/home/u/build/proj/...`).
+    """
+    parts = set(rel_posix.split("/"))
+    return not (parts & NOT_OUR_CODE) and not (parts & NOT_JUDGED_HERE)
 
 
 RULES = {
@@ -71,10 +117,9 @@ RULES = {
 
 def iter_target_files(repo_root: Path):
     for path in sorted((repo_root / FEATURES).rglob("*.py")):
-        rel = path.as_posix()
-        if any(part in rel for part in SKIP_PARTS):
+        if not in_population(repo_rel(path, repo_root)):
             continue
-        if path.name.startswith("test_") or path.name == "conftest.py":
+        if IS_TEST.search(repo_rel(path, repo_root)):
             continue
         yield path
 

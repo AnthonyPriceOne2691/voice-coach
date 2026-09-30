@@ -223,8 +223,9 @@ def check_decision_cost(args, dec_file, late: bool, errors: list[str],
     «новых функций сверх §2.1 не заводим» (`cqg@1.84`) — правило сработало
     против того, кто его писал, и это ровно та проверка, ради которой оно есть.
     """
-    dec_stats = diff_stats(args.diff_base or "HEAD~1")
-    diff_ids = diff_identifiers(dec_stats[4]) if dec_stats else None
+    dec_base = args.diff_base or "HEAD~1"
+    dec_stats = diff_stats(dec_base)
+    diff_ids = diff_identifiers(dec_stats[4], dec_base) if dec_stats else None
     no_cost = decisions_without_cost(read(dec_file), diff_ids)
     if no_cost and late:
         warnings.append(

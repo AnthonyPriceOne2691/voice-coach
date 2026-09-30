@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 from delivery_base import (ACTIVE, ARCHIVE, BREAKER_EXCLUDE, ActiveCtx,
-                           DEFAULT_BREAKERS, field,
+                           DEFAULT_BREAKERS, GENERATED_FILENAMES, field,
                            is_placeholder, read)
 from delivery_diff import applicable_lessons, diff_stats
 
@@ -300,7 +300,8 @@ def check_limits(status: str, args, errors: list[str], warnings: list[str], ctx:
             net = abs(added - deleted)
             print(
                 f"breakers: files={n_files} net_loc={net} (+{added}/-{deleted}), "
-                f"excluded={excluded} ({'|'.join(BREAKER_EXCLUDE)}), "
+                f"excluded={excluded} "
+                f"({'|'.join(BREAKER_EXCLUDE + GENERATED_FILENAMES)}), "
                 f"limits={limits}"
             )
             check_starting_diff(args, phase, n_files, warnings, errors)

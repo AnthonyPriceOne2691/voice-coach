@@ -15,7 +15,28 @@ import ast
 
 SILENT_OK_MARKER = "# silent-ok:"
 
-_LOG_BASES = {"logger", "logging", "log", "warnings"}
+# ПРИНЦИП «что такое логгер», общий с грепом (`unstructured-log`): имя
+# ОКАНЧИВАЕТСЯ словом log/logger/logging, отделённым началом имени или
+# подчёркиванием; регистр не важен; цепочка (`self.logger`, `cls._log`) судится
+# по последнему звену. По принципу отвечают про НОВЫЙ случай, не спрашивая
+# автора: `LOG`, `_log`, `app_logger`, `audit_log` — логгер; `catalog`, `dialog`,
+# `blog`, `lock_manager` — нет, совпадения подстроки мало (слабая форма держится
+# прогоном `tests/test_silent_except_logger.py`).
+#
+# Список имён вместо принципа давал ЛОЖНОЕ КРАСНОЕ на двух самых частых формах:
+# `LOG = logging.getLogger(__name__)` (сравнение было регистрозависимым) и
+# `self.logger` (база — `ast.Attribute`, а не `ast.Name`). Дыра была ровно в
+# размер трёх методов: `.debug()`, `.info()`, `.critical()` не начинаются ни с
+# одного префикса ниже, а `.error`/`.warning`/`.exception` спасал именно он.
+# Цена тут несимметрична: штатный ответ на ложное красное — вписать
+# `# silent-ok:`, то есть ВЫКЛЮЧИТЬ правило на живом логирующем обработчике.
+_LOGGER_WORDS = {"log", "logger", "logging"}
+# Канал следа, логгером НЕ являющийся, и потому вынесенный из общего понятия:
+# `warnings.warn(...)`. Граница названа, чтобы расхождение с братом было
+# решением, а не забывчивостью: `unstructured-log` про `warnings` молчит
+# законно — `extra=` у него нет, и требовать его значило бы держать правило
+# красным на легальном коде (§4.3b).
+_TRACE_MODULES = {"warnings"}
 _LOG_ATTR_PREFIXES = ("log", "warn", "exception", "error", "record", "capture", "notify")
 _PROMPT_MARKERS = ("ты —", "ты -", "you are", "you classify", "act as", "роль:", "system:")
 _PROMPT_MIN_LINES = 8
@@ -72,6 +93,20 @@ def _print_shows_the_error(handler: ast.ExceptHandler) -> bool:
     return False
 
 
+def _is_logger_name(name: str) -> bool:
+    """Логгер ли это — по принципу выше, а не по списку имён."""
+    return name.lstrip("_").rsplit("_", 1)[-1].lower() in _LOGGER_WORDS
+
+
+def _call_base(node: ast.AST) -> str:
+    """На чём висит вызов: `LOG` у `LOG.debug`, `logger` у `self.logger.info`."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
+
+
 def _handler_leaves_trace(handler: ast.ExceptHandler) -> bool:
     for node in ast.walk(handler):
         if isinstance(node, ast.Raise):
@@ -79,8 +114,8 @@ def _handler_leaves_trace(handler: ast.ExceptHandler) -> bool:
         if isinstance(node, ast.Call):
             func = node.func
             if isinstance(func, ast.Attribute):
-                base = func.value
-                if isinstance(base, ast.Name) and base.id in _LOG_BASES:
+                base = _call_base(func.value)
+                if _is_logger_name(base) or base in _TRACE_MODULES:
                     return True
                 if func.attr.startswith(_LOG_ATTR_PREFIXES):
                     return True

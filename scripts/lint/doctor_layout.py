@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 
 from doctor_core import ABSENT, AUTO, DEAD, SKIP, WEAK, _block_after, run
@@ -98,7 +99,22 @@ class LayoutChecks:
 
         Шов по данным: цикл не отдаёт наружу ни одного имени, только вердикты, а
         из места принуждения ему нужен ровно один факт — есть ли конфиг.
+
+        ⚠ **В CI этот вопрос НЕОТВЕЧАЕМ, и потому там `SKIP`, а не `DEAD`.**
+        Хуки живут в клоне разработчика; чекаут их не ставит и ставить не должен —
+        принуждение в CI даёт сам workflow, который гоняет `pre-commit run
+        --all-files` напрямую. Без этой развилки доктор в CI красный по
+        построению: конфиг в дереве есть, хуков нет, `DEAD 2`, exit 1 — то есть
+        шаг был бы красным на КАЖДОМ проекте с развёрнутым контуром. Замерено на
+        стенде: `DEAD 2` без хуков против `DEAD 0` с подставленными.
+
+        Это ложное красное, а такие проверки снимают вместе со сверкой (§4.3b),
+        поэтому цена развилки — не удобство. Но и `AUTO` тут нельзя: вопрос не
+        «всё хорошо», а «здесь не спросить», и разница обязана быть в отчёте.
+        Признак — переменная `CI`: её ставят оба хостинга (GitHub Actions и
+        GitLab CI), поэтому второго признака контур не заводит.
         """
+        in_ci = os.environ.get("CI", "").lower() not in ("", "0", "false")
         gitdir = self._git_hooks_dir()
         for hook in ("pre-commit", "pre-push"):
             h = gitdir / "hooks" / hook
@@ -106,6 +122,10 @@ class LayoutChecks:
                 self.add(AUTO, f"хук {hook} установлен",
                          str(h if not h.is_relative_to(self.root)
                              else h.relative_to(self.root)))
+            elif in_ci:
+                self.add(SKIP, f"хук {hook} установлен",
+                         "прогон в CI: хуки живут в клоне разработчика, здесь "
+                         "принуждение даёт workflow — вопрос неотвечаем, а не «ок»")
             else:
                 self.add(DEAD if has_cfg else ABSENT, f"хук {hook} установлен",
                          "конфиг есть, а хук НЕ установлен: `pre-commit install"
@@ -180,26 +200,73 @@ class LayoutChecks:
     #: `scripts/lint/*`, поэтому не сказал никто — а §5.5 ради этого и написана.
     #: Конфиги адаптируют ШТАТНО (§6: значения живут в `env:`/`entry:`), значит
     #: расхождение тут нормально — но объявленное, а не молчаливое.
-    CANON_CONFIGS = {
-        ".pre-commit-config.yaml": ("### `.pre-commit-config.yaml`", "yaml"),
-        ".github/workflows/quality.yml": ("### 8.3. Workflow (GitHub Actions)", "yaml"),
+    #: ⚠ Это список ИСКЛЮЧЕНИЙ, а не инвентарь конфигов, и разница стоила
+    #: молчания на шести файлах из десяти. Тело большинства конфигов лежит в
+    #: каноне под заголовком вида ``### `путь` `` — маркер выводится ПРАВИЛОМ,
+    #: ровно как у скриптов. Здесь перечислены только те, чьё тело живёт под
+    #: ПРОЗАИЧЕСКИМ заголовком, из имени не выводимым.
+    #:
+    #: Прежняя редакция держала таблицу инвентарём и знала четыре файла из
+    #: десяти: `.dependency-cruiser.cjs`, `backend/.importlinter`,
+    #: `backend/pyproject.toml`, `backend/requirements-dev.txt`,
+    #: `<frontend>/.prettierrc` и `<frontend>/eslint.config.js` не сверялись
+    #: НИКОГДА — адаптированный без объявления конфиг проходил молча, тогда как
+    #: `plan_update.py` на том же файле давал «стоп». Два инструмента одного
+    #: контура расходились об одном файле, и слепым был тот, что ЕЗДИТ в проект
+    #: и стоит в CI. Список рос дважды (`1.91`, `2.01`) и оба раза строкой, а не
+    #: выводом из манифеста. Нашло третье полевое развёртывание.
+    CANON_CONFIG_MARKERS = {
+        ".github/workflows/quality.yml": "### 8.3. Workflow (GitHub Actions)",
         ".github/workflows/main-guard.yml":
-            ("**④ Красное на `main` не остаётся незамеченным.**", "yaml"),
+            "**④ Красное на `main` не остаётся незамеченным.**",
         # Адаптер GitLab сверяется так же, как оба workflow'а (`cqg@2.01`). Без
         # этой строки §5.5 на GitLab-проекте не находила НИЧЕГО и молчала: и
         # «адаптер устарел», и «адаптирован без объявления» проходили тихо —
         # ровно та половина класса, которую `cqg@1.91` закрыл для GitHub.
-        ".gitlab-ci.yml": ("### 8.3a. GitLab: тот же контракт, тонкий адаптер", "yaml"),
+        ".gitlab-ci.yml": "### 8.3a. GitLab: тот же контракт, тонкий адаптер",
     }
+
+    def canon_configs(self, text: str) -> dict[str, str]:
+        """{путь конфига: маркер} — ИНВЕНТАРЬ из самого канона, не из списка.
+
+        Заголовки ``### `путь` `` вычитываются из снимка, поэтому новый конфиг
+        попадает под сверку тем, что канон его вообще описывает, — руками
+        дописывать нечего и забыть нечего. Скрипты отсеиваются: у них свой обход.
+
+        Две формы заголовка канон использует и обе разобраны: суффикс-пояснение
+        (``### `backend/pyproject.toml (фрагмент)` ``) и плейсхолдер каталога
+        фронта (``### `<frontend>/eslint.config.js` ``), который разворачивается
+        в настоящий каталог проекта.
+        """
+        fe = os.environ.get("LINT_FE_DIR", "frontend")
+        out = dict(self.CANON_CONFIG_MARKERS)
+        for m in re.finditer(r"^### `([^`]+)`\s*$", text, re.M):
+            raw = m.group(1)
+            rel = raw.split(" (", 1)[0].replace("<frontend>", fe)
+            if rel.startswith("scripts/") or rel in out:
+                continue
+            out[rel] = f"### `{raw}`"
+        return out
 
     def _compare_with_snapshot(self, text: str, rel: str, marker: str, lang: str,
                                declared: dict) -> None:
-        """Одно сравнение «файл проекта против снимка канона»."""
+        """Сравнение по МАРКЕРУ — для конфигов, чьё тело лежит под заголовком."""
         live = self.root / rel
         if not live.is_file() or marker not in text:
             return                       # файла нет или канон его не поставляет
         body = _block_after(text, marker, lang)
-        if body is None:
+        if body is not None:
+            self._judge_divergence(rel, body, declared)
+
+    def _judge_divergence(self, rel: str, body: str, declared: dict) -> None:
+        """Вердикт по паре «тело канона · файл проекта». ОДИН на оба способа.
+
+        Способа добыть канонное тело два — у конфига по маркеру, у скрипта от
+        извлекателя, — а суждение обязано быть одно: два вердикта разошлись бы,
+        и это `one-notion-one-place`.
+        """
+        live = self.root / rel
+        if not live.is_file():
             return
         name = rel.rsplit("/", 1)[-1]
         spec = declared.get(rel) or declared.get(name)
@@ -236,23 +303,102 @@ class LayoutChecks:
                                          "объявлены и не прочитаны")
             return {}
 
-    def check_divergence_from_canon(self) -> None:
-        snap = self.root / "docs" / "canon" / "CODE_QUALITY_GATES.md"
+    def _judge_payload_bodies(self, canon_dir: Path, snap: Path,
+                              declared: dict) -> None:
+        """Разложить payload извлекателем и сверить тела скриптов.
+
+        Отдельным блоком, потому что вопрос другой: снаружи — «что сверяем»,
+        здесь — «как достаём». Пропуск ИМЕНУЕТСЯ обоими путями: молчаливое
+        сужение населения и было дефектом, который эта проверка закрывает.
+        """
+        if self._bodies_from_extractor(canon_dir, declared):
+            return
+        seen = self._bodies_from_marker(snap, declared)
+        self.add(SKIP, "сверка тел payload'а",
+                 f"извлекателя нет или он старый — сверено {seen} файл(ов) "
+                 "только из scripts/lint/**, скрипты delivery_/okf_ не сверены; "
+                 "обнови docs/canon/ по §5.5")
+
+    def _bodies_from_extractor(self, canon_dir: Path, declared: dict) -> bool:
+        """Тела от владельца разбора. → сверил ли (False = зови фолбэк)."""
+        ex = canon_dir / "extract_payload.py"
+        if not ex.is_file():
+            return False
+        with tempfile.TemporaryDirectory(prefix="canon-payload-") as tmp:
+            code, _ = run(["python3", str(ex), "--canon-dir", str(canon_dir),
+                           "--extract", tmp], self.root)
+            if code != 0:
+                return False
+            base = Path(tmp)
+            for src in sorted(base.rglob("*")):
+                rel = str(src.relative_to(base))
+                if src.is_file() and rel.startswith("scripts/"):
+                    self._judge_divergence(
+                        rel, src.read_text(encoding="utf-8", errors="replace"),
+                        declared)
+        return True
+
+    def _bodies_from_marker(self, snap: Path, declared: dict) -> int:
+        """Прежний путь по маркеру. → сколько сверил.
+
+        ⚠ Фолбэк, а не отказ, и это решение с ценой. Извлекателя может не быть
+        (снимок старее `cqg@2.08`), и СНЯТЬ сверку целиком значило бы обменять
+        шестнадцать невидимых скриптов на тридцать пять ослепших. Первая
+        редакция правки так и сделала и уронила три собственных оракула: они
+        разворачивают снимок БЕЗ извлекателя, то есть ровно старый случай.
+
+        Маркер знает только форму CQG (``### `путь` ``), поэтому покрывает
+        `scripts/lint/**` и молчит про `delivery_*`. Сужение возвращается ЧИСЛОМ
+        и печатается: молчаливое сужение и было дефектом.
+        """
+        text = snap.read_text(encoding="utf-8", errors="replace")
         d = self.root / "scripts" / "lint"
+        seen = 0
+        for script in sorted(d.glob("*")) if d.is_dir() else []:
+            if not script.is_file() or script.suffix not in (".sh", ".py"):
+                continue
+            seen += 1
+            lang = "python" if script.suffix == ".py" else "bash"
+            self._compare_with_snapshot(
+                text, f"scripts/lint/{script.name}",
+                f"### `scripts/lint/{script.name}`", lang, declared)
+        return seen
+
+    def check_divergence_from_canon(self) -> None:
+        """Тела payload'а против снимка. И население, и ТЕЛА — от владельца.
+
+        ⚠ Прежняя форма обходила `scripts/lint/*` глобом: путь-префикс стоял
+        вместо понятия «payload» ТРЕТИЙ раз (первые два — ратчет веса мимо
+        едущих файлов, остаток назван в `cqg@2.08`, и сверка состава рядом).
+        Замер прямой пробой на живом проекте (обновление-3, F23): приписал
+        строку в три файла разом — `scripts/lint/doctor_areas.py` пойман,
+        `scripts/delivery_diff.py` и корневой `stack_selftest.py` прошли МОЛЧА.
+        Вне обхода оставались **16 скриптов из 51** (`delivery_*`, `okf_*`,
+        `merge_guard.sh`).
+
+        Хуже дыры была соседняя запись: `canon_configs` отсеивал `scripts/`
+        отсылкой «у них свой обход» — без адреса и без объёма, — и по ней
+        принимали решение НЕ проверять. Обещание было шире населения.
+
+        ⚠ **Первая правка этой дыры несла ТОТ ЖЕ дефект и умерла на пробе.**
+        Она брала население из манифеста, но маркер строила по соглашению —
+        ``### `путь` ``. У Delivery форма другая (``# Приложение B2 — `путь` ``),
+        и сверка молча не нашла НИ ОДНОГО из шестнадцати. Соглашение о заголовке
+        оказалось третьим способом узнать payload и разошлось, как расходятся
+        все копии. Теперь тела даёт `--extract` извлекателя — единственного, кто
+        знает все формы, и он же едет вместе с канонами. Цена замерена: полная
+        раскладка 76 файлов — **0.14 с**.
+        """
+        canon_dir = self.root / "docs" / "canon"
+        snap = canon_dir / "CODE_QUALITY_GATES.md"
         if not snap.is_file():
             return                       # снимка канона нет — сверять не с чем
+        declared = self._declared_adaptations()
+        self._judge_payload_bodies(canon_dir, snap, declared)
         text = snap.read_text(encoding="utf-8", errors="replace")
 
-        declared = self._declared_adaptations()
-        if d.is_dir():
-            for script in sorted(d.glob("*")):
-                if not script.is_file() or script.suffix not in (".sh", ".py"):
-                    continue
-                lang = "python" if script.suffix == ".py" else "bash"
-                self._compare_with_snapshot(
-                    text, f"scripts/lint/{script.name}",
-                    f"### `scripts/lint/{script.name}`", lang, declared)
-
-        for rel, (marker, lang) in sorted(self.CANON_CONFIGS.items()):
-            self._compare_with_snapshot(text, rel, marker, lang, declared)
+        # Язык блока для конфигов — `yaml` исторически; на деле сверяется ТЕЛО,
+        # а не подсветка, поэтому одного значения хватает всем формам.
+        for rel, marker in sorted(self.canon_configs(text).items()):
+            self._compare_with_snapshot(text, rel, marker, "yaml", declared)
 
