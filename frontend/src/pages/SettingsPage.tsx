@@ -146,7 +146,7 @@ function SettingsForm({
         <Slider
           value={settings.silence_threshold_ms}
           min={800}
-          max={2000}
+          max={3000}
           step={100}
           label="Silence before your turn ends"
           onDrag={(v) => drag({ silence_threshold_ms: v })}

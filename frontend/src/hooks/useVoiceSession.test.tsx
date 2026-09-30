@@ -12,7 +12,7 @@ import { useVoiceSession } from "./useVoiceSession";
 const SETTINGS = {
   show_live_transcript: true,
   interview_duration_min: 15,
-  silence_threshold_ms: 1200,
+  silence_threshold_ms: 2000,
   speech_length_scale: 1.15,
   mic_device_id: "saved-mic",
 };

@@ -1,7 +1,7 @@
 // Client-side VAD: RMS level + end-of-utterance state machine (doc 03 MVP parameters).
 
 export const SILENCE_THRESHOLD_DBFS = -50; // re-tuned after live test: -45 missed quiet speech
-export const DEFAULT_SILENCE_MS = 1200;
+export const DEFAULT_SILENCE_MS = 2000; // raised from 1200 on 2026-09-07: 1.2 s cut off mid-sentence pauses
 export const MIN_UTTERANCE_MS = 700;
 
 /** RMS level in dBFS from AnalyserNode float time-domain data (range -1..1). */

@@ -9,7 +9,7 @@ from app.storage.models import Setting
 DEFAULTS: dict[str, Any] = {
     "show_live_transcript": True,
     "interview_duration_min": 15,
-    "silence_threshold_ms": 1200,
+    "silence_threshold_ms": 2000,
     # Темп речи. Значение здесь перекрывается контейнером из
     # `Settings.piper_length_scale` — литерал оставлен, чтобы репозиторий был
     # самодостаточен вне приложения, и сторожится тестом на совпадение с

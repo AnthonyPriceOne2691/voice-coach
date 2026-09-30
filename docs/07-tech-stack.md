@@ -183,7 +183,7 @@ Pipeline: LLM stream → buffer until `.` / `?` → Piper → send audio chunk t
 
 | Layer | Choice |
 |-------|--------|
-| **Client (primary)** | Web Audio API: silence **1.2 s** @ threshold → send `utterance_end` |
+| **Client (primary)** | Web Audio API: silence **2.0 s** @ threshold → send `utterance_end` |
 | **Server (backup)** | **silero-vad** (ONNX, lightweight) if client false triggers |
 
 No WebRTC/cloud VAD.

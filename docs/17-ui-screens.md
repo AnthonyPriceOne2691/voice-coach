@@ -192,7 +192,7 @@ Loading review model… (~10s)
 |---------|------|---------|-----------|
 | Speech pace | slider 0.85–1.60 | 1.15 | ✅ 2026-08-13 |
 | Interview duration | 15 / 30 / 45 min | 15 | ✅ 2026-08-13 |
-| Silence before end-of-turn | slider 0.8–2.0 s | 1.2 s | ✅ 2026-08-13 |
+| Silence before end-of-turn | slider 0.8–3.0 s | 2.0 s | ✅ 2026-08-13 · default и max подняты 2026-09-07 |
 | Show live transcript | toggle | **ON** | ✅ 2026-08-13 |
 | Microphone device | dropdown + `Test` | system default | ✅ 2026-08-15 |
 

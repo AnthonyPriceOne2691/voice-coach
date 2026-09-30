@@ -32,28 +32,29 @@ describe("SilenceDetector", () => {
     expect(detector.update(QUIET, 5000)).toBe("idle");
   });
 
-  it("emits utterance_end after 1.2s of silence following speech", () => {
+  it("emits utterance_end after 2s of silence following speech", () => {
     const detector = new SilenceDetector();
     expect(detector.update(LOUD, 0)).toBe("speaking");
     expect(detector.update(LOUD, 1000)).toBe("speaking");
     expect(detector.update(QUIET, 1500)).toBe("speaking"); // silence too short
     expect(detector.update(QUIET, 2100)).toBe("speaking");
-    expect(detector.update(QUIET, 2300)).toBe("utterance_end"); // >= 1200ms quiet
+    expect(detector.update(QUIET, 2900)).toBe("speaking"); // 1900ms quiet, still short
+    expect(detector.update(QUIET, 3100)).toBe("utterance_end"); // >= 2000ms quiet
   });
 
   it("discards utterances shorter than 700ms as noise", () => {
     const detector = new SilenceDetector();
     detector.update(LOUD, 0);
     detector.update(LOUD, 300); // only 300ms of speech
-    expect(detector.update(QUIET, 1600)).toBe("discarded");
+    expect(detector.update(QUIET, 2400)).toBe("discarded"); // 2100ms quiet closes the utterance
   });
 
   it("resets after utterance_end and can detect the next one", () => {
     const detector = new SilenceDetector();
     detector.update(LOUD, 0);
     detector.update(LOUD, 1000);
-    expect(detector.update(QUIET, 2300)).toBe("utterance_end");
-    expect(detector.update(QUIET, 2400)).toBe("idle");
-    expect(detector.update(LOUD, 2500)).toBe("speaking");
+    expect(detector.update(QUIET, 3100)).toBe("utterance_end");
+    expect(detector.update(QUIET, 3200)).toBe("idle");
+    expect(detector.update(LOUD, 3300)).toBe("speaking");
   });
 });

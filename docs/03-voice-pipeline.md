@@ -28,14 +28,14 @@ User speaks ──▶ [VAD: end detected] ──▶ STT ──▶ LLM ──▶ 
 Пользователь ждёт с момента, когда **замолчал**, — т.е. VAD threshold входит в паузу:
 
 ```
-silence threshold (1.2 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) + TTS chunk (0.55)
-≈ 3.1 s до первого звука агента (с sentence-streaming TTS)
+silence threshold (2.0 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) + TTS chunk (0.55)
+≈ 3.9 s до первого звука агента (с sentence-streaming TTS)
 ```
 
 Без sentence-streaming (ждать полный ответ, как мерил Phase 0): 1.2 + 3.05 ≈ **4.2 s** — на границе NFR-1.1. Выводы:
 - **Sentence-streaming TTS — обязателен в Phase 1**, не оптимизация «потом»
 - Contract Enforcer совместим со streaming: валидация **per-sentence** (sentence-gated, [13-behavioral-contracts.md](13-behavioral-contracts.md)) — полный regenerate платится только при нарушении в первом предложении
-- Silence threshold — настройка 0.8–2.0 s (см. doc 17 Settings); default 1.2 s, при жалобе на «тормозит» первым крутить его
+- Silence threshold — настройка 0.8–3.0 s (см. doc 17 Settings); default **2.0 s** (поднят с 1.2 s 2026-09-07 решением Anthony: 1.2 s обрывал паузы внутри предложения). Цена названа: perceived latency до первого звука ≈ 3.9 s, у самой границы NFR-1.1 «< 4 s»; без sentence-streaming было бы ≈ 5.0 s. При жалобе на «тормозит» первым крутить его вниз
 
 ## STT — Speech-to-Text
 
@@ -69,7 +69,7 @@ silence threshold (1.2 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) 
 |---------|-------|
 | **silero-vad** | Лёгкий, Python, хорош для end-of-turn |
 | **WebRTC VAD** | В браузере, можно детектить на клиенте |
-| **Fixed silence threshold** | MVP fallback: 1.2 s silence → end turn |
+| **Fixed silence threshold** | MVP fallback: 2.0 s silence → end turn |
 
 **Рекомендация:** клиент шлёт «utterance complete» по silence; сервер дублирует VAD для надёжности.
 
@@ -77,7 +77,7 @@ silence threshold (1.2 s) + STT (0.73) + LLM TTFT (0.2) + first sentence (~0.4) 
 
 | Параметр | Значение | Зачем |
 |----------|----------|-------|
-| Silence threshold | **1.2 s** default (слайдер 0.8–2.0 s в Settings) | Конец реплики |
+| Silence threshold | **2.0 s** default (слайдер 0.8–3.0 s в Settings; до 2026-09-07 было 1.2 s) | Конец реплики |
 | Порог тишины | **−50 dBFS** (RMS, **float**-домен `getFloatTimeDomainData`) | Отличать паузу от тихой речи. Live-тест 2026-07-03: −45 на 8-битных сэмплах не ловил тихую речь (квантование ±1–2 деления ≈ −42…−52 dB) → float-замер + порог −50 |
 | Min utterance duration | **700 ms** | Короче — отброс как шум; заодно режет whisper-галлюцинации на тишине |
 | Min transcript | **1 слово** после junk-фильтра (`[BLANK_AUDIO]`, `(noise)` и т.п. вырезаются) | Live-тест: порог «2 слова» отбрасывал валидное «Hello»; галлюцинации whisper режутся фильтром артефактов, а не счётчиком слов |
