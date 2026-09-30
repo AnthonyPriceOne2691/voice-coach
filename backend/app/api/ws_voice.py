@@ -19,7 +19,7 @@ from app import __version__
 from app.container import Container
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.llm.ollama_client import OllamaError
-from app.orchestrator import pace
+from app.orchestrator import meta_request, pace
 from app.orchestrator.review import build_segments
 from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
@@ -273,6 +273,17 @@ class _SessionHandler:
             await self._handle_pace_request(flow, text, request)
             return
 
+        # Просьба к самому Генри — тот же класс, что темп: не ответ, вопрос не
+        # тратится. Только в интервью: в разборе «как бы ты это оценил» — законный
+        # вопрос, и оценки там ровно на месте.
+        asked = meta_request.detect(text) if isinstance(flow, InterviewFlow) else None
+        if asked is not None:
+            lines = meta_request.reply(
+                asked, self._c.prompts.template, last_agent_text(flow.buffer)
+            )
+            await self._speak_meta_turn(flow, text, lines)
+            return
+
         plan = await flow.on_user(text)
         await self._transcript("user", text)
 
@@ -302,8 +313,11 @@ class _SessionHandler:
 
         ack = self._c.prompts.template(_PACE_TEMPLATES[request, at_limit])
         repeat = last_agent_text(flow.buffer)
-        spoken = [line for line in (ack, repeat) if line]
+        await self._speak_meta_turn(flow, text, [ack, repeat])
 
+    async def _speak_meta_turn(self, flow: VoiceFlow, text: str, lines: list[str]) -> None:
+        """Произнести мета-ход и записать его вне вопросов интервью (P9)."""
+        spoken = [line for line in lines if line]
         await self._transcript("user", text)
         await self._state("speaking")
         for line in spoken:

@@ -35,6 +35,12 @@ PACE_TEMPLATES = {
     "pace_fastest": "That's as fast as I can go, but let me repeat it.",
 }
 
+META_TEMPLATES = {
+    "meta_score": "No scores until the review.",
+    "meta_language": "Let's keep it in English.",
+    "meta_where_to_start": "Lead with the result — go ahead.",
+}
+
 MINIMAL_SUMMARY = {
     "overall_summary": "Short but focused session.",
     "scores": {
@@ -72,7 +78,7 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     (prompts / "templates" / "interview_wrap_up.txt").write_text(
         "That's all from my side. Do you have any questions for us?"
     )
-    for name, line in PACE_TEMPLATES.items():
+    for name, line in {**PACE_TEMPLATES, **META_TEMPLATES}.items():
         (prompts / "templates" / f"{name}.txt").write_text(line)
     knowledge = tmp_path / "knowledge"
     knowledge.mkdir()

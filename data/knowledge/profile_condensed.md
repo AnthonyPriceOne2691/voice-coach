@@ -2,12 +2,12 @@
 
 <!-- Spec: docs/05-knowledge-base.md. Budget: <= 1500 tokens (doc 20), enforced by
      backend/tests/test_knowledge_profile.py. Numbers are MEASURED against the
-     repositories on 2026-08-12 unless marked "(audit 2026-07-20)". Where the CV
+     repositories on 2026-09-28 unless marked "(audit 2026-07-20)". Where the CV
      disagrees, the measurement wins and the CV is the thing to update. -->
 
 ## Who
 
-Anton Aspidov — **AI / Fullstack Product Engineer (builder)**: ships production LLM applications and internal B2B SaaS end to end, alone. Tool-calling agents, HITL workflows, async Python backends, React operator UIs, queues, integrations. Saint Petersburg, fully remote, English B2. At a sports-media company Aug 2021 – Aug 2026; primary focus from 2024 — internal AI products in daily operator use. Independent since July 2026, building his own products. **Not** a chat-wrapper builder, **not** ML research.
+Anton Aspidov — **AI / Fullstack Product Engineer (builder)**: ships production LLM applications and internal B2B SaaS end to end, alone. Tool-calling agents, HITL workflows, async Python backends, React operator UIs, queues, integrations. Saint Petersburg, fully remote, English B1. At a sports-media company Aug 2021 – Aug 2026; primary focus from 2024 — internal AI products in daily operator use. Independent since July 2026, building his own products. **Not** a chat-wrapper builder, **not** ML research.
 
 Delivery loop he owns: plan → agent (Cursor + Claude Code) → automated gates → live scenario → human merge. Red blocks merge.
 
@@ -19,14 +19,14 @@ One pattern, four systems: every LLM action passes a **runtime behavioral contra
 
 ## Portfolio — probe any of these, not just the first
 
-**1. LinkBuilder — outreach SaaS** *(production, NDA code, sole builder, ~5 months)*
-SERP prospecting → CRM → AI email negotiation → payments → placement monitoring. Impact: **5-person team → 1 operator**. **7,393 test functions in 1,454 files**; ~30 Docker services (~24 RQ workers); 102 DB migrations; **17 YAML contracts** (payment whitelist, governance caps ≤25 campaigns, kill-switch, injection defense); 12,200+ emails, **97.9% delivery** on a 5,471-recipient campaign; **1,371 of 1,373 commits by one author** (audit 2026-07-20). Python/FastAPI, PostgreSQL, Redis/RQ, React/TS, OpenAI. AI drafts + human approval — not autonomous sending.
+**1. LinkBuilder — outreach SaaS** *(ran in production, NDA code, one engineer with AI coding agents, ~5 months)*
+SERP prospecting → CRM → AI email negotiation → payments → placement monitoring. Impact: **5-person team → 1 operator**. **11,000+ backend tests, 700+ front-end tests**; 20+ background services (RQ workers and loops); 137 DB migrations; **10 versioned YAML contracts** (payment whitelist, governance caps, injection defense) with a live check-mode switch; 12,200+ emails, **97.9% delivery** on a 5,471-recipient campaign. Python/FastAPI, PostgreSQL, Redis/RQ, React/TS, OpenAI. AI drafts + human approval — not autonomous sending.
 
 **2. Voice Interview Coach — this very tool** *(local, ~2 weeks)*
-Offline voice interview: whisper.cpp → Qwen2.5 14B → Piper, **~3.0 s per turn**; buffering the full answer measured 4.8 s, so TTS streams per sentence. **176 backend + 41 frontend tests, 94.9% coverage**, mypy strict, ≤500 LOC/file. Contract enforcer gates **every sentence before it is spoken**; orchestrator owns interview structure, the LLM owns wording only. DeepSeek-R1 14B runs the offline summary and vocabulary bank; the two models are never loaded together (32 GB budget).
+Offline voice interview: whisper.cpp → Qwen2.5 14B → Piper, **~3.0 s per turn**; buffering the full answer measured 4.8 s, so TTS streams per sentence. **205 backend + 44 frontend tests, 95.2% coverage**, mypy strict, ≤500 LOC/file. Contract enforcer gates **every sentence before it is spoken**; orchestrator owns interview structure, the LLM owns wording only. DeepSeek-R1 14B runs the offline summary and vocabulary bank; the two models are never loaded together (32 GB budget).
 
 **3. Local Web Agent — on-device research agent** *(~3 weeks)*
-URLs + a plain-language task → the agent browses real sites, compares them, returns a ranked report with quote evidence. **409 test functions in 116 files**, 24 design docs. Contract shield validates every action before the browser (**<10 ms**, audit 2026-07-20). Anti-hallucination: a claim must fuzzy-match a real quote (≥0.85) or it is dropped — honest `not_found` over invention. Anti-bot is **HITL**: the agent pauses, a human passes the challenge, no spoofing. Playwright + Qwen3 14B + Qwen2.5-VL.
+URLs + a plain-language task → the agent browses real sites, compares them, returns a ranked report with quote evidence. **451 tests**, open source (MIT). Every action is checked against **14 hard rules** in code before it reaches the browser. Anti-hallucination: a claim must fuzzy-match a real quote (≥0.85) or it is dropped — honest `not_found` over invention. Anti-bot is **HITL**: the agent pauses, a human passes the challenge, no spoofing. Playwright + Qwen3 14B + Qwen2.5-VL.
 
 **4. Lash Try-On — iOS AR consultation** *(~1 month, PoC, real salon in the loop)*
 The client sees lash extensions on **her own live 3D face mesh** before the procedure. ARKit mesh + MediaPipe landmarks; SceneKit scene graph with **custom Metal shaders** after SceneKit hit an image-quality ceiling. **59 fps on an iPhone 11** (audit 2026-07-20); 48 Swift files, 24 design docs. A local vision-LLM critic under contract proposes bounded parameter tweaks — **a human applies them**. No automated tests: validated by an expert rubric with the salon master.
@@ -55,4 +55,4 @@ SEO/content is **secondary domain expertise** — the business the tools serve, 
 2. Long monologues without a conclusion; openings that omit the metric.
 3. Slipping into "SEO lead" framing instead of builder/automation.
 4. Pauses and fillers under follow-up pressure.
-5. **Defending his own numbers.** His CV understates LinkBuilder (says 4,200+ tests; the repository has 7,393) and Local Web Agent (380 vs 409). Ask what the number is and how he counts it — a builder should know his own systems better than his résumé does.
+5. **Defending his own numbers.** Ask how he counts a number he gives (tests, delivery, team size) — a builder should know his own systems better than his résumé does.

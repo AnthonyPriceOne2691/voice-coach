@@ -61,7 +61,16 @@ def test_pace_templates_exist_and_survive_the_contract() -> None:
     spec = load_contract(contracts_dir / "interview.contract.yaml")
     enforcer = ContractEnforcer(spec)
 
-    for name in ("pace_slower", "pace_faster", "pace_slowest", "pace_fastest"):
+    for name in (
+        "pace_slower",
+        "pace_faster",
+        "pace_slowest",
+        "pace_fastest",
+        # Ответы на просьбы к самому Генри — тот же путь мимо `TurnRunner`.
+        "meta_score",
+        "meta_language",
+        "meta_where_to_start",
+    ):
         line = library.template(name)
         assert line, f"{name} пуст"
         turn = enforcer.start_turn(TurnContext(state="CORE_QUEST"))

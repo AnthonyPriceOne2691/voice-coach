@@ -1,0 +1,1 @@
+Lead with the result: one sentence and one number. Then how it works, and one trade-off you made — go ahead.
