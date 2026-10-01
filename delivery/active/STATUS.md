@@ -1,16 +1,15 @@
 # Active delivery status
 
 - **slug:** vad-silence-setting
-- **stack:** delivery@1.68, cqg@2.02, okf@1.15
-  <!-- Версии origin/main (2567a09). Обновление контура до delivery@1.95 · cqg@2.43 ·
-       okf@1.19 лежит неотправленным в локальном main основного клона — поставка на
-       него не опирается и ветвится от origin/main намеренно: пуш ветки не должен
-       увозить чужую незаконченную работу. -->
+- **stack:** delivery@1.95, cqg@2.43, okf@1.19
+  <!-- Ветка начата от origin/main (2567a09, delivery@1.68) и перенесена на main
+       55625ed после того, как обновление контура и перенос сроков наблюдений
+       ушли в main: правила последней версии проверяют её на handoff. -->
 - **class:** S
 - **kind:** bugfix
 - **repro_test:** `frontend/src/hooks/useVoiceSession.test.tsx` › «useVoiceSession · порог тишины из Settings › 'сохранённые 0.9 s' → ход кончается через 900 мс тишины» — до правки красный: `expected "spy" to be called 1 times, but got 0 times`
 - **diagnosis:** `delivery/active/diagnosis.md`
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
@@ -27,8 +26,20 @@
 - **runtime_paths:** frontend/src/hooks/useVoiceSession.ts
   <!-- §12.6: конец реплики на настоящем голосе. Тест исполняет проводку целиком —
        настройки → детектор → остановка записи, — но на подставных часах и
-       анализаторе (L52). Что пауза посреди живой фразы переживает выставленный
-       порог, подтверждает только разговор: R4, человек. -->
+       анализаторе (L52). Конец реплики в настоящем браузере исполнен стендом
+       `run.sh silence` (R4) по решению human:anthony 2026-10-01; живой голос
+       человека остаётся сигналом наблюдения. -->
+- **model_surface:** data/prompts/**, data/knowledge/**, data/questions/**, data/contracts/**, backend/app/config.py, backend/app/llm/**, backend/app/knowledge/prompts.py, backend/app/orchestrator/interview.py, backend/app/voice/turn_runner.py, backend/app/api/ws_voice.py, backend/app/summary/**
+  <!-- §14.1, восемь категорий: промпты и их сборка кодом (prompts, knowledge,
+       questions, prompts.py, build_user_message в interview.py); пины моделей и
+       параметры сэмплирования (config.py, ollama_client, turn_runner, ws_voice,
+       summary); схемы инструментов, извлечение и судья — нет; схема выхода —
+       контракт и валидатор суммаризации; версия демона Ollama живёт вне репо.
+       Дифф поставки поверхность не задевает. -->
+- **rule_enforcers:** delivery/rule_enforcers.md
+  <!-- §14.2a: реестр «правило промпта → исполнитель ниже модели | advisory»
+       составлен в этой поставке впервые — требование пришло с delivery@1.95. -->
+
 - **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
