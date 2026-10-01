@@ -29,6 +29,9 @@ usage() {
              устройств, сохранение выбора, ВИДИМЫЙ отказ при пропаже входа
              (настоящее имя ошибки Chromium) и живую полоску уровня.
              Голосового стека не требует — только vite и backend.
+  silence    порог тишины из Settings доходит до VAD: реплика с паузой 2.5 s
+             посреди. На пороге 3.0 s реплика переживает паузу, на 0.8 s
+             закрывается на ней. Исходный порог возвращается в базу.
   all        все по очереди.
 
 Переменные: APP_URL (по умолчанию http://localhost:5273), API_URL, BROWSER_EVAL_OUT.
@@ -118,9 +121,11 @@ case "${1:-mid-turn}" in
   tabs)     preflight; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" History
             BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" "Useful Words" ;;
   mic)      preflight_light; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/mic.py" ;;
+  silence)  preflight; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/silence.py" ;;
   all)      preflight; make_wav; BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/stand.py"
             BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" History
             BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/tabs.py" "Useful Words"
-            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/mic.py" ;;
+            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/mic.py"
+            BROWSER_EVAL_OUT="$OUT" "$PY" "$HERE/silence.py" ;;
   *) echo "неизвестный сценарий: $1"; echo; usage; exit 64 ;;
 esac

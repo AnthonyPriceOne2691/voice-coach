@@ -8,6 +8,7 @@
 delivery/evals/browser/run.sh --help     # что умеет и что ему нужно
 delivery/evals/browser/run.sh mid-turn   # закрыть вкладку посередине хода
 delivery/evals/browser/run.sh tabs       # History и Useful Words, снимки
+delivery/evals/browser/run.sh silence    # порог тишины из Settings: пауза посреди фразы
 delivery/evals/browser/run.sh all
 ```
 
