@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { MicLevelMeter } from "../components/MicLevelMeter";
 import { SessionHeader } from "../components/SessionHeader";
@@ -95,10 +95,34 @@ function Invitation({
   );
 }
 
+/**
+ * Переключатель «Live transcript» (Settings, doc 17): показывать ли транскрипт
+ * ВО ВРЕМЯ сессии. Читается при входе на экран — вкладки монтируются заново,
+ * поэтому изменение в Settings видно сразу по возвращении. Пока ответа нет или
+ * бэкенд молчит — умолчание doc 17 (ON). До 2026-10-01 ключ не читал никто.
+ */
+function useLiveTranscriptSetting(): boolean {
+  const [show, setShow] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    api
+      .getSettings()
+      .then((s) => {
+        if (alive) setShow(s.show_live_transcript !== false);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return show;
+}
+
 export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
   const session = useVoiceSession();
   const { state, transcript, error, active, micLevel, ended, progress, startedAt } = session;
   const [notice, setNotice] = useState<string | null>(null);
+  const showLiveTranscript = useLiveTranscriptSetting();
 
   const startReview = (interviewId: string) => {
     setNotice(null);
@@ -132,7 +156,7 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
             onEnd={session.end}
           />
           {state === "listening" && <MicLevelMeter level={micLevel} />}
-          <TranscriptPanel entries={transcript} />
+          {showLiveTranscript && <TranscriptPanel entries={transcript} />}
         </div>
       ) : (
         <Invitation
