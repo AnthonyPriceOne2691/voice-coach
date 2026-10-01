@@ -5,7 +5,14 @@ import { useCallback, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { AudioQueue } from "../lib/audioQueue";
 import { openMicrophone, stopStream } from "../lib/mic";
-import { SilenceDetector, rmsDbfs } from "../lib/vad";
+import {
+  DEFAULT_SILENCE_MS,
+  MIN_UTTERANCE_MS,
+  SILENCE_THRESHOLD_DBFS,
+  SilenceDetector,
+  rmsDbfs,
+} from "../lib/vad";
+import type { UserSettings } from "../types/api";
 import { clientMessage, parseServerMessage, type SessionState } from "../types/messages";
 
 export interface SessionEnded {
@@ -44,6 +51,18 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
+}
+
+/**
+ * Порог тишины из Settings. Не число — умолчание VAD: NaN в детекторе оборвал бы
+ * каждую фразу на первом же тихом опросе. Коридор 0.8–3.0 s держит экран
+ * Settings; второй его носитель здесь был бы лишним.
+ */
+function silenceMsFrom(settings: UserSettings | null): number {
+  const value: unknown = settings?.silence_threshold_ms;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_SILENCE_MS;
 }
 
 export function useVoiceSession() {
@@ -183,14 +202,19 @@ export function useVoiceSession() {
       setTranscript([]);
       setEnded(null);
       const r = refs.current;
-      // Настройка микрофона — не условие старта: если бэкенд не ответил, сессия
-      // всё равно начинается на системном входе, а о нерабочем бэкенде скажет
-      // ближайший же WebSocket.
-      const preferred = await api
-        .getSettings()
-        .then((s) => s.mic_device_id)
-        .catch(() => null);
-      const mic = await openMicrophone(preferred);
+      // Настройки — не условие старта: если бэкенд не ответил, сессия всё равно
+      // начинается на системном входе и с порогом тишины по умолчанию, а о
+      // нерабочем бэкенде скажет ближайший же WebSocket.
+      const settings = await api.getSettings().catch(() => null);
+      // Детектор — на сессию, как и вход: порог из Settings применяется со
+      // следующего старта. До 2026-10-01 здесь жили умолчания, и ползунок на
+      // экране Settings не менял ничего.
+      r.detector = new SilenceDetector({
+        thresholdDbfs: SILENCE_THRESHOLD_DBFS,
+        silenceMs: silenceMsFrom(settings),
+        minUtteranceMs: MIN_UTTERANCE_MS,
+      });
+      const mic = await openMicrophone(settings?.mic_device_id ?? null);
       r.stream = mic.stream;
       if (mic.fellBackToDefault) {
         setError("Your saved microphone is not available — using the system default instead.");
