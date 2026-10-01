@@ -32,4 +32,4 @@
 - [x] **T2.** `backend/tests/test_settings_readers.py`: K1, K3–K5.
 - [x] **T3.** Мутация K2: хук и экран интервью из `55625ed` — красные ровно два ключа.
 - [x] **T4.** Verify: гейты, `verify-report.md`.
-- [ ] **T5.** Push, PR, зелёный CI, мерж через `merge_guard`, архив и строка в `INDEX.md`.
+- [x] **T5.** Push, PR #21, зелёный `quality`, мерж через `merge_guard` (main `8214a43`), архив и строка в `INDEX.md` (урок L72).
