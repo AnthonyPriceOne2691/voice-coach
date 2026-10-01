@@ -24,7 +24,8 @@
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** следующий push после архивации поставки проходит БЕЗ ручного `BASE=HEAD~1`
-- **observe_until:** 2026-08-29
+- **observe_until:** 2026-10-31
+  <!-- Перенесено 2026-10-01 с 2026-08-29 решением human:anthony: наблюдение не проведено вовремя, и просрочка с 30.09 блокировала pre-push и job delivery в CI (приёмка 01.10). Сигнал выше не проверен — проверить в использовании и записать observed.md до новой даты. -->
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
 
 ## Что это
