@@ -32,7 +32,8 @@
 - **observe_signal:** прогоны `CI` и `quality` на `main` зелёные БЕЗ подавления
   `skipif(CI)` в `test_ws_voice.py`; в логе гашения нет строк
   `did not finish in time` / `cancelled by timeout`
-- **observe_until:** 2026-08-26
+- **observe_until:** 2026-10-31
+  <!-- Перенесено 2026-10-01 с 2026-08-26 решением human:anthony: наблюдение не проведено вовремя, и просрочка с 30.09 блокировала pre-push и job delivery в CI (приёмка 01.10). Сигнал выше не проверен — проверить в использовании и записать observed.md до новой даты. -->
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
 
 ## Что это
