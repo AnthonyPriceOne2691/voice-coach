@@ -60,6 +60,6 @@
       не-числа.
 - [x] **T5.** Тесты R2, R3.
 - [x] **T6.** Concept `echo-protection` и `knowledge/log.md` (гейт code↔canon).
-- [ ] **T7.** Verify: гейты, `verify-report.md`.
+- [x] **T7.** Verify: гейты, `verify-report.md`.
 - [ ] **T8.** Живой прогон R4 — человек (verifier), блок «Исполнение рисковых путей».
 - [ ] **T9.** Push, CI, мерж через `merge_guard`, архив и строка в `INDEX.md`.
