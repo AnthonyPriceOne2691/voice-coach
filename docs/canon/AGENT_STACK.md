@@ -40,8 +40,8 @@ Team+, приватный репо — Pro+), поэтому гейт мержа
 
 | # | Файл | Версия | Отвечает на | Не делает |
 |---|---|---|---|---|
-| ① | [AGENT_DELIVERY_HARNESS.md](AGENT_DELIVERY_HARNESS.md) | `delivery@1.95` | Что строить, в каком порядке, когда «готово»; evals; hooks; CI-контракт; права на действия; журналы поведения; метрики | Не задаёт ruff/eslint; не формат OKF |
-| ② | [CODE_QUALITY_GATES.md](CODE_QUALITY_GATES.md) | `cqg@2.43` | Форма кода, commit-гейты, CI-workflow, secrets в git | Не ведёт поставку фичи; не knowledge wiki |
+| ① | [AGENT_DELIVERY_HARNESS.md](AGENT_DELIVERY_HARNESS.md) | `delivery@1.99` | Что строить, в каком порядке, когда «готово»; evals; hooks; CI-контракт; права на действия; журналы поведения; метрики | Не задаёт ruff/eslint; не формат OKF |
+| ② | [CODE_QUALITY_GATES.md](CODE_QUALITY_GATES.md) | `cqg@2.45` | Форма кода, commit-гейты, CI-workflow, secrets в git | Не ведёт поставку фичи; не knowledge wiki |
 | ③ | [OKF_KNOWLEDGE_BUNDLE.md](OKF_KNOWLEDGE_BUNDLE.md) | `okf@1.19` | Канон смысла (политики, ADR, метрики) | Не фазы delivery; не lint-пороги; не тела skills |
 
 Версии — из шапок соответствующих файлов. При развёртывании они пишутся в проект
@@ -223,7 +223,7 @@ payload** (шаблоны и дословные исходники скрипт�
 
 | Файл | Канон (читать по задаче) | Payload (только при развёртывании) |
 |---|---|---|
-| Delivery | §0–§14, ~2760 строк | Приложения A–C, ~4279 |
+| Delivery | §0–§14, ~2760 строк | Приложения A–C, ~4757 |
 | CQG | §0–§8, ~3399 строк | Приложения A–B, ~8267 |
 | OKF | §0–§7, ~800 строк | Приложения A–C, ~863 |
 
