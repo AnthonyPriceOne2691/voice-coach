@@ -6,11 +6,11 @@
   },
   ".github/workflows/quality.yml": {
     "reason": "backend живёт на uv+pyproject, а канонный шаблон ставит зависимости через pip и backend/requirements-dev.txt; поведенческие гейты (pytest/mypy/ruff) исторически живут в ci.yml — сознательное перекрытие, записано в STACK-ACCEPTANCE",
-    "changed": "шаги установки: astral-sh/setup-uv + uv sync --all-extras вместо python -m venv/pip install -r; env путей backend/app и app; свой шаг Canon vendor + stack selftest (роли в каноне нет); джоба delivery ставит зависимости для smoke-оракулов. Из канона 2.01 портированы: checkout/setup-python/setup-node @v7 с вычисляемым cache:, шаг «Инструменты гейтов на месте», --verbose у pre-commit и if: always() на независимых гейтах"
+    "changed": "шаги установки: astral-sh/setup-uv + uv sync --all-extras вместо python -m venv/pip install -r; env путей backend/app и app; свой шаг Canon vendor + stack selftest (роли в каноне нет); джоба delivery ставит зависимости для smoke-оракулов. Из канона 2.01 портированы: checkout/setup-python/setup-node @v7 с вычисляемым cache:, шаг «Инструменты гейтов на месте», --verbose у pre-commit и if: always() на независимых гейтах; у шага Diff coverage к канонному комментарию cqg@2.47 добавлены две строки: своя джоба тестов есть (ci.yml), но сьют идёт 12 с — повтор ради покрытия стоит секунды, раскладку не переносим (решение 07.10)"
   },
   ".github/workflows/main-guard.yml": {
     "reason": "канонный шаблон слушает workflow_run и только открывает issue; здесь джоба сама ставит зависимости и гоняет pre-commit, потому что хуки language: system зовут backend/.venv/bin/mypy и npx eslint — без установки джоба падала бы на «нет бинаря» и открывала ЛОЖНЫЙ issue (замер 2026-07-28)",
-    "changed": "триггер push вместо workflow_run; джоба verify вместо alert; шаги checkout/setup-python/setup-uv/setup-node + install deps перед pre-commit; issue открывается по steps.gates.outcome == failure"
+    "changed": "триггер push вместо workflow_run; джоба verify вместо alert; шаги checkout/setup-python/setup-uv/setup-node + install deps перед pre-commit; issue открывается по steps.gates.outcome == failure; починка cqg@2.51 (тревога только на красный push в main, а не на ИМЯ ветки workflow_run) здесь не нужна: адаптация слушает только push в main (07.10)"
   },
   "backend/.importlinter": {
     "reason": "контракты слоёв описывают РЕАЛЬНУЮ раскладку проекта (app.main → api → summary/voice → orchestrator → contracts/llm/knowledge → storage → common/config), канон поставляет шаблон с <pkg> и выдуманными доменами",
