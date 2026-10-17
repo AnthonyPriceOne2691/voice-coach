@@ -23,7 +23,8 @@ implementation:
 
 # Decision
 
-- **Весь голосовой цикл** (интервью, review-диалог) — `qwen2.5:14b-instruct`.
+- **Весь голосовой цикл** (интервью, review-диалог, разговор с 2026-10-17) — `qwen2.5:14b-instruct`.
+  У разговора свои `talk_temperature` и `talk_max_tokens`, модель та же.
 - **`deepseek-r1:14b` — только offline**: post-session summary, где задержка не видна
   пользователю.
 - Вернуть R1 в voice-цикл = смена инварианта: нужна spec + human OK, а не правка конфига.

@@ -11,6 +11,7 @@ implementation:
   - backend/app/voice/prosody.py
   - backend/app/voice/interview_flow.py
   - backend/app/voice/review_flow.py
+  - backend/app/voice/talk_flow.py
   - backend/app/contracts/enforcer.py
   - frontend/src/lib/audioQueue.ts
 ---
@@ -41,6 +42,10 @@ implementation:
   `PiperTts`, а не на шве `TextToSpeech`. Передавать их надо ЯВНО: паспорт
   `en_US-hfc_male-medium` содержит вдвое пониженную вариативность интонации, и
   молчание кода означало согласие с ней.
+- **Разговор (D3a) идёт тем же путём**: `TurnRunner`, стрим по предложениям,
+  енфорсер на каждом предложении. Своё у него — окно истории ступенькой
+  (`talk_flow.py`): префикс промпта для KV-кэша меняется раз в 20 сообщений, а не
+  на каждом ходе, иначе окно съело бы выигрыш prefill (doc 20).
 - **Темп речи — параметр каждого синтеза, а не константа процесса.** `length_scale`
   живёт на шве `TextToSpeech` и приходит от сессии (`PacedTts`), потому что
   пользователь меняет его голосом на лету (doc 04, мета-ходы). Голосовая модель
@@ -61,7 +66,7 @@ implementation:
 | Синтез | `backend/app/voice/tts_piper.py` |
 | Темп сессии | `backend/app/voice/tts_paced.py` |
 | Дыхание между предложениями | `backend/app/voice/prosody.py` |
-| Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py` |
+| Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py`, `backend/app/voice/talk_flow.py` |
 | Per-sentence контракты | `backend/app/contracts/enforcer.py` |
 | Проигрывание на клиенте | `frontend/src/lib/audioQueue.ts` |
 

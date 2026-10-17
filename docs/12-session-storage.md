@@ -76,6 +76,24 @@
 | metadata_json | TEXT | `{duration_sec, questions_reviewed, ...}` |
 | created_at | ISO8601 | |
 
+### `talk_sessions` (D3a, 2026-10-17)
+
+Разговор с Генри — **своя таблица**, а не `interview_sessions` с особым режимом:
+History и суммаризация читают ту таблицу как интервью, и разговор получил бы
+«Review together» и сводку, которых у него нет.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| started_at / ended_at / created_at | ISO8601 | |
+| persona | TEXT | `friend_mentor` |
+| transcript_json | TEXT | turns; `state` — `INTRO` \| `CHAT` \| `TOPIC` \| `REQUEST` \| `GOODBYE` (чем оказалась реплика), `question_id` — `null` |
+| metadata_json | TEXT | `{phase, topics, hard_violations, soft_violations, fallback_count}` |
+| status | TEXT | `in_progress` \| `completed` \| `failed` |
+
+Общие колонки записи сессии (`started_at` … `created_at`) живут в миксине
+`SessionRecord` (`storage/models.py`).
+
 ### `vocabulary_bank`
 
 См. [10-vocabulary-bank.md](10-vocabulary-bank.md) — `session_id` может ссылаться на interview или review.
@@ -114,3 +132,4 @@ On crash → resume or show partial in History.
 | 2026-06-26 | Initial storage spec for interview + review |
 | 2026-07-02 | v0.2: turn format + `state`/`question_id` (grounding Mode 2, evidence в summary); колонки `summary_kind`, `status`; vocabulary soft delete; объявлен каноном схемы |
 | 2026-07-02 | v0.3: таблица `settings` (kv в app.db) |
+| 2026-10-17 | Таблица `talk_sessions` — разговор с Генри (D3a) |
