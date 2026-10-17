@@ -1,21 +1,26 @@
 # Active delivery status
 
 - **slug:** profile-refresh
-- **stack:** delivery@2.00, cqg@2.51, okf@1.19
+- **stack:** delivery@2.01, cqg@2.55, okf@1.19
+  <!-- Спека написана сессией local-web-agent на main 24167fd (delivery@2.00, cqg@2.51);
+       ветка перенесена на main 3972942 после окон (#24), контура (#25) и фикса (#26, #27). -->
 - **class:** M
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; предмет — содержимое знания агента, оракулы спеки проверяют покрытие проектов, цифры, бюджет и инжект
 - **diagnosis:** n/a reason=не багфикс: профиль не сломан, а отстал от положения кандидата на три недели
-- **phase:** specify
+- **phase:** implement
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** no
+- **human_ok_spec:** yes (by=human:anthony, at=2026-10-17)
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
 - **artifact_oracle:** n/a reason=правка данных знания, тестов и дока; фронт и сборка не затронуты
 - **ci-oracles:** tooling
 - **worktree:** none reason=правка markdown знания и одного теста в основном клоне на ветке feat/profile-refresh; кода продукта не трогает
+- **parallel_sessions:** merge-guard
+  <!-- §5.1a: 17.10 над репозиторием работали две сессии; интеграция только через
+       scripts/merge_guard.sh, по одной и на слитом состоянии. -->
 - **hooks:** claude (scripts/hooks/)
 - **blockers:** none
 - **waivers:** none
