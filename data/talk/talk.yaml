@@ -1,0 +1,58 @@
+# Разговор с Генри (D3a): что Генри говорит сам, без модели, и банк тем.
+# Реплики и открывающие вопросы произносятся ДОСЛОВНО — мимо енфорсера, поэтому
+# каждая проверяется тестом на контракт разговора (test_talk_orchestrator.py).
+# Личное (семья, быт) Генри не выспрашивает: о нём он узнаёт, только если Антон
+# расскажет сам (решение человека 2026-10-17).
+
+lines:
+  intro: "Hi Anton, it's Henry. No interview today — let's just chat for a while, about anything you like."
+  topic_switch: "Sure, let's talk about something else."
+  goodbye: "It was really nice talking with you. Take care, and see you next time!"
+  time_up: "We've been chatting for a while, so let's stop here for today. It was really nice talking with you!"
+  no_grades: "No grades here, I promise — this is just practice between friends, and you're doing fine."
+  keep_english: "Let's keep it in English — that's the whole point of our chats."
+  fallback: "That sounds interesting — tell me a bit more about it."
+
+topics:
+  day:
+    - "So, how's your day going so far?"
+    - "What have you been up to today?"
+  work_week:
+    - "How has your work week been — anything interesting happening?"
+    - "What are you working on right now that you really enjoy?"
+  weekend:
+    - "Do you have any plans for the weekend?"
+    - "How did you spend your last weekend?"
+  food:
+    - "What's the best thing you've eaten recently?"
+    - "Do you like cooking, or do you prefer eating out?"
+  travel:
+    - "If you could fly anywhere next month, where would you go?"
+    - "What's the most memorable trip you've ever taken?"
+  films_books:
+    - "Have you watched or read anything good lately?"
+    - "Is there a film you could watch again and again?"
+  city:
+    - "What do you like most about living in Saint Petersburg?"
+    - "If a friend visited your city, where would you take them first?"
+  learning:
+    - "What's something new you've learned recently?"
+    - "Is there a skill you'd love to pick up this year?"
+  english:
+    - "How do you usually practice your English?"
+    - "Which part of speaking English feels hardest for you right now?"
+  tech:
+    - "Have you tried any new AI tools recently?"
+    - "What's a piece of technology you couldn't live without?"
+  sport:
+    - "Do you do any sport or exercise these days?"
+    - "Do you prefer working out at home or going somewhere?"
+  music:
+    - "What kind of music are you into at the moment?"
+    - "Do you listen to anything while you work?"
+  goals:
+    - "What's one thing you'd like to achieve by the end of the year?"
+    - "What are you looking forward to this month?"
+  seasons:
+    - "How do you feel about autumn — do you like this time of year?"
+    - "What's your favourite season, and why?"

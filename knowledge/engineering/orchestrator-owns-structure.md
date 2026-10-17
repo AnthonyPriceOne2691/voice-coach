@@ -1,7 +1,7 @@
 ---
 type: Design
-title: Оркестратор владеет структурой интервью, LLM — только формулировками
-description: Ход интервью, выбор вопроса и решение о follow-up — детерминированная политика в коде; модель отвечает лишь за то, как это звучит.
+title: Оркестратор владеет структурой сессии, LLM — только формулировками
+description: Ход интервью и разговора — вопрос, follow-up, тема, прощание, просьбы к Генри — детерминированная политика в коде; модель отвечает лишь за то, как это звучит.
 status: accepted
 tags: [orchestrator, llm, determinism]
 implementation:
@@ -9,14 +9,17 @@ implementation:
   - backend/app/orchestrator/pace.py
   - backend/app/orchestrator/review.py
   - backend/app/orchestrator/question_bank.py
+  - backend/app/orchestrator/talk.py
   # Только промпты голосового цикла: `data/prompts/` целиком тянуло сюда и
   # промпты суммаризации, которые описывает другой concept (model-split).
   # Путь, покрывающий чужое, делает гейт code<->canon шумным, а шумный гейт
   # начинают обходить waiver'ами.
   - data/prompts/interviewer_system.txt
   - data/prompts/review_system.txt
+  - data/prompts/talk_system.txt
   - data/prompts/templates/
   - data/questions/
+  - data/talk/
 ---
 
 # Purpose
@@ -50,6 +53,16 @@ implementation:
   состояние. Отдать эту классификацию модели — та же ошибка, что отдать ей выбор
   следующего вопроса, только цена выше: ошибка стоит пользователю вопроса из
   шести и портит транскрипт, по которому строится Mode 2.
+- **Разговор (D3a) — та же граница.** Приветствие, тема открытия и её смена,
+  прощание, конец через 20 минут решает `orchestrator/talk.py`; модель только
+  отвечает на реплику. Тема выбирается из банка `data/talk/talk.yaml`, а не
+  «о чём модели захочется»: так разговор воспроизводим и тестируем.
+- **Просьба узнаётся по ФОРМЕ, а не по слову — на каждом классе речи свои
+  шаблоны.** Детектор, верный для ответов интервью (они длинные, короткая фраза со
+  «slow» почти всегда просьба), на разговоре вырождается: там короткая фраза —
+  норма, и «It was a slow day» — рассказ. Поэтому в разговоре темп и просьбы
+  засчитываются только как обращение («could you speak slower», «bye, Henry»), а
+  у интервью таблица прежняя (`pace.detect(text, casual=True)`).
 - Промпты и банк вопросов живут в `data/`, не в коде: перечитываются на каждой
   сессии, рестарт не нужен (и гейт `inline-prompt` не даст вписать их в `.py`).
 
@@ -70,7 +83,8 @@ implementation:
 | Политика темпа речи | `backend/app/orchestrator/pace.py` |
 | Оркестратор review | `backend/app/orchestrator/review.py` |
 | Банк вопросов и состав сессии | `backend/app/orchestrator/question_bank.py` |
-| Промпты / вопросы (данные) | `data/prompts/`, `data/questions/` |
+| Оркестратор разговора, просьбы по форме | `backend/app/orchestrator/talk.py` |
+| Промпты / вопросы / темы (данные) | `data/prompts/`, `data/questions/`, `data/talk/` |
 
 # Sources
 

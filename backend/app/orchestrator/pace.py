@@ -45,12 +45,36 @@ _PATTERNS: tuple[tuple[re.Pattern[str], PaceRequest], ...] = (
 )
 
 
-def detect(text: str) -> PaceRequest | None:
-    """Return the pace request in this utterance, or None if it is a normal answer."""
+#: Разговор (D3a) — другой класс данных. В интервью ответы длинные, и короткая
+#: фраза со словом «slow» почти всегда просьба; в разговоре короткая фраза — норма,
+#: и «It was a slow day» — рассказ (L33). Здесь просьба узнаётся по ФОРМЕ:
+#: глагол речи, обращение к Генри или реплика целиком.
+_TALK = r"(?:speak|talk|go|say it)(?: a (?:bit|little))?"
+_TO_HENRY = (
+    r"\byou(?:'re| are)?(?: speaking| talking| going| speak| talk)?(?: a bit| a little)? too"
+)
+_ALONE = r"^\W*(?:please )?(?:{})(?: a (?:bit|little))?(?:,? please)?\W*$"
+_CASUAL_PATTERNS: tuple[tuple[re.Pattern[str], PaceRequest], ...] = (
+    (re.compile(rf"\b{_TALK} (?:slower|more slowly)\b"), PaceRequest.SLOWER),
+    (re.compile(r"\b(?:can|could|would|will) you (?:please )?slow down\b"), PaceRequest.SLOWER),
+    (re.compile(_ALONE.format("slower|slow down")), PaceRequest.SLOWER),
+    (re.compile(_TO_HENRY + r" fast\b"), PaceRequest.SLOWER),
+    (re.compile(rf"\b{_TALK} (?:faster|quicker|more quickly)\b"), PaceRequest.FASTER),
+    (re.compile(r"\b(?:can|could|would|will) you (?:please )?speed up\b"), PaceRequest.FASTER),
+    (re.compile(_ALONE.format("faster|speed up")), PaceRequest.FASTER),
+    (re.compile(_TO_HENRY + r" slow(?:ly)?\b"), PaceRequest.FASTER),
+)
+
+
+def detect(text: str, *, casual: bool = False) -> PaceRequest | None:
+    """Return the pace request in this utterance, or None if it is a normal answer.
+
+    `casual=True` — разговор (D3a): засчитывается только форма просьбы.
+    """
     if len(text.split()) > MAX_REQUEST_WORDS:
         return None
-    lowered = text.lower()
-    for pattern, request in _PATTERNS:
+    lowered = text.lower().replace("’", "'")
+    for pattern, request in _CASUAL_PATTERNS if casual else _PATTERNS:
         if pattern.search(lowered):
             return request
     return None

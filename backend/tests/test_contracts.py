@@ -144,6 +144,43 @@ def test_review_allows_five_sentences(review: ContractEnforcer) -> None:
 # --- events ---
 
 
+# --- Talk (D3a): без оценок, по-английски, коротко ---
+
+
+@pytest.fixture(scope="module")
+def talk() -> ContractEnforcer:
+    return ContractEnforcer(load_contract(CONTRACTS_DIR / "talk.contract.yaml"))
+
+
+@pytest.mark.parametrize(
+    "graded",
+    [
+        "I'd rate your English seven out of ten.",
+        "Honestly, your English is a solid B1 level.",
+        "I'd score this conversation a four.",
+    ],
+)
+def test_talk_never_speaks_a_grade(talk: ContractEnforcer, graded: str) -> None:
+    """T6: оценку держит енфорсер, а не согласие модели (L24)."""
+    violation = talk.start_turn(TurnContext(state="CHAT")).feed(graded)
+    assert violation is not None and violation.rule_id == "I3-H2_no_grades"
+
+
+def test_talk_lets_praise_and_plain_talk_through(talk: ContractEnforcer) -> None:
+    """T6, красная сторона: похвала — не оценка, а «score» в рассказе о матче — не балл."""
+    turn = talk.start_turn(TurnContext(state="CHAT"))
+    for sentence in (
+        "Your English sounds really natural today!",
+        "What was the final score of the match?",
+        "I love that place too.",
+        "What did you have for lunch?",
+    ):
+        assert turn.feed(sentence) is None
+    violation = turn.feed("One more thought.")
+    assert violation is not None and violation.check == "max_sentences"  # не длиннее 4
+    assert talk.start_turn(TurnContext(state="CHAT")).feed("Привет!") is not None
+
+
 def test_violation_event_schema(interview: ContractEnforcer) -> None:
     turn = interview.start_turn(TurnContext(state="CORE_QUEST"))
     violation = turn.feed("I'd score that a four.")
