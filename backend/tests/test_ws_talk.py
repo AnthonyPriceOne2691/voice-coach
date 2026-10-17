@@ -49,7 +49,7 @@ def _until_turn_end(ws: Any) -> list[dict[str, Any]]:
 
 
 def _talk(tmp_path: Path, said: str) -> dict[str, Any]:
-    """Открыть разговор, сказать одну реплику; вернуть всё, что видно снаружи."""
+    """T1: открыть разговор, сказать одну реплику; сессия обязана быть записана в базе."""
     llm = FakeLlm(REPLY)
     container = make_container(tmp_path, llm, FakeStt(said))
     with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
