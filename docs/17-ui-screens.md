@@ -14,6 +14,7 @@
 | Tab | Route | Phase |
 |-----|-------|-------|
 | Interview | — | 1 |
+| Talk | — | ✅ 2026-10-17 |
 | History | — | 2 |
 | Useful Words | — | 2 |
 | Settings | — | 1 ✅ 2026-08-13 |
@@ -26,6 +27,16 @@
 каждый следующий своей половине канона, вместе не работают).
 
 ---
+
+## Screen 1a: Talk (2026-10-17)
+
+Разговор с Генри на повседневные темы (doc 11). Приглашение — «Just talk.», три
+таблетки (Everyday topics · English only · No grades) и кнопка **Start talking**
+(`data-testid="start-talk"` — крючок для браузерного стенда, как у интервью). Во время
+разговора — та же панель, что у интервью (`components/LiveSession.tsx`): орб,
+полоска уровня, транскрипт по переключателю Live transcript; в шапке вместо счётчика
+вопросов — «Talk with Henry». После конца — транскрипт и строка «Nice talk — see you
+next time.» Экран «было → лучше» — D3a.2.
 
 ## Screen 1: Home / Interview (`/`)
 
@@ -275,3 +286,4 @@ MVP: **desktop-first** (interview at desk). Min width 1024px. Mobile — post-MV
 | Дата | Изменение |
 |------|-----------|
 | 2026-06-26 | Initial UI screens; D-4/D-5/skip-review decisions applied |
+| 2026-10-17 | Вкладка Talk — разговор с Генри; панель живой сессии общая для интервью и разговора |
