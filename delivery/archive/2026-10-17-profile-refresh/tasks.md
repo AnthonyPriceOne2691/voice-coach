@@ -13,5 +13,5 @@
       `delivery_check`
 - [x] T9. `eval-smoke.md`, `verify-report.md`, дайджест утверждений, метрики
 - [x] T10. P7 — живой запрос к модели, только по «запускай» человека
-- [ ] T11. PR, зелёный CI, `merge_guard`; архив отдельным PR (урок
+- [x] T11. PR, зелёный CI, `merge_guard`; архив отдельным PR (урок
       `archive-after-merge`)
