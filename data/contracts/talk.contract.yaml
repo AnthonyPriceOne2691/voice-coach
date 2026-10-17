@@ -1,0 +1,47 @@
+# Talk — разговор с Генри, behavioral contract (ABC-lite), D3a
+# Spec: docs/13-behavioral-contracts.md · delivery talk-server (2026-10-17)
+mode: talk
+version: "1.0"
+enforcement: per_sentence
+
+preconditions:
+  - id: session_type
+    check: session_type_is
+    value: talk
+  - id: profile_loaded
+    check: knowledge_profile_loaded
+
+invariants:
+  hard:
+    - id: I3-H1_en_only
+      check: no_cyrillic
+    # Оценки нет никогда — ни балла, ни уровня, ни рубрики (решение человека
+    # 2026-10-17). Держит енфорсер до озвучки, а не согласие модели (L24).
+    # Похвала разрешена: «Your English sounds natural» — не оценка.
+    - id: I3-H2_no_grades
+      check: forbid_patterns
+      patterns_file: talk_forbidden.txt
+    - id: I3-H3_friend_mentor_role
+      check: mode_persona
+      persona: friend_mentor
+  # I3-S1 (теплота, один вопрос в ответ) — prompt-level, advisory: машиной не
+  # проверить. Живёт в data/prompts/talk_system.txt.
+
+governance:
+  hard:
+    - id: G3-H1_max_sentences
+      check: max_sentences
+      max: 4
+    - id: G3-H2_max_chars
+      check: max_chars_cumulative
+      max: 450
+    # G3-H3 (тема, прощание, конец по времени) — структура, держит
+    # orchestrator/talk.py, а не текстовая проверка.
+
+recovery:
+  max_retries: 1
+  fallback: orchestrator_template   # реплика `fallback` из data/talk/talk.yaml
+
+logging:
+  pre_recovery: true
+  sink: session_metadata

@@ -1,0 +1,23 @@
+# Разговор (D3a, I3-H2): оценки его английского нет никогда. Подстрока в нижнем
+# регистре. Список узкий намеренно: «your score» и «your grade» — законные слова
+# в разговоре о матче или школе, и резать их значило бы ломать беседу.
+out of ten
+out of 10
+i'd rate
+i would rate
+i'd score
+i would score
+i'd grade
+i would grade
+rate your english
+score your english
+grade your english
+your english level
+your level of english
+a1 level
+a2 level
+b1 level
+b2 level
+c1 level
+c2 level
+cefr
