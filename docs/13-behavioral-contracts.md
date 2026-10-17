@@ -206,6 +206,25 @@ thanks, thank you, clear, alright
 
 ---
 
+## Talk: разговор с Генри (D3a, 2026-10-17)
+
+Третий голосовой режим — беседа на повседневные темы (`talk.contract.yaml`).
+
+| ID | Rule | Исполнитель |
+|----|------|-------------|
+| I3-H1 | English only | `no_cyrillic`, на каждом предложении |
+| I3-H2 | Никаких оценок: ни балла, ни уровня, ни рубрики | `forbid_patterns` + `talk_forbidden.txt`; список узкий — «score» в разговоре о матче законен, похвала — не оценка |
+| I3-H3 | Роль — друг-наставник | декларативно (`mode_persona`) |
+| G3-H1 / G3-H2 | ≤ 4 предложений, ≤ 450 символов | `max_sentences`, `max_chars_cumulative` |
+| G3-H3 | Тема, прощание, конец по времени — решения кода | `orchestrator/talk.py`, не текстовая проверка |
+
+Теплота и «один вопрос в ответ» — prompt-level, advisory. Просьбы к Генри
+(оценка, другой язык, смена темы, прощание) узнаются **по форме** до модели и
+отвечаются репликами из `data/talk/talk.yaml`; эти реплики звучат мимо
+енфорсера, поэтому каждая проверяется тестом на этот контракт.
+
+---
+
 ## Summary generator & Vocabulary (non-voice LLM passes)
 
 Отдельные контракты для JSON-only passes:
@@ -317,6 +336,8 @@ voice-interview-coach/
         ├── interview.contract.yaml     # Mode 1 — полный контракт
         ├── review.contract.yaml        # Mode 2 — полный контракт
         ├── summary.contract.yaml       # JSON-passes (schema validation)
+        ├── talk.contract.yaml          # разговор (D3a)
+        ├── talk_forbidden.txt          # оценки в разговоре (I3-H2)
         ├── interview_forbidden.txt     # coaching/debrief паттерны
         └── ack_whitelist.txt           # допустимые короткие acks
 ```
@@ -449,3 +470,4 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 | 2026-06-26 | Initial ABC-lite spec |
 | 2026-06-26 | Linked to two-model LLM split (doc 14) |
 | 2026-07-02 | v0.2 (сверка с полным paper): sentence-gated enforcement — конфликт со streaming TTS закрыт; таблица «что берём из full ABC»; I2-H5 (empty after strip_thinking); soft-rules помечены ✅/📝 по реализуемости; violation event schema (pre-recovery); drift-детекция дополнена recovery-success порогом; contract YAML файлы созданы в data/contracts/ |
+| 2026-10-17 | Talk (D3a): `talk.contract.yaml` — I3-H1..H3, G3-H1..H3; просьбы к Генри — по форме, до модели |
