@@ -8,7 +8,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; новый режим разговора, оракулы спеки T1–T10
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-17)

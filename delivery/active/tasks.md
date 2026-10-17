@@ -6,5 +6,5 @@
 - [x] W3. Контракт `talk.contract.yaml` + `talk_forbidden.txt`, персона
       `talk_system.txt`; тест T6 на контракт, реплики сценария проходят контракт
 - [x] W4. Doc 13; концепт `orchestrator-owns-structure`; реестр исполнителей
-- [ ] W5. Гейты, предохранитель объёма, `eval-smoke.md`, `verify-report.md`
+- [x] W5. Гейты, предохранитель объёма, `eval-smoke.md`, `verify-report.md`
 - [ ] W6. PR, CI, `merge_guard`, архив
