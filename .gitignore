@@ -40,3 +40,9 @@ frontend/tsconfig.tsbuildinfo
 # Canon stack upstream — рабочая копия человека.
 # Вариант C (AGENT_STACK §7.1): в репо коммитится СНИМОК docs/canon/, не upstream.
 Prepare/
+
+# Рабочие деревья агента (Delivery §5.1) — локальные, в репо не коммитятся.
+# Без этой строки забытое дерево висит в `git status` как untracked: merge_guard
+# отказывает «рабочее дерево грязное», а `git ls-files -o` тащит его целиком в
+# скан detect-secrets (найдено при уборке 2026-10-17).
+.claude/worktrees/

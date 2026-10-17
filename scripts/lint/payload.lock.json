@@ -1,8 +1,8 @@
 {
   "_": "Замок payload'а: что канон отдавал на этих версиях. Пишет обновление контура (§5.5), читает доктор; руками не править.",
   "versions": {
-    "cqg": "2.51",
-    "delivery": "2.00",
+    "cqg": "2.55",
+    "delivery": "2.01",
     "okf": "1.19",
     "stack-map": "1.52"
   },
@@ -57,11 +57,11 @@
     },
     "scripts/delivery_runtime.py": {
       "canon": "delivery",
-      "digest": "sha256:0743b6638e3158f437314f2786c17550e5f7b553715a03fc5696a3fc00b97717"
+      "digest": "sha256:63f75778bc323b8c61caa2bd191f4049d780cfb5a2c4f8bbb9431e06e828a54e"
     },
     "scripts/delivery_status.py": {
       "canon": "delivery",
-      "digest": "sha256:c48af37dde7ffb4720745fab09b6083c466b25fc58ac4b76b80b8c0cb9a502e2"
+      "digest": "sha256:9b077c4c2a75931f923c3d93e078b01268194130fd980adb70444ad2c044d260"
     },
     "scripts/lint/assert_digest.sh": {
       "canon": "cqg",
@@ -133,7 +133,7 @@
     },
     "scripts/lint/check_new_dependency.py": {
       "canon": "cqg",
-      "digest": "sha256:71e50aa22c4fdddd315c8f35e0a5f9700f5ed268f48e454b3db88ac740c94e53"
+      "digest": "sha256:44a9f1a5b4569593bfe834b7a55c42713b097d99bd84448b69ba7508a7c528f6"
     },
     "scripts/lint/complexity_halves.sh": {
       "canon": "cqg",

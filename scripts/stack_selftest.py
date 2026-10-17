@@ -8,19 +8,27 @@ Usage:
   * python-блоки  -> ast.parse
   * bash-блоки    -> bash -n
   * yaml-блоки    -> yaml.safe_load (или запрет табов, если PyYAML нет)
+  * json/toml     -> json.loads / tomllib.loads
   * сбалансированность ``` в каждом файле
   * версии в шапках канонов == таблица §1 в AGENT_STACK.md
   * объявленная стоимость чтения == измеренная (selftest_sizes, допуск ±10%)
 
 Exit 0 = всё чисто. Exit 1 = хоть один блок не парсится / версии разошлись.
+«Чисто» = чисто ПРОВЕРЕННОЕ: языки без парсера в stdlib (javascript, ini) и проза
+(markdown, text) пропускаются — но пропуск ИМЕНУЕТСЯ числом с разбивкой в той же
+итоговой строке. Измерено: 159 фенсов, 102 проверялось, 57 уходило МОЛЧА, и «Exit 0
+= всё чисто» врало не неумением, а молчанием о нём.
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 import sys
+import tomllib
+from collections import Counter
 from pathlib import Path
 
 import selftest_sizes
@@ -31,7 +39,10 @@ CANONS = (
     "CODE_QUALITY_GATES.md",
     "OKF_KNOWLEDGE_BUNDLE.md",
 )
-CHECKED_LANGS = {"python", "bash", "sh", "yaml", "yml"}
+# json/toml добавлены сюда парсерами из stdlib. javascript и ini НЕ добавлены
+# намеренно: парсера в stdlib нет, а `node --check` сделал бы сьют зависимым от
+# машины. Они уходят в счётчик пропущенного — названы, а не спрятаны.
+CHECKED_LANGS = {"python", "bash", "sh", "yaml", "yml", "json", "toml"}
 
 
 def blocks(text: str) -> tuple[list[tuple[int, str, str]], int]:
@@ -63,23 +74,66 @@ def blocks(text: str) -> tuple[list[tuple[int, str, str]], int]:
         line = raw.lstrip()
         if not line.startswith("```"):
             if lang is not None:
-                buf.append(raw)
+                # ⚠ Тело ВЫРАВНИВАЕТСЯ по отступу открывающего фенса, как это
+                # делает `block_after` в извлекателе (`cqg@2.10`). До этого
+                # `blocks()` хранил строки как есть, а извлекатель — тоже как
+                # есть, но фенс с отступом вообще не видел: два поставляемых
+                # парсера отвечали по-разному на вопрос «что здесь блок».
+                # Выравнивание несущее: heredoc с отступом у терминатора не
+                # закрывается, то есть непрогретый блок неисполним.
+                buf.append(raw[pad:] if raw[:pad].isspace() else raw)
             continue
         info = line[3:].strip().lower()
         if lang is None:                       # открытие верхнего уровня
             lang, start, buf, depth = info, i, [], 1
+            pad = len(raw) - len(line)
             continue
         if info:                               # вложенное открытие
             depth += 1
-            buf.append(raw)
+            buf.append(raw[pad:] if raw[:pad].isspace() else raw)
             continue
         depth -= 1                             # закрытие
         if depth == 0:
             out.append((start, lang, "\n".join(buf)))
             lang = None
         else:
-            buf.append(raw)
+            buf.append(raw[pad:] if raw[:pad].isspace() else raw)
     return out, (1 if lang is not None else 0)
+
+
+#: Открытие heredoc: `<<TAG`, `<<'TAG'`, `<<"TAG"`, `<<-TAG`.
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+
+
+def unclosed_heredoc(code: str) -> str | None:
+    """None = чисто. Терминатор heredoc, до которого не дойдёт shell.
+
+    **`bash -n` этот класс НЕ ловит, и это замерено:** блок, где терминатор
+    написан с отступом, синтаксически валиден — heredoc просто «доедает» файл
+    до конца. То есть проверка печатала «исполняемый блок проверен» про блок,
+    который исполниться не может.
+
+    Найдено на собственной правке `cqg@2.09`: генератор провенанса в §5 шага 11
+    лежал в нумерованном списке, терминатор `PY` шёл с отступом, `bash -n`
+    молчал, и неисполнимость обнаружилась только прогоном блока оракулом.
+
+    Терминатор обязан стоять в НУЛЕВОЙ колонке (для `<<-` допустимы табы —
+    так определён сам оператор). Тело блока к этому моменту уже выровнено
+    `blocks()` по отступу фенса, поэтому проверка судит то же, что исполнится.
+    """
+    # ⚠ Комментарии срезаются ДО поиска, и это не аккуратность. Первый же
+    # прогон дал ложное срабатывание на строке канона `# пайп в `python -
+    # <<heredoc` не работает` — то есть проверка обвинила блок за РАССКАЗ о
+    # heredoc. Ложное срабатывание здесь дороже пропуска (§4.3b): такие
+    # проверки чинят снятием, а эта только что завелась.
+    bare = "\n".join(re.sub(r"(^|\s)#.*$", "", l) for l in code.splitlines())
+    for dash, _q, tag in HEREDOC.findall(bare):
+        allowed = rf"(?m)^\t*{tag}\s*$" if dash else rf"(?m)^{tag}\s*$"
+        if not re.search(allowed, code):
+            where = "с отступом" if re.search(rf"(?m)^\s+{tag}\s*$", code) else "отсутствует"
+            return (f"heredoc <<{tag}: терминатор {where} — блок не закроется. "
+                    "`bash -n` такое принимает, поэтому проверка отдельная")
+    return None
 
 
 try:
@@ -240,11 +294,21 @@ def broken_tables(text: str) -> list[str]:
 def declared_versions(root: Path) -> tuple[dict[str, str], dict[str, str]]:
     """(версии из шапок канонов, версии из таблицы §1 карты)."""
     heads: dict[str, str] = {}
-    for name in CANONS[1:]:
+    for name in CANONS:
         p = root / name
         if not p.is_file():
             continue
-        m = re.search(r"\*\*Canon version:\*\*\s*`([a-z]+)@([\d.]+)`", p.read_text(encoding="utf-8"))
+        # ⚠ ОБЕ формы шапки и дефис в имени (`cqg@2.12`). Здесь стояла только
+        # форма `Canon version` и класс `[a-z]+`, то есть карта не читалась
+        # дважды: ни по форме шапки, ни по имени `stack-map`. Цена этой слепоты
+        # была названа в `field/fleet/build_versions.py` пределом «stack-map в
+        # индекс НЕ попадает» — то есть версия карты не мерилась у флота вовсе.
+        # Из четырёх реализаций этого понятия расходилась одна; остальные три
+        # (`doctor_versions.py`, `tests/extract.py`, реестр классов) обе формы
+        # читают. Согласие держит дифференциальный оракул.
+        text = p.read_text(encoding="utf-8")
+        m = (re.search(r"\*\*Canon version:\*\*\s*`([a-z-]+)@([\d.]+)`", text)
+             or re.search(r"\*\*Эта карта:\*\*\s*`([a-z-]+)@([\d.]+)`", text))
         if m:
             heads[m.group(1)] = m.group(2)
     table: dict[str, str] = {}
@@ -259,6 +323,7 @@ def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     failures: list[str] = []
     total = 0
+    skipped: Counter[str] = Counter()
 
     for name in CANONS:
         path = root / name
@@ -270,8 +335,13 @@ def main() -> int:
         if unbalanced:
             failures.append(f"{name}: unbalanced ``` fence (unterminated block)")
         checked = 0
+        gone: Counter[str] = Counter()
         for line_no, lang, code in found:
             if lang not in CHECKED_LANGS or not code.strip():
+                # Здесь стоял голый `continue`, и это была вся находка: 57 фенсов
+                # из 159 уходили без следа, а итог печатал только проверенные.
+                # Теперь пропуск считается по языку — знаменатель обязан сходиться.
+                gone["<empty>" if lang in CHECKED_LANGS else (lang or "<none>")] += 1
                 continue
             checked += 1
             total += 1
@@ -285,17 +355,27 @@ def main() -> int:
                 proc = subprocess.run(
                     ["bash", "-n"], input=code, text=True, capture_output=True, check=False
                 )
-                if proc.returncode:
+                err = unclosed_heredoc(code)
+                if err:
+                    pass
+                elif proc.returncode:
                     err = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "bash -n failed"
+            elif lang in {"json", "toml"}:
+                # Оба декодера наследуют ValueError (JSONDecodeError, TOMLDecodeError).
+                try:
+                    (json.loads if lang == "json" else tomllib.loads)(code)
+                except ValueError as exc:
+                    err = f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
             else:
                 err = check_yaml(code)
             if err:
                 failures.append(f"{name}:{line_no} [{lang}] {err}")
+        skipped += gone
         for problem in section_order(text):
             failures.append(f"{name}: порядок секций — {problem}")
         for problem in broken_tables(text):
             failures.append(f"{name}: таблица не отрендерится — {problem}")
-        print(f"{name}: {checked} executable block(s) checked")
+        print(f"{name}: {checked} executable block(s) checked, {sum(gone.values())} skipped")
 
     # Объявленная стоимость чтения против измеренной. Числа, по которым агент
     # решает, что НЕ открывать, до stack-map@1.43 расходились с фактом в 4.6 раза
@@ -331,7 +411,7 @@ def main() -> int:
 
     # Непокрытость называется в ИТОГОВОЙ строке, а не только в предупреждении выше:
     # именно итоговую строку копируют в отчёт и читают как «всё проверено».
-    covered = f"{total} block(s)"
+    covered = f"{total} block(s) checked"
     if yaml_unparsed:
         covered += f" (из них {yaml_unparsed} yaml БЕЗ парсера — PyYAML не установлен)"
         print(
@@ -340,6 +420,12 @@ def main() -> int:
             "иначе битый конфиг проходит самопроверку молча.",
             file=sys.stderr,
         )
+    # Пропущенное стоит в ТОЙ ЖЕ строке, что и проверенное, а не отдельной: в отчёт
+    # копируют итоговую строку, и отдельную можно не заметить. Разбивка по языкам
+    # называет, ЧЕГО мы не умеем; сумма с проверенным = все верхнеуровневые фенсы.
+    lost = ", ".join(f"{lang} {n}" for lang, n
+                     in sorted(skipped.items(), key=lambda kv: (-kv[1], kv[0])))
+    covered += f", {sum(skipped.values())} skipped" + (f" ({lost})" if lost else "")
     print(f"\nstack_selftest: {covered}, {len(failures)} failure(s)")
     for f in failures:
         print(f"FAIL {f}", file=sys.stderr)
