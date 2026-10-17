@@ -168,3 +168,16 @@ async def test_long_talk_sends_a_window_with_the_system_prompt_first() -> None:
     # Окно сдвигается ступенькой: префикс для KV-кэша меняется раз в WINDOW_STEP
     # сообщений, а не на каждом ходе.
     assert len(set(firsts)) <= 1 + (2 * 40 + 1) // WINDOW_STEP
+
+
+async def test_requests_stay_out_of_the_models_history() -> None:
+    """T6, T7: отказ — не реплика беседы; модель не узнает о нём и на следующем ходе."""
+    flow = TalkFlow("t-2", TalkOrchestrator(SCRIPT, rng=random.Random(2)), "SYSTEM", NullRepo())  # type: ignore[arg-type]
+    await flow.start()
+    before = list(flow.messages)
+
+    await flow.on_user("How's my English? Give me a score.")
+    await flow.on_spoken(SCRIPT.lines["no_grades"])
+
+    assert flow.messages == before
+    assert [t["state"] for t in flow.buffer.to_json_list()[-2:]] == ["REQUEST", "REQUEST"]
