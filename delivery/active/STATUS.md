@@ -32,7 +32,7 @@
 - **irreversible_surfaces:** none reason=локальный инструмент без отправки наружу; правка меняет текст подсказки модели
 - **model_surface:** data/prompts/**, data/knowledge/**, data/questions/**, data/contracts/**, backend/app/config.py, backend/app/llm/**, backend/app/knowledge/prompts.py, backend/app/orchestrator/interview.py, backend/app/voice/turn_runner.py, backend/app/api/ws_voice.py, backend/app/summary/**
 - **rule_enforcers:** delivery/rule_enforcers.md
-- **canon_drift_waiver:** no
+- **canon_drift_waiver:** knowledge/engineering/sentence-streaming.md, knowledge/ops/transcript-durability.md reason=в backend/app/voice/turn_runner.py изменён только текст STRICT_REGENERATE — что модель слышит при повторе после нарушения на первом предложении; стриминг по предложениям, проверка каждого предложения до синтеза, лестница восстановления (повтор → seed, R3 без изменений) и восстановимость хода не менялись. Правка концептов была бы ложным «обновлено» by=human:anthony at=2026-10-17
 - **baseline_growth_waiver:** no
 - **observability:** 1
 - **observe_signal:** R1 подтверждён в живом разборе — после нарушения контракта (в метаданных сессии violation с recovery=regenerate) повторный ответ Генри сохраняет похвалу и совет и не урезан до трёх предложений
