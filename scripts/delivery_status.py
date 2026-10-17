@@ -17,9 +17,10 @@ from delivery_decisions import signature_verdict
 from delivery_diff import diff_identifiers, diff_stats
 from delivery_risk import risk_review_gaps, risky_classes
 from delivery_runtime import (breaker_value, declared_surfaces,
-                              model_surface_gaps, report_dead_surfaces,
-                              rule_enforcer_gaps, runtime_proof_gaps,
-                              runtime_touched, unsigned_irreversible_gaps)
+                              model_surface_gaps, parallel_session_gaps,
+                              report_dead_surfaces, rule_enforcer_gaps,
+                              runtime_proof_gaps, runtime_touched,
+                              unsigned_irreversible_gaps)
 
 def check_phase_and_class(raw_phase: str, raw_class: str, phase: str,
                           klass: str, allowed: set[str], errors: list[str],
@@ -130,6 +131,7 @@ def check_risky_diff(status: str, args, phase: str, verify,
         (errors if phase == "handoff" else warnings).append(
             f"необратимое без человека: {g}"
         )
+    check_parallel_sessions(status, phase, errors, warnings)
 
 
 def check_runtime_paths(status: str, args, phase: str, verify,
@@ -201,6 +203,21 @@ def check_model_surface(status: str, args, phase: str, verify,
         sink.append(f"поверхность модели: {g}")
     for g in rule_enforcer_gaps(status, surfaces):
         sink.append(f"двойник ниже модели: {g}")
+
+
+def check_parallel_sessions(status: str, phase: str,
+                            errors: list[str], warnings: list[str]) -> None:
+    """Очередь на интегрирующую ветку объявлена — и не только на словах (§5.1a).
+
+    Охрана фазы — как у соседей; охраны диффа нет намеренно: число сессий не
+    зависит от того, что тронула поставка.
+    """
+    if phase not in {"verify", "converge", "handoff"}:
+        return
+    silent, wrong = parallel_session_gaps(status)
+    sink = errors if phase == "handoff" else warnings
+    sink.extend(f"очередь: {g}" for g in silent)
+    errors.extend(f"очередь: {g}" for g in wrong)
 
 
 def check_spec_signature(status: str, klass: str, phase: str, spec, plan, tasks,
