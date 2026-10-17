@@ -1,9 +1,9 @@
 {
   "_": "Замок payload'а: что канон отдавал на этих версиях. Пишет обновление контура (§5.5), читает доктор; руками не править.",
   "versions": {
-    "cqg": "2.55",
+    "cqg": "2.57",
     "delivery": "2.01",
-    "okf": "1.19",
+    "okf": "1.21",
     "stack-map": "1.52"
   },
   "scripts": {
@@ -161,7 +161,7 @@
     },
     "scripts/lint/doctor_core.py": {
       "canon": "cqg",
-      "digest": "sha256:b7384aeeea3c34f76e16325ceb1722a959c858cdcf078b6e00188cce7df57c8a"
+      "digest": "sha256:ee546779239860ca4f5faf83997cd166c5ad0be805e145039c891153576db602"
     },
     "scripts/lint/doctor_deployment.py": {
       "canon": "cqg",
@@ -173,7 +173,7 @@
     },
     "scripts/lint/doctor_layout.py": {
       "canon": "cqg",
-      "digest": "sha256:3e2bd3646e8011c6b59b8455c977f77afef0d053904a96cd68f21dc9a11d5416"
+      "digest": "sha256:1084953654e31cfe93410a7bfe1c83c64cca36231bd44b199c518f4757d961b1"
     },
     "scripts/lint/doctor_probes.py": {
       "canon": "cqg",
@@ -209,7 +209,7 @@
     },
     "scripts/okf_sync_gate.py": {
       "canon": "okf",
-      "digest": "sha256:61734f018dd0138235d7aca1bdb8448b0821e6a5e08fd0f9da6e54292579876e"
+      "digest": "sha256:0b8d740da7ede8d0554e39810d83428fdb0fa06eb4850a7cd06b9bfb1634edc3"
     },
     "scripts/okf_validate.py": {
       "canon": "okf",

@@ -29,6 +29,8 @@ STRICT = os.environ.get("STRICT", "1") != "0"
 ALLOW_DRIFT = os.environ.get("ALLOW_CANON_DRIFT", "0") == "1"
 RESERVED = {"index.md", "log.md"}
 DELIVERY_STATUS = "delivery/active/STATUS.md"
+#: STATUS поставки, перенесённой в архив (Delivery §9.2): `archive/<slug>/STATUS.md`.
+ARCHIVED_STATUS = re.compile(r"^delivery/archive/[^/]+/STATUS\.md$")
 
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
@@ -82,8 +84,9 @@ def scalar_field(fm: str, name: str) -> str:
     return m.group(1).strip().strip("\"'") if m else ""
 
 
-def status_waiver(root: Path) -> str:
-    """Строка `canon_drift_waiver:` из STATUS активной поставки ("" если нет).
+def status_waiver(root: Path, archived: list[str] | tuple[str, ...] = ()) -> tuple[str, str]:
+    """(строка `canon_drift_waiver:`, откуда) — из STATUS активной поставки либо той,
+    что архивируется ЭТИМ диффом; ("", "") если нет.
 
     Waiver обязан жить там, где идёт ревью. env-переменная для этого не годится:
     в CI её иначе как правкой workflow не задать — то есть НАВСЕГДА, а локально
@@ -94,8 +97,23 @@ def status_waiver(root: Path) -> str:
     Типизация, формат, логи, переименования трогают код под `implementation:`, не
     меняя смысла. Правка concept'а в таком PR была бы ЛОЖНЫМ «обновлено»: свежий
     `generated.at` создаёт вид пересмотра канона, которого не было.
+
+    ⚠ Поставка, архивированная в своей же ветке, waiver теряла (поле
+    `voice-interview-coach` 2026-10-17, первая поставка на `delivery@2.01`): §5.1a
+    Delivery не пускает в main ничего мимо гейта мержа — значит и архив едет PR'ом, а
+    в диффе, где `active/` уже уехал в `archive/<slug>/`, читать было нечего. Вердикт
+    без законного выхода: исправить нельзя, объявить негде; обход стоил второго
+    прогона CI на каждую поставку с waiver'ом.
     """
-    p = root / DELIVERY_STATUS
+    for rel in (DELIVERY_STATUS, *archived):
+        val = _waiver_value(root / rel)
+        if val:
+            return val, rel
+    return "", ""
+
+
+def _waiver_value(p: Path) -> str:
+    """Значение `canon_drift_waiver:` одного STATUS; нет строки, «нет» и заглушка — пусто."""
     if not p.is_file():
         return ""
     m = re.search(
@@ -123,6 +141,27 @@ def covers(declared: str, changed: str) -> bool:
     return changed == d or changed.startswith(d + "/")
 
 
+def merge_range(base: str) -> str:
+    """`<merge-base>..HEAD` — одно место на оба вопроса к диффу: что изменено и что архивировано."""
+    return f"{git('merge-base', base, 'HEAD').strip() or base}..HEAD"
+
+
+def archived_in_diff(base: str | None, staged: bool) -> list[str]:
+    """STATUS поставок, которые архивирует ЭТОТ дифф: файл ДОБАВЛЕН в `archive/<slug>/`.
+
+    Только добавленные: правка давнего архива waiver'а не даёт — иначе строка,
+    дописанная в чужую закрытую поставку, гасила бы drift новой. `--no-renames`:
+    перенос `active/` → `archive/` иначе пришёл бы переименованием, а не добавлением.
+    """
+    if staged:
+        out = git("diff", "--name-only", "--cached", "--diff-filter=A", "--no-renames")
+    elif base:
+        out = git("diff", "--name-only", "--diff-filter=A", "--no-renames", merge_range(base))
+    else:
+        return []
+    return [f for f in out.splitlines() if ARCHIVED_STATUS.match(f)]
+
+
 def changed_files(base: str | None, staged: bool) -> tuple[list[str], list[str]]:
     """(файлы, проблемы). Пустой список файлов при проблеме = гейт не судит."""
     if staged:
@@ -134,8 +173,7 @@ def changed_files(base: str | None, staged: bool) -> tuple[list[str], list[str]]
         return [], ["no --base and no --staged"]
     if not git("rev-parse", "--verify", "--quiet", base).strip():
         return [], [f"ref '{base}' unavailable (shallow clone? need full history)"]
-    merge_base = git("merge-base", base, "HEAD").strip() or base
-    out = git("diff", "--name-only", f"{merge_base}..HEAD")
+    out = git("diff", "--name-only", merge_range(base))
     return [f for f in out.splitlines() if f], []
 
 
@@ -237,10 +275,10 @@ def soften(args, root, errors: list[str]) -> int | None:
     # На --check-stale не действует: просроченный concept — это не «код тронут без
     # смены смысла», а отдельная проблема (§7.2).
     if not args.check_stale:
-        waiver = status_waiver(root)
+        waiver, source = status_waiver(root, archived_in_diff(args.base, args.staged))
         if waiver:
             print(
-                f"okf_sync_gate: drift разрешён waiver'ом из {DELIVERY_STATUS}: "
+                f"okf_sync_gate: drift разрешён waiver'ом из {source}: "
                 f"{waiver}\n"
                 f"({len(errors)} concept(s) не тронуты — waiver виден в PR и умрёт "
                 f"с поставкой)"
@@ -308,7 +346,8 @@ def report(args, root, concepts: dict, errors: list[str],
             "Варианты, в порядке предпочтения:\n"
             "  1. Инвариант правда изменился → обнови concept + scope log.md (§4.1).\n"
             "  2. Смысл не менялся (типы, формат, логи, переименование) → строка\n"
-            f"     `canon_drift_waiver: reason=… by=human:…` в {DELIVERY_STATUS}:\n"
+            f"     `canon_drift_waiver: reason=… by=human:…` в {DELIVERY_STATUS}\n"
+            "     (поставка архивируется этим же диффом — в её archive/<slug>/STATUS.md):\n"
             "     она видна в PR и умрёт вместе с поставкой. Правка concept'а «чтобы\n"
             "     позеленело» — ложное «обновлено», так делать нельзя.\n"
             "  3. Путь больше не описывает этот concept → убери его из "
