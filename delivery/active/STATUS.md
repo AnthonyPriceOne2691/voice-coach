@@ -8,7 +8,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; предмет — содержимое знания агента, оракулы спеки проверяют покрытие проектов, цифры, бюджет и инжект
 - **diagnosis:** n/a reason=не багфикс: профиль не сломан, а отстал от положения кандидата на три недели
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-17)
@@ -32,6 +32,6 @@
 - **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
-- **observe_signal:** P7 подтверждён в живом разговоре — Генри называет нынешнюю работу Антона (SEO-агентство, звонки западным клиентам) и цифру одного из новых проектов так, как она измерена
+- **observe_signal:** P7 подтверждён в живом разговоре — Генри называет нынешнюю работу Антона (SEO-агентство, звонки западным клиентам) и цифру одного из новых проектов так, как она измерена; серию YouTube Shorts описывает как ролики об автоматизации, а не как автоматизацию YouTube (строка переписана после P7 и живьём не перепроверена)
 - **observe_until:** 2026-11-14
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4

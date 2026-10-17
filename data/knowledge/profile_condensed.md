@@ -14,7 +14,7 @@ Anton Aspidov — **AI Delivery Lead**: takes AI services from a bare spec to pr
 - Client work for an SEO agency (NDA): a case-study platform, donor search and outreach, an email lead funnel.
 - Selling AI automation to Western SEO and link-building agencies: LinkedIn and email first, then discovery calls in English.
 - Looking for a remote role at a foreign company (AI Delivery Lead / Senior AI Engineer), no relocation — frame interviews for these.
-- Piloting YouTube Shorts: automation for agencies in 60 seconds.
+- Piloting a YouTube Shorts series where he explains automation for agencies in 60 seconds.
 
 **Why spoken English matters to him:** discovery calls with Western clients, job interviews, and voice-overs for his demo videos. Reading is ahead of speaking.
 

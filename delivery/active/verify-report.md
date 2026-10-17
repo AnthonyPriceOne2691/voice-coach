@@ -1,0 +1,132 @@
+# Verify report: profile-refresh
+
+Дата прогонов: 2026-10-17. Builder: agent:claude-code (сессия voice-interview-coach;
+спеку написала сессия local-web-agent). Verifier: human:anthony.
+
+## Оракулы спеки
+
+| id | Оракул | Результат |
+|---|---|---|
+| P1 | `test_profile_states_current_position` | **PASS** — до правки красный: нет «AI Delivery Lead» |
+| P2 | `test_profile_covers_whole_portfolio`, `test_every_project_carries_a_number` | **PASS** — до правки красный: пять новых проектов не видны |
+| P3 | `test_profile_drops_stale_facts` | **PASS** — до правки красный: пять устаревших строк на месте |
+| P4 | `test_profile_fits_token_budget`, `test_profile_has_no_personal_contacts`, `test_profile_keeps_private_life_out` | **PASS** — 5,089 символов ≈ 1,272 токена из 1,500 (было ≈ 1,367); сторож личного зелёный и до правки, проверен мутациями |
+| P5 | `test_profile_says_why_spoken_english_matters` | **PASS** — до правки красный: нет «discovery calls» |
+| P6 | `test_new_projects_reach_both_prompts` | **PASS** — до правки красный: G connect не в промпте интервьюера |
+| P7 | живой запрос к `qwen2.5:14b-instruct` (по «запускай» human:anthony) | **PASS по сути** — работа для агентства и западные клиенты 3/3, «his own products» 0/3; звонки как канал 0/3. Дословно — `eval-smoke.md` |
+
+## Мутации (сторож обязан краснеть)
+
+| Мутация профиля | Ожидание | Результат |
+|---|---|---|
+| M1: «He has a daughter», «lives with his wife» | P4 красный | **красный** — `test_profile_keeps_private_life_out` |
+| M2: «Building Smart frend Ally» | P4 красный | **красный** |
+| M3: «~3.0 s per turn» возвращено | P3 красный | **красный** — `test_profile_drops_stale_facts` |
+| M4: цифры G connect стёрты | F3 красный | **сначала ЗЕЛЁНЫЙ** — см. находку; после починки **красный**: `проекты без единой проверяемой цифры: ['G connect']` |
+
+Профиль после каждой мутации возвращён и сверен `cmp` с копией.
+
+### Находка: F3 был слеп с 2026-08-12
+
+Профиль нумерует проекты, и номер пункта («7.») — тоже цифра, а F3 проверял «есть
+ли в блоке хоть одна цифра». Значит, проверка зеленела у ЛЮБОГО проекта по номеру
+пункта. Прошлый профиль нумеровал так же («**1. LinkBuilder**»), то есть слепота
+жила с поставки `portfolio-knowledge`. Реальной дыры она не прятала: по
+исправленному F3 у всех пяти старых проектов цифры есть (сверено на профиле из
+`main`). Второй путь той же слепоты нашёлся раньше мутаций: блок проекта брался от
+ПЕРВОГО упоминания имени, и им оказался HTML-комментарий шапки с датами замеров.
+Починено в тесте: номер пункта и ссылка «#2» не считаются, блок берётся от записи
+`**Имя**`, первое упоминание — запасной путь.
+
+## Машинные гейты
+
+| Гейт | Результат |
+|---|---|
+| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — 218 passed (было 213: +5 тестов), coverage 95.23%, mypy strict, ruff, размер модулей |
+| `pre-commit run --all-files` | **PASS** |
+| `okf_sync_gate.py --base origin/main` | **PASS** — 5 mapped concepts; дифф концепты не задевает |
+| `delivery_check.py --diff-base origin/main` | 0 ошибок; warning про реляционный оракул — ниже |
+| фронт | не тронут; `vitest run` 51 passed — замер для профиля, а не проверка правки |
+
+### Оставшийся warning и почему он остался
+
+`class M: ни одного реляционного оракула (§6.5)`. Решение человека 2026-08-12 —
+не добавлять зависимость для тестов-свойств, и оно не пересматривалось
+(`new_dependency: none`). Ближе всего к отношению здесь P6: тест сверяет ДВА
+артефакта — профиль и оба собранных промпта, — а не конкретное значение. Формы,
+которую ищет гейт, у него нет. Долг записан, а не спрятан.
+
+## Изменение поверхности модели (§14.1)
+
+- `data/knowledge/profile_condensed.md` — знание о кандидате в системных промптах
+  интервью и разбора. Что меняется в поведении: Генри знает нынешнюю позицию и
+  работу Антона, десять проектов вместо пяти и зачем ему разговорный английский;
+  профиль стал короче (≈1,272 токена против ≈1,367), prefill каждого хода не растёт.
+  Что не меняется: механика инжекта, промпты хода, контракты, выбор вопроса
+  оркестратором (L23). at=2026-10-17
+- `delivery/rule_enforcers.md` — три правила профиля (целевые роли,
+  позиционирование, слабые места) занесены как advisory: исполнителя ниже модели
+  у них нет и не было.
+
+## Исполнение рисковых путей (§12.6)
+
+`runtime_paths: none` с причиной в STATUS: знание идёт в промпт через существующий
+`{{profile_condensed}}`, путь исполняется тестами промптов (P6) и живым запросом
+P7 на том же клиенте и параметрах, что у хода.
+
+## Список человеку: расхождения CV и сайта с замером
+
+Перенесён из `plan.md`; CV поставка не правит.
+
+| Где | Говорит | Замер |
+|---|---|---|
+| CV от 2026-10-08, G connect | 400+ tests, 34 policy rules | 605 тестов, 43 правила (2026-10-02) |
+| CV от 2026-10-08, Prospecting & outreach | 2,200+ tests by day 10 | 4,670 (2026-10-08) — не ложь, срез 10-го дня |
+| сайт, бриф Voice Interview Coach | «21 rules checked on every sentence» | правил 21 в трёх контрактах, на каждом предложении — 10 |
+| сайт, бриф Voice Interview Coach | 181 тест (2026-09-29) | 213 backend + 51 front-end (2026-10-17) |
+
+## Verdict
+
+**READY FOR HANDOFF** — P1–P7 зелёные, сторожа проверены мутациями, слепота F3
+найдена и починена в этой же поставке, машинные гейты зелёные по правилам
+delivery@2.01 · cqg@2.55. Правка строки про YouTube Shorts после P7 живьём не
+перепроверена — она уходит в сигнал наблюдения.
+
+## Assertion digest (ревью ожиданий, не кода)
+
+База: `origin/main` · сгенерировано `assert_digest.sh`
+
+Новых/изменённых утверждений: **9**, из них без ссылки на пример спеки: **0**.
+
+```
+P1	assert phrase in profile_text, f"профиль не говорит о нынешнем положении: {phrase!r}"
+P3	assert left == [], f"в профиле остались устаревшие факты: {left}"
+P3	assert "~1.3 s" in _block_for(profile_text, "Voice Interview Coach")
+P3	assert "451" in _block_for(profile_text, "Local Web Agent")
+P3	assert "frozen" in _block_for(profile_text, "Lash Try-On")
+P4	assert found == [], f"в профиле личное: {found}"
+P4	assert not re.search(r"\bAlly\b", profile_text), "в профиле приватный семейный проект"
+P5	assert reason in profile_text, f"не названа причина учить английский: {reason!r}"
+P6	assert project in system, f"{project!r} не доехал до промпта {name}"
+```
+
+asserts_without_example: 0
+
+asserts_reviewed_by: n/a (все утверждения ведут к одобренным примерам)
+
+## Harness metrics (this shipment)
+
+<!-- generated by scripts/delivery_metrics.py --base origin/main -->
+
+| Metric | Value |
+|---|---|
+| files_touched / loc_diff | 4 code (+7 process docs) / +198/-136 (net +62) |
+| commits | 5 |
+| time_to_accepted_spec | 1.2h |
+| rework_after_done | 0 commit(s) after first phase: handoff |
+| harness_hardened | no |
+| implement_retries | 2 — после первой версии профиля: первое упоминание трёх имён оказалось в HTML-комментарии шапки (F3 судил чужой блок), и фраза «Self-employed» не совпала с P1 по регистру; плюс правка строки YouTube Shorts по итогам P7 |
+| verify_fails_before_green | 0 — гейты после реализации зелёные с первого прогона; CI ветки — в PR |
+| est_token_or_cost | n/a |
+
+MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.

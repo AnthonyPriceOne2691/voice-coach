@@ -9,9 +9,9 @@
 - [x] T5. Копия CV от 2026-10-08 в `data/knowledge/ANTON_ASPIDOV_CV_EN.md`
 - [x] T6. `docs/05-knowledge-base.md`: источники, дата сверки, десять проектов
 - [x] T7. `delivery/rule_enforcers.md`: правила профиля — advisory
-- [ ] T8. Гейты: `run_checks.sh`, `pre-commit run --all-files`, `okf_sync_gate`,
+- [x] T8. Гейты: `run_checks.sh`, `pre-commit run --all-files`, `okf_sync_gate`,
       `delivery_check`
-- [ ] T9. `eval-smoke.md`, `verify-report.md`, дайджест утверждений, метрики
-- [ ] T10. P7 — живой запрос к модели, только по «запускай» человека
+- [x] T9. `eval-smoke.md`, `verify-report.md`, дайджест утверждений, метрики
+- [x] T10. P7 — живой запрос к модели, только по «запускай» человека
 - [ ] T11. PR, зелёный CI, `merge_guard`; архив отдельным PR (урок
       `archive-after-merge`)
