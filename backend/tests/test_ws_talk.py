@@ -97,8 +97,9 @@ def test_talk_reaches_the_model_and_the_pace_stays(tmp_path: Path, said: str) ->
     result = _talk(tmp_path, said)
 
     assert result["henry"] == "".join(REPLY).strip()
-    # Прогрев идёт фоновой задачей, поэтому ход ищется по системному промпту
-    last_call = next(c for c in result["llm"].calls if c[0]["role"] == "system")
+    # Прогрев тоже несёт системный промпт (T10) — ход узнаётся по реплике Антона
+    last_call = next(c for c in result["llm"].calls if c[-1]["role"] == "user")
+    assert last_call[0]["role"] == "system"
     assert last_call[-1] == {"role": "user", "content": said}  # сырая реплика, без обёртки
     assert PACE_TEMPLATES["pace_slower"] not in result["henry"]
     turns = json.loads(result["row"].transcript_json)
@@ -181,3 +182,26 @@ async def test_requests_stay_out_of_the_models_history() -> None:
 
     assert flow.messages == before
     assert [t["state"] for t in flow.buffer.to_json_list()[-2:]] == ["REQUEST", "REQUEST"]
+
+
+@pytest.mark.parametrize(
+    ("start", "system"), [("start_talk", "talk"), ("start_interview", "system")]
+)
+def test_session_warmup_caches_its_own_prompt_prefix(
+    tmp_path: Path, start: str, system: str
+) -> None:
+    """T10: прогрев кладёт в кэш модели системный промпт сессии, а не «hi».
+
+    Иначе первый ход платил полный prefill после реплики человека: живой замер
+    2026-10-17 — 8,763 ms до первого звука при гейте 3,000.
+    """
+    llm = FakeLlm(REPLY)
+    container = make_container(tmp_path, llm, FakeStt("Hello."))
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": start, "payload": {}})
+        drain_until_listening(ws)
+
+    warmup = llm.calls[0]
+    assert warmup[0]["role"] == "system"
+    assert str(warmup[0]["content"]).startswith(system)
+    assert warmup[-1]["role"] == "assistant"  # приветствие уже в истории
