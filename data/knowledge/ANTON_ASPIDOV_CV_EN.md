@@ -1,112 +1,48 @@
-<!-- Копия CV от 2026-08-11 из Other:Another/ANTON_ASPIDOV_CV_EN.md.
-     Обновляется вручную (docs/05). Блок <style> для PDF срезан.
-     ⚠ Часть цифр здесь ЗАНИЖЕНА против замера по репозиториям
-     (LinkBuilder 4,200+ против 7,393; Local Web Agent 380 против 409).
-     В промпт идёт profile_condensed.md с измеренными числами. -->
+<!-- Копия CV от 2026-10-08 из Other:Another/ANTON_ASPIDOV_CV_EN.md.
+     Обновляется вручную (docs/05). Блок <style> для PDF срезан. ⚠ Где цифры расходятся с замером (2026-10-17): G connect —
+     400+ тестов и 34 правила против 605 и 43 (замер 2026-10-02); Prospecting &
+     outreach — 2,200+ на 10-й день против 4,670 (2026-10-08). В промпт идёт
+     profile_condensed.md с измеренными числами, CV правит человек. -->
 
 # Anton Aspidov
 
-**AI / Fullstack Product Engineer (Builder) · LLM Applications · Internal Tools**
+<p class="role">AI Delivery Lead · AI services from a bare spec to production in weeks</p>
 
-Saint Petersburg, Russia · Fully remote · MSK daytime overlap  
-Telegram: `@AnthonyPriceOne` · Email: `anthonypriceone@gmail.com` · LinkedIn: `linkedin.com/in/anton-aspidov/` · English B2 · Russian Native
+<p class="contacts">Saint Petersburg, Russia · Remote, UTC+3 · English B1, Russian native<br>
+anthonypriceone@gmail.com · Telegram @AnthonyPriceOne · linkedin.com/in/anton-aspidov<br>
+Portfolio with demos: anton.aspidov.workers.dev</p>
 
 ## Profile
 
-Sole builder shipping **AI products from idea to production** — not “I know Cursor,” but systems operators use every day. Production LLM apps and internal B2B SaaS: tool-calling agents, HITL workflows, CRM platforms, async Python backends, React UIs, queues, and integrations.
+I lead a team of AI coding agents and the system that checks their work, taking AI services from an idea or a bare spec to production in weeks. I write the spec, set the architecture and accept the result; agents write the code, and every change must pass 22 automatic checks before it merges. My latest two services for an SEO agency went live in 8 and 14 days: 180,000+ lines of code and tests, 5,800+ automated tests and 280+ merged PRs in four weeks.
 
-**How I build with AI:** plan → agent (Cursor + Claude Code) → automated gates → live scenario → human merge. I own architecture, priorities, and production; the agent accelerates implementation under mechanical checks (style, types, size, secrets, tests). Red blocks merge.
+## What I bring
 
-**Best-fit roles:** AI / fullstack product engineer (builder), LLM Application Engineer, AI Automation Engineer, Applied AI Engineer, Internal Tools Developer.
+- **Full cycle, spec to production.** Requirements, architecture, data model, integrations, deploy and operations: MVP in a week, production in two, and a handover that describes the live system, not the plan.
+- **A quality system for AI-written code.** 22 automatic checks on every change: tests, strict typing, import-layer contracts, security, ratchets that only tighten. A doctor plants a known mistake in front of each check, so a silent check counts as broken; each live failure becomes a test. Runs in 8 repos.
+- **LLMs under control, not just connected.** Behavioral contracts as versioned specs: hard rules block a message, soft rules force a rewrite, checks switch live without a restart. Autonomy is earned by measurement, not trust: auto-send stays off until replays on real mail clear the bar.
+- **Cost and evaluation discipline.** Pre-run estimates, fail-closed quotas and per-request cost ledgers: a three-stage funnel cut spend by 37% on a measured run. Held-out sets, predictions written before the run, golden sets behind LLM judges.
+- **Private, local AI.** Ollama-based agents that never leave the laptop: a browsing research agent and a voice interviewer whose first word lands ~1.3 s after the end of your turn is detected.
 
-## Highlights
+## Selected work
 
-- **Sole builder** of a production outreach SaaS: **5-person team → 1 operator** in ~**5 months** from zero to daily use; **~16k donors / ~15k links** under monitoring; **4,200+ tests**, diff-coverage ≥70%, red blocks merge.
-- Shipped **production domain agents** (prospecting, competitors, mass outreach, email AI) with tool catalogs, behavioral gates, scheduled autonomy, and HITL on deal-critical steps.
-- **Local Web Agent** (~3 weeks): multi-site research agent on-device — tool-calling + browser actions, HITL on CAPTCHA/login, **380 tests**, live-site findings turned into fixtures.
-- **Voice Interview Coach** (~2 weeks): local ASR → LLM → TTS loop under a **~3 s/turn** latency budget; exam + review modes.
-- **Lash Try-On** (~1 month, iOS): custom **Metal** renderer after SceneKit hit an image-quality ceiling; accepted with salon master on device.
-- Cut content preparation **~5×** (10 → 2 min/unit); **~120 hours/month** saved at ~900 units/month.
+- **LinkBuilder — outreach CRM** *(ran in production, sole engineer)*. One operator ran what took a team of five: competitor mining, site-quality gates, mass outreach, AI-drafted replies under versioned contracts, payment requests, and monitoring of 16,000+ placed links. 11,000+ backend and 700 frontend tests, 137 migrations, 20+ workers.
+- **SEO case-study platform** *(production, for an SEO agency)*. Ahrefs history → classification → one-page PDF case studies. Live data in 4 days, production on day 14 against a 4–4.5-week estimate; 1,100+ tests; paid runs commit after every task, so a crash loses only in-flight requests.
+- **Prospecting & outreach platform** *(donor search live, for an SEO agency)*. A GPT-5-mini site judge that quotes the page for every verdict, email-masked letter rewriting and reply-price extraction; eval gates on two of three. Live in 8 days; 100 PRs and 2,200+ tests by day 10.
+- **G connect — MCP server** for Google Sheets and Drive, so coding agents can edit safely: 6 tools, 34 policy rules enforced in code, preview-first writes confirmed by plan hash, snapshot undo. Built in 8 days, 400+ tests.
+- **Local Web Agent · Voice Interview Coach · RAG over a rulebook.** An on-device agent that browses real sites and backs its answers with quotes checked against the page (451 tests, open source); an offline voice interviewer with a per-sentence contract; retrieval with zero uncited answers.
 
-## Professional Experience
+## Experience
 
-### Bookmaker Ratings
+**Independent** — AI Delivery Lead for clients (self-employed) · Jul 2026 — Present · Remote
 
-**AI Automation Engineer / Fullstack Internal Tools Builder**  
-*(within SEO & Content Project Manager role)*  
-August 2021 — Present · Remote
+**Bookmaker Ratings** — AI Automation Engineer / Internal Tools Builder · Aug 2021 — Aug 2026 · Remote
 
-Primary focus since 2024–2025: designing and shipping internal products for outreach, content, and SEO operations. Most tools are live in daily operator use.
+- Built and owned LinkBuilder in production: architecture, refactor waves, human-in-the-loop design, and a handover document that describes the live state of the system, not its design.
+- Built content automation: ~5× faster content preparation, ~120 hours a month saved. SEO background: grew organic traffic from 30–40K to ~180K monthly visits (Brazil, Portugal).
 
-- **Sole builder** of **LinkBuilder** (internal outreach SaaS): architecture, HITL design, refactor waves (V1→V3), production ownership — SERP prospecting → outreach CRM → payments → placement monitoring.
-- Built **domain AI agents** (Competitors, Mass Outreach, Email AI): OpenAI tool-calling loops, read/action tools, behavioral contracts per action, operator memory, autonomous scheduler; ambiguous / money cases → human.
-- Enforced agent-friendly code discipline: hard **~500-line file limit**, feature modules, ratchet quality — so agents do not sprawl across the monolith.
-- Built **Event Content System** — Node.js pipeline + React CMS for sports/event content: match ingest, visual generation, AI image QA, run logs.
-- Built **SEO:Content Automation Toolkit** — plugin-style CLI pipelines for Google Workspace, SEO metadata, editorial QA, Telegram notifications.
-- Stack: Python/FastAPI, asyncio/async SQLAlchemy, PostgreSQL, Redis/RQ, Node.js, React/TypeScript, Vite, Mantine, Docker, GitLab CI/CD. Daily build tools: **Cursor + Claude Code**; production LLM: OpenAI API.
-- Integrations: OpenAI, SendGrid, DataForSEO, Hunter, Ahrefs, Google Workspace APIs, SofaScore, Telegram Bot API.
+## Skills
 
-**Measurable impact**
+**Backend:** Python, FastAPI, asyncio, SQLAlchemy 2, Pydantic, Alembic, PostgreSQL, Redis/RQ, Node.js · **Frontend:** React, TypeScript, Vite, Mantine, TanStack Query · **AI:** OpenAI API, Ollama, tool calling, MCP, behavioral contracts, HITL, evals, RAG, ASR/TTS · **AI delivery:** Claude Code, Cursor, agent specs, pre-commit gates, GitHub Actions, Docker, Playwright, pytest, Vitest, mutation testing
 
-- Link building ops: **5 FTE → 1 specialist** with internal SaaS + automation.
-- Content pipelines: **~80% less manual work** per unit; **~120 hours/month** saved.
-- SEO (domain context): organic traffic ~30–40K → ~180K monthly visits (Ahrefs) for Brazil/Portugal markets.
-
-## Selected Projects
-
-### LinkBuilder — Internal Outreach Platform *(production · sole builder · ~5 mo · NDA code)*
-
-End-to-end B2B SaaS: prospecting, CRM threads/campaigns, email AI, monitoring. Operators run the portfolio from one screen instead of inbox + spreadsheet chaos.
-
-**Stack / quality:** Python/FastAPI, React/TypeScript, PostgreSQL, Redis/RQ, OpenAI · **4,200+** backend tests, 280+ frontend tests, mypy strict, CI gates, diff-coverage ≥70%.
-
-**Scale & modules:** ~16k donors · ~15k links monitored · auto prospecting (up to ~600 keywords / hundreds of candidates per run) · placement monitoring · competitor gap analysis · mass outreach copilot · email AI (draft / classify / HITL / autosend with injection defense).
-
-**Agent pattern:** deterministic core + LLM at boundaries; tool-calling loops; bounded autonomy (`propose` → `auto`); Agent Behavioral Contracts (YAML guardrails, budgets, audit trail).
-
-### Local Web Agent — On-device research agent *(~3 weeks)*
-
-URLs + plain-language task → agent browses, compares, reports. **Zero data egress** — runs on Mac with local LLMs.
-
-- **6** research tools + browser actions (tool-calling, not one giant prompt); HITL on CAPTCHA and login.
-- Live-site bugs → tests: **7/9** findings closed with fixtures; **380 tests**.
-- **Stack:** FastAPI, React, Playwright, local LLMs.
-
-### Voice Interview Coach *(~2 weeks)*
-
-Local voice interview trainer: **ASR → LLM → TTS** under a **~3 s** turn budget (~0.7 s ASR + ~1.8 s LLM + ~0.5 s TTS). Exam mode + review-together mode; recordings and models stay on machine.
-
-- **Stack:** FastAPI, React, Ollama, whisper, Piper. Verified via latency benchmark + e2e smoke.
-
-### Lash Try-On — iOS salon try-on *(~1 month)*
-
-Client sees lashes on her own face before the procedure. Off-the-shelf SceneKit hit a quality ceiling (MSAA, transparency, custom passes) → **custom Metal** pipeline for try-on realism; acceptance with salon master on iPhone.
-
-- **Stack:** Swift, ARKit, Metal. Same AI-assisted delivery loop (plan → implement → on-device smoke).
-
-### Event Content System
-
-Sports/event content automation: match data → covers → AI image QA → operator CMS. Node.js + React; **~5×** faster content prep.
-
-### SEO:Content Automation Toolkit
-
-Node.js plugin-style CLI for Google Workspace, SEO metadata, editorial QA, Telegram bots — foundation for later Event Content and LinkBuilder modules.
-
-## Technical Skills
-
-**Backend & Automation:** Python, FastAPI, asyncio, SQLAlchemy 2.0 async, Pydantic, Alembic, PostgreSQL, Redis/RQ, Node.js, Express, REST, CLI pipelines, background workers.  
-**Frontend:** React, TypeScript, Vite, Mantine, Tailwind, TanStack Query/Table, React Router.  
-**AI / LLM / Agents:** OpenAI API, local LLMs (Ollama), tool calling / function calling, agent orchestration, HITL, structured outputs, evals, golden/replay scenarios, Agent Behavioral Contracts, prompt injection defense, voice loops (ASR/TTS).  
-**AI-assisted delivery:** Cursor, Claude Code — plan / implement / gates / live / human merge.  
-**Browser & mobile:** Playwright, Swift, ARKit, Metal.  
-**Architecture:** service layer, feature modules, internal tools, B2B SaaS, CRM.  
-**Infrastructure & quality:** Docker, GitLab CI/CD, VPS, pytest, Vitest, contract/replay tests, diff-coverage gates.  
-**Integrations:** SendGrid, DataForSEO, Hunter, Ahrefs, Google Workspace APIs, SofaScore, Telegram Bot API.
-
-## Domain Expertise (secondary)
-
-SEO strategy, keyword clustering, technical/on-page SEO, GA4, GSC, Ahrefs, editorial ops, multilingual team coordination (up to 20 writers), Brazil/Portugal/LATAM markets.
-
-## Education
-
-Saint Petersburg State University of Service and Economics — Degree completed in 2014.
+**Education:** Saint Petersburg State University of Service and Economics, 2014

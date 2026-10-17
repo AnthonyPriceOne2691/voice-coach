@@ -10,14 +10,18 @@
 
 | Файл | Содержание | Использование |
 |------|------------|---------------|
-| `ANTON_ASPIDOV_CV_EN.md` | Positioning, опыт, skills | Источник для профиля; в промпт НЕ инжектится |
+| `ANTON_ASPIDOV_CV_EN.md` | Positioning, опыт, skills — копия CV от 2026-10-08 | Источник позиционирования и названий проектов; в промпт НЕ инжектится |
 | `PORTFOLIO_LINKBUILDER_CASE.md` | Architecture, metrics, HITL | То же: источник, не инжектится |
 | `FOREIGN_MARKET_OUTREACH_PLAN.md` | Target roles, keywords | Question framing, debrief consistency |
-| `Documents/PORTFOLIO_SITE_DESIGN.md` §5 | Аудит четырёх репозиториев 2026-07-20 | Источник цифр по проектам вне LinkBuilder |
+| `Documents/PORTFOLIO_SITE_DESIGN.md` §5 | Аудит четырёх репозиториев 2026-07-20 | Исторический источник; с 2026-10-17 цифры берутся из замеров ниже |
+| `portfolio-site/tests/numbers.test.mjs` | Замер 2026-10-08 двух сервисов агентства (тесты, строки, PR) | Цифры SEO case-study и Prospecting & outreach platform |
+| `G connect/MEMORY.md` | Снапшот проекта 2026-10-02 (тесты, правила) | Цифры G connect |
+| `Prepare/rag/README.md`, `Prepare/CODE_QUALITY_GATES.md` | Замеры RAG по канону; число проверок контура | Цифры RAG over a rulebook и Quality contour |
 
-**Что реально попадает в промпт (2026-08-12):** только `profile_condensed.md`
-через плейсхолдер `{{profile_condensed}}` (`app/knowledge/prompts.py`). Остальные
-файлы — исходники, из которых профиль поддерживается вручную.
+**Что реально попадает в промпт (сверено 2026-10-17):** только `profile_condensed.md`
+через плейсхолдер `{{profile_condensed}}` (`app/knowledge/prompts.py`) — в промпты
+интервью и разбора. Остальные файлы — исходники, из которых профиль поддерживается
+вручную.
 
 **Статус (2026-07-02):** копии CV и case study **закоммичены** в `data/knowledge/` вместе с готовым `profile_condensed.md`. Решение: хранить в git (репозиторий приватный) — версионирование нужно для воспроизводимости debrief; gitignore здесь вредит.
 
@@ -37,18 +41,25 @@
 
 Отдельный файл `data/knowledge/profile_condensed.md` — **не** raw CV, а extract:
 
-- One-liner positioning: AI Automation Engineer, internal SaaS
-- 3 flagship projects with metrics
-- Tech stack keywords
-- **Anti-patterns:** не представляться SEO lead; builder/automation angle
+- Кто он и позиционирование: AI Delivery Lead (с 2026-10); прежняя должность AI Automation Engineer
+- Чем занят сейчас и зачем ему разговорный английский (с 2026-10-17)
+- Индекс проектов, у каждого — измеренная цифра
+- Как он работает и стек
+- **Anti-patterns:** не представляться SEO lead; builder/delivery angle
 - Known interview weak spots
+
+Личное (семья, быт, хобби) в профиль **не пишется** — решение человека
+2026-10-17: Генри узнаёт его только из разговоров и только то, что Антон скажет
+сам. Сторож — `test_profile_keeps_private_life_out`.
 
 **Причина:** полный CV + case в каждый prompt = медленно и дорого по context; condensed version обновляется вручную после правок CV.
 
 ### Портфолио: индекс в профиле, глубина — за оркестратором (2026-08-12)
 
-Проектов пять (LinkBuilder, Voice Coach, Local Web Agent, Lash Try-On, Event
-Content System). Пять полных кейсов — ~5000 токенов сверх бюджета: при
+Проектов было пять (LinkBuilder, Voice Coach, Local Web Agent, Lash Try-On, Event
+Content System); с 2026-10-17 — десять: добавлены SEO case-study platform,
+Prospecting & outreach platform, Quality contour, G connect и RAG over a rulebook.
+Всё та же форма — строка индекса с цифрой на проект, профиль ~1270 токенов. Пять полных кейсов — ~5000 токенов сверх бюджета: при
 `num_ctx` 8192 они вытеснили бы транскрипт и удлинили prefill КАЖДОГО хода,
 то есть ударили бы по latency-инварианту ~3.0 s (doc 20).
 
@@ -68,6 +79,11 @@ Local Web Agent 409 (CV — 380). Агент не правит CV сам: это
 
 **Цена решения:** агент может спросить про цифру, которой в текущем CV нет.
 Принято сознательно — кандидат обязан знать свои системы лучше, чем резюме.
+
+Сверка 2026-10-17 (поставка `profile-refresh`): Voice Coach — 213 backend + 51
+front-end тестов; правил в трёх контрактах 21, на каждом предложении проверяются
+10. Расхождения CV и сайта с замером (G connect 400+/34 против 605/43, бриф сайта
+«21 rules checked on every sentence») отданы человеку списком в `plan.md` поставки.
 
 ## Positioning rules (for agent & debrief)
 
@@ -140,3 +156,4 @@ When to add:
 | 2026-06-26 | Initial knowledge base design |
 | 2026-06-26 | Debrief section moved to 08-post-session-debrief.md |
 | 2026-07-02 | data/knowledge/ создан: копии CV + case study + profile_condensed.md; решение — коммитить в git (приватный репо, воспроизводимость debrief) |
+| 2026-10-17 | Профиль на октябрь: AI Delivery Lead, нынешняя работа, зачем английский, десять проектов с датированными замерами; личное в профиль не пишется; копия CV от 2026-10-08 |
