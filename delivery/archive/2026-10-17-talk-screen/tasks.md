@@ -6,4 +6,4 @@
 - [x] W3. `TalkPage`, вкладка в `App.tsx`
 - [x] W4. Доки 11, 17; концепт `echo-protection`
 - [x] W5. Гейты, сборка, `eval-smoke.md`, `verify-report.md`; T10 — замер по «запускай»
-- [ ] W6. PR, CI, `merge_guard`, архив
+- [x] W6. PR, CI, `merge_guard`, архив
