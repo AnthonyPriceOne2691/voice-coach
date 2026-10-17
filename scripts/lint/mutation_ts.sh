@@ -50,7 +50,9 @@ ts_stryker_setup() {
   fi
   # Тесты из населения исключаются: мутировать надо продуктовый код. Маска шире
   # дефолта Stryker намеренно — проекты зовут каталог и `test`, и `tests`, и `__tests__`.
-  changed=$(git diff --name-only "$BASE"...HEAD -- "$TS_SRC" 2>/dev/null \
+  # Удалённые — мимо (`--diff-filter=d`): мутировать их нечего, а Stryker на пути без
+  # файла падает, а не пропускает его.
+  changed=$(git diff --name-only --diff-filter=d "$BASE"...HEAD -- "$TS_SRC" 2>/dev/null \
     | grep -E '\.(ts|tsx|js|jsx|mts|cts)$' \
     | grep -vE '(^|/)(test|tests|__tests__|spec|specs)/|(^|/)conftest\.py$|(^|/)test[_-]|[_-](test|spec)\.|(Test|Tests|Spec|Specs)\.|\.(test|spec)\.' || true)
   if [[ -z "$changed" ]]; then
@@ -58,8 +60,6 @@ ts_stryker_setup() {
       "$green" "$BASE" "$TS_SRC" "$reset"
     return 1
   fi
-  n=$(printf '%s\n' "$changed" | wc -l | tr -d ' ')
-  printf 'mutation/ts: %s файл(ов), бюджет %ss, цель ≥%s%% убитых\n' "$n" "$BUDGET_SEC" "$MIN_KILLED"
   return 0
 }
 
@@ -99,10 +99,73 @@ ts_stryker_config() {
   return 0
 }
 
+# Маска проекта (поле G connect 17.10). `--mutate` из командной строки ЗАМЕНЯЕТ
+# `mutate` конфига, а не сужает его. Замер Stryker 9 (`--dryRunOnly`): `--mutate
+# src/core/env.ts,src/core/ops.ts` — «Found 2 of 276», хотя в конфиге стоит
+# `!src/core/env.ts`. Исключения проекта терялись молча, а у G connect одно из них
+# защитное: мутант `env.ts` 2026-09-02 записал фикстуры тестов в настоящий
+# `~/.gconnect`. Поэтому изменённые файлы сначала проходят маску конфига — тем же
+# порядком, что у Stryker: совпадение позже перекрывает раньше, `!` вычитает.
+# Конфиг не JSON (`.mjs`/`.js`) прочесть нечем — область не сужена, и это сказано.
+# Маска не разобралась — Stryker не запускается: мутировать защищённое хуже, чем
+# не судить.
+ts_scope_filter() {
+  local kept dropped
+  if [[ "$cfg" != *.json ]]; then
+    [[ -n "$cfg" ]] && printf '%s⚠ mutation: маска %s не читается (не JSON) — область не сужена%s\n' \
+      "$yellow" "$cfg" "$reset"
+    return 0
+  fi
+  kept=$(printf '%s\n' "$changed" | python3 -c '
+import json, os, re, sys
+
+def rx(glob):
+    out, i = "", 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+            continue
+        if glob.startswith("**", i):
+            out, i = out + ".*", i + 2
+            continue
+        c = glob[i]
+        if c == "{" and "}" in glob[i:]:
+            j = glob.index("}", i)
+            out += "(?:" + "|".join(re.escape(x) for x in glob[i + 1:j].split(",")) + ")"
+            i = j + 1
+            continue
+        out += "[^/]*" if c == "*" else "[^/]" if c == "?" else re.escape(c)
+        i += 1
+    return re.compile(out + r"\Z")
+
+masks = json.load(open(sys.argv[1], encoding="utf-8")).get("mutate")
+rules = [(m.startswith("!"), rx(m.lstrip("!").split(":")[0])) for m in masks] if isinstance(masks, list) else []
+for path in sys.stdin.read().split():
+    keep = not rules
+    for negated, pattern in rules:
+        if pattern.match(path):
+            keep = not negated
+    if keep and os.path.isfile(path):
+        print(path)
+' "$cfg") || { printf '%s⚠ mutation: маска %s не разобрана — TS-половина не судит, Stryker не запущен%s\n' \
+      "$yellow" "$cfg" "$reset"; return 1; }
+  dropped=$(comm -23 <(printf '%s\n' "$changed" | sort) <(printf '%s\n' "$kept" | sort) | tr '\n' ' ')
+  [[ -n "${dropped// /}" ]] && printf 'mutation/ts: вне маски %s — %s\n' "$cfg" "$dropped"
+  changed="$kept"
+  if [[ -z "$changed" ]]; then
+    printf '%smutation: изменённые файлы вне маски мутаций %s — судить нечего%s\n' "$green" "$cfg" "$reset"
+    return 1
+  fi
+  return 0
+}
+
 ts_mutation() {
   local STRYKER changed n cfg runner out rc report score
   ts_stryker_setup || return 0
   ts_stryker_config || return 0
+  ts_scope_filter || return 0
+  n=$(printf '%s\n' "$changed" | wc -l | tr -d ' ')
+  printf 'mutation/ts: %s файл(ов), бюджет %ss, цель ≥%s%% убитых\n' "$n" "$BUDGET_SEC" "$MIN_KILLED"
 
   out=$(mktemp)
   # Бюджет держим тем же способом, что python-половина: 124 от timeout — это

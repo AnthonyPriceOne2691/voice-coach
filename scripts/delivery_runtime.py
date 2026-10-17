@@ -392,11 +392,22 @@ def _outward_surface(root: Path) -> set[str]:
     это случай, после которого проверку снимают целиком (§4.3b), и он же уже
     стоил ревизии breaker'ам объёма. Исключение то же самое и по той же причине:
     механика контура — не blast radius продукта.
+
+    ⚠ Население — файлы git, а не обход диска (поле G connect 2026-10-17): сборка
+    в игнорируемом `.stable/` — копия репозитория вместе со `scripts/` — отдала
+    детектору его же `_OUTWARD_MARKERS` из `.stable/scripts/delivery_runtime.py`,
+    и он потребовал объявить отправку у продукта без единой отправки.
+    `BREAKER_EXCLUDE` — префикс от корня, `.stable/scripts/` им не ловится; прочие
+    гейты контура ходят через git — расхождение братьев. Нет git — прежний обход:
+    молчать хуже.
     """
-    for f in root.rglob("*.py"):
+    listed = git("-C", str(root), "ls-files", "-z", "--", "*.py").split("\0")
+    for f in [root / rel for rel in listed if rel] or root.rglob("*.py"):
         if f.relative_to(root).as_posix().startswith(BREAKER_EXCLUDE):
             continue
         if any(part in {".venv", "node_modules", "__pycache__"} for part in f.parts):
+            continue
+        if not f.is_file():
             continue
         low = f.read_text(encoding="utf-8", errors="ignore").lower()
         if any(m in low for m in _OUTWARD_MARKERS):
