@@ -36,11 +36,14 @@ export function SessionHeader({
   progress,
   startedAt,
   onEnd,
+  label = "Mock interview with Henry",
 }: {
   state: SessionState;
   progress: QuestionProgress | null;
   startedAt: number;
   onEnd: () => void;
+  /** Что за сессия, когда счётчика вопросов нет (разбор, разговор). */
+  label?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -56,7 +59,7 @@ export function SessionHeader({
         <strong>{SAYING[state]}</strong>
         {progress
           ? `Question ${progress.index} of ${progress.total}${progress.kind ? ` · ${progress.kind}` : ""}`
-          : "Mock interview with Henry"}
+          : label}
       </div>
       <div className="session-right">
         <span className="timer">{elapsed(startedAt, now)}</span>

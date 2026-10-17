@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { MicLevelMeter } from "../components/MicLevelMeter";
-import { SessionHeader } from "../components/SessionHeader";
+import { LiveSession, PastTranscript } from "../components/LiveSession";
 import { StateOrb } from "../components/StateOrb";
-import { TranscriptPanel } from "../components/TranscriptPanel";
+import { useLiveTranscriptSetting } from "../hooks/useLiveTranscriptSetting";
 import { useVoiceSession, type SessionEnded } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
 
@@ -95,39 +94,16 @@ function Invitation({
   );
 }
 
-/**
- * Переключатель «Live transcript» (Settings, doc 17): показывать ли транскрипт
- * ВО ВРЕМЯ сессии. Читается при входе на экран — вкладки монтируются заново,
- * поэтому изменение в Settings видно сразу по возвращении. Пока ответа нет или
- * бэкенд молчит — умолчание doc 17 (ON). До 2026-10-01 ключ не читал никто.
- */
-function useLiveTranscriptSetting(): boolean {
-  const [show, setShow] = useState(true);
-  useEffect(() => {
-    let alive = true;
-    api
-      .getSettings()
-      .then((s) => {
-        if (alive) setShow(s.show_live_transcript !== false);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return show;
-}
-
 export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
   const session = useVoiceSession();
-  const { state, transcript, error, active, micLevel, ended, progress, startedAt } = session;
+  const { transcript, error, active, ended } = session;
   const [notice, setNotice] = useState<string | null>(null);
   const showLiveTranscript = useLiveTranscriptSetting();
 
   const startReview = (interviewId: string) => {
     setNotice(null);
     onReviewStarted();
-    void session.start({ interviewId });
+    void session.start({ kind: "review", interviewId });
   };
 
   const skipReview = async (interviewId: string) => {
@@ -148,16 +124,7 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
       {/* До старта транскрипта на экране НЕТ: пустой прямоугольник в полэкрана
           ничего не сообщал и держал место, которое нужно приглашению. */}
       {active ? (
-        <div className="glass session">
-          <SessionHeader
-            state={state}
-            progress={progress}
-            startedAt={startedAt}
-            onEnd={session.end}
-          />
-          {state === "listening" && <MicLevelMeter level={micLevel} />}
-          {showLiveTranscript && <TranscriptPanel entries={transcript} />}
-        </div>
+        <LiveSession session={session} showTranscript={showLiveTranscript} />
       ) : (
         <Invitation
           reviewTarget={reviewTarget}
@@ -174,15 +141,7 @@ export function InterviewPage({ reviewTarget, onReviewStarted }: Props) {
         />
       )}
 
-      {/* Транскрипт последней сессии остаётся читаемым после её конца */}
-      {!active && transcript.length > 0 && (
-        <>
-          <h2 className="section-title">Transcript</h2>
-          <div className="glass session">
-            <TranscriptPanel entries={transcript} />
-          </div>
-        </>
-      )}
+      {!active && <PastTranscript entries={transcript} />}
     </div>
   );
 }

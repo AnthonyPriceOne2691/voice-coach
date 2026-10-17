@@ -16,7 +16,7 @@ import type { UserSettings } from "../types/api";
 import { clientMessage, parseServerMessage, type SessionState } from "../types/messages";
 
 export interface SessionEnded {
-  session_kind: "interview" | "review";
+  session_kind: "interview" | "review" | "talk";
   session_id: string;
   next_action: "offer_review" | "generate_summary" | "none";
 }
@@ -42,6 +42,16 @@ interface SessionRefs {
   queue: AudioQueue | null;
   serverState: SessionState;
   playing: boolean; // agent audio still coming out of the speakers
+}
+
+/** Какую сессию открыть: по умолчанию интервью (doc 15). */
+export type StartMode = { kind: "review"; interviewId: string } | { kind: "talk" };
+
+function startMessage(mode?: StartMode): string {
+  if (mode?.kind === "review") {
+    return clientMessage("start_review", { interview_id: mode.interviewId });
+  }
+  return clientMessage(mode?.kind === "talk" ? "start_talk" : "start_interview");
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -197,7 +207,7 @@ export function useVoiceSession() {
   );
 
   const start = useCallback(
-    async (review?: { interviewId: string }) => {
+    async (mode?: StartMode) => {
       setError(null);
       setTranscript([]);
       setEnded(null);
@@ -233,11 +243,7 @@ export function useVoiceSession() {
       ws.onmessage = (event) => handleMessage(String(event.data));
       ws.onopen = () => {
         ws.send(clientMessage("hello"));
-        if (review) {
-          ws.send(clientMessage("start_review", { interview_id: review.interviewId }));
-        } else {
-          ws.send(clientMessage("start_interview"));
-        }
+        ws.send(startMessage(mode));
       };
       ws.onerror = () => setError("WebSocket connection failed — is the backend running?");
       ws.onclose = (event) => {
@@ -292,3 +298,5 @@ export function useVoiceSession() {
     end,
   };
 }
+
+export type VoiceSession = ReturnType<typeof useVoiceSession>;

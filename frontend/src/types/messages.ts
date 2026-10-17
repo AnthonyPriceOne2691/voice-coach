@@ -56,7 +56,14 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 }
 
 export function clientMessage(
-  type: "hello" | "start_interview" | "start_review" | "utterance_end" | "end_session" | "ping",
+  type:
+    | "hello"
+    | "start_interview"
+    | "start_review"
+    | "start_talk"
+    | "utterance_end"
+    | "end_session"
+    | "ping",
   payload: Record<string, unknown> = {},
 ): string {
   return JSON.stringify({ type, payload });
