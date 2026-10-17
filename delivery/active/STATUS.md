@@ -1,0 +1,32 @@
+# Active delivery status
+
+- **slug:** regenerate-mode-neutral
+- **stack:** delivery@2.00, cqg@2.51, okf@1.19
+- **class:** S
+- **kind:** bugfix
+- **repro_test:** `backend/tests/test_turn_runner.py::test_regenerate_hint_carries_no_interview_era_rules` — до правки красный: `AssertionError: в подсказке перегенерации остался 'interview rules'`; вместе с ним краснеет обновлённый `test_violation_on_first_sentence_regenerates`
+- **diagnosis:** n/a reason=гипотез не было: дефект найден чтением кода при подготовке режима разговора — текст константы прямо противоречит контракту interview 2.0 и лимитам review, второй причины не искали, потому что расхождение видно в одной строке
+- **phase:** verify
+- **builder:** agent:claude-code
+- **verifier:** human:anthony
+- **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
+- **human_ok_plan:** n/a
+- **shape-oracles:** cqg-deployed
+- **behavior-oracles:** tests-present
+- **artifact_oracle:** n/a reason=правка текстовой константы бэкенда и тестов; фронт и сборка не затронуты
+- **ci-oracles:** tooling
+- **worktree:** none (S) — ветка fix/regenerate-mode-neutral в основном клоне
+- **hooks:** claude (scripts/hooks/)
+- **blockers:** none
+- **waivers:** none
+- **new_dependency:** none reason=правка текста подсказки и тестов; пакетов не добавляется
+- **runtime_paths:** none reason=подумали и нет: подсказка уходит в LLM обычным сообщением чата, путь исполняется тестами TurnRunner на фейковой модели; отказа, невидимого тестам, здесь нет — меняется содержимое строки, а не тракт
+- **irreversible_surfaces:** none reason=локальный инструмент без отправки наружу; правка меняет текст подсказки модели
+- **model_surface:** data/prompts/**, data/knowledge/**, data/questions/**, data/contracts/**, backend/app/config.py, backend/app/llm/**, backend/app/knowledge/prompts.py, backend/app/orchestrator/interview.py, backend/app/voice/turn_runner.py, backend/app/api/ws_voice.py, backend/app/summary/**
+- **rule_enforcers:** delivery/rule_enforcers.md
+- **canon_drift_waiver:** no
+- **baseline_growth_waiver:** no
+- **observability:** 1
+- **observe_signal:** R1 подтверждён в живом разборе — после нарушения контракта (в метаданных сессии violation с recovery=regenerate) повторный ответ Генри сохраняет похвалу и совет и не урезан до трёх предложений
+- **observe_until:** 2026-11-07
+- **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4

@@ -41,10 +41,17 @@ class LlmParams:
     max_tokens: int
 
 
+#: Подсказка перегенерации — ОДНА на оба режима, поэтому в ней нет правил одного
+#: из них. До 2026-10-17 текст был интервьюерским («interview rules … Max 3
+#: sentences … No coaching, praise»): в разборе лимит 5 предложений, а похвала и
+#: совет — его работа, в интервью запрет на подсказки снят ещё 2026-08-12 (L24).
+#: Лимиты режима модель берёт из своего системного промпта, а енфорсер проверяет
+#: ответ заново. Свой текст на режим из `data/prompts/` (поле `regenerate_prompt`
+#: контрактов пока объявлено, но не читается) — долг, его снимет режим разговора.
 STRICT_REGENERATE = (
-    "Your previous reply violated interview rules: {violation}. "
-    "Rewrite in English only. Max 3 sentences. One question OR a short acknowledgment. "
-    "No coaching, praise, or scoring. Original intent: {intent}"
+    "Your previous reply broke a rule of this session: {violation}. "
+    "Rewrite it in English only, keeping your role, the limits you were given "
+    "and the original intent: {intent}"
 )
 
 
