@@ -58,6 +58,36 @@ def test_long_utterance_is_never_a_request_even_if_it_says_slower() -> None:
     assert detect(f"speak slower {words}") is None
 
 
+def test_the_interview_detector_would_take_a_story_for_a_request() -> None:
+    """Почему разговору нужна своя таблица: в интервью короткий рассказ — редкость."""
+    assert detect("It was a slow day.") is PaceRequest.SLOWER
+
+
+@pytest.mark.parametrize(
+    ("utterance", "expected"),
+    [
+        # T4 — слово о скорости в рассказе: в разговоре короткая фраза — норма (L33)
+        ("It was a slow day.", None),
+        ("Trains are faster than buses here.", None),
+        ("The internet was so slow yesterday.", None),
+        ("I had to slow down at work this week.", None),
+        # T5 — просьба узнаётся по форме: обращение, глагол речи, реплика целиком
+        ("Could you speak a bit slower?", PaceRequest.SLOWER),
+        ("Slower, please.", PaceRequest.SLOWER),
+        ("Slow down a little.", PaceRequest.SLOWER),
+        ("You're speaking too fast.", PaceRequest.SLOWER),
+        ("Can you speak more slowly?", PaceRequest.SLOWER),
+        ("You can talk faster.", PaceRequest.FASTER),
+        ("Could you speed up a bit?", PaceRequest.FASTER),
+        ("You're a bit too slow.", PaceRequest.FASTER),
+    ],
+)
+def test_in_talk_only_the_shape_of_a_request_changes_the_pace(
+    utterance: str, expected: PaceRequest | None
+) -> None:
+    assert detect(utterance, casual=True) is expected
+
+
 def test_one_request_moves_exactly_one_step() -> None:
     new_scale, at_limit = apply(1.15, PaceRequest.SLOWER)
     assert (new_scale, at_limit) == (1.30, False)  # P1
