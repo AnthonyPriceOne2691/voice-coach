@@ -17,6 +17,10 @@ class PromptLibrary:
         system = (self._prompts_dir / "interviewer_system.txt").read_text(encoding="utf-8")
         return system.replace(PROFILE_PLACEHOLDER, self._profile())
 
+    def talk_system(self) -> str:
+        system = (self._prompts_dir / "talk_system.txt").read_text(encoding="utf-8")
+        return system.replace(PROFILE_PLACEHOLDER, self._profile())
+
     def review_system(self, qa_segments: str) -> str:
         system = (self._prompts_dir / "review_system.txt").read_text(encoding="utf-8")
         return system.replace(SEGMENTS_PLACEHOLDER, qa_segments).replace(

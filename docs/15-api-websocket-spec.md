@@ -205,6 +205,17 @@ Server: pre-warm Qwen model → `state: processing` → first agent turn → `au
 
 Server: evict Qwen → load R1 → begin review intro.
 
+#### `start_talk` (D3a, 2026-10-17)
+
+```json
+{ "type": "start_talk", "payload": {} }
+```
+
+Разговор с Генри на повседневные темы. Server: `session_started {session_kind:
+"talk"}` → приветствие и открывающий вопрос (их выбирает код, модель не вызывается)
+→ `listening`. В `state` поля вопроса — `null`. По «bye» или через 20 минут Генри
+прощается, и приходит `session_ended {next_action: "none"}`.
+
 #### `utterance_end`
 
 User finished speaking (client VAD).
@@ -268,7 +279,7 @@ User finished speaking (client VAD).
   "type": "state",
   "payload": {
     "value": "idle|listening|processing|speaking|loading_model",
-    "session_kind": "interview|review|null",
+    "session_kind": "interview|review|talk|null",
     "session_id": "uuid|null",
     "question_index": 3,
     "question_total": 6,
@@ -455,3 +466,4 @@ On disconnect: interview remains resumable from History (P1); в MVP partial tra
 | 2026-06-26 | Initial API + WebSocket spec |
 | 2026-07-02 | v0.2: MVP-поведение mic при `speaking` (no barge-in); checkpoint «3 turns or 30 s» согласован с doc 12; DELETE /vocabulary — soft delete |
 | 2026-07-02 | v0.3: mid-session failure policy (матрица деградации, flush-first); коды TTS_FALLBACK, PIPELINE_FAILURE; settings — kv-таблица в app.db |
+| 2026-10-17 | `start_talk`, `session_kind: talk` — разговор с Генри (D3a) |

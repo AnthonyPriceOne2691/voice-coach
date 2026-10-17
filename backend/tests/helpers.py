@@ -14,11 +14,13 @@ from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import load_contract
 from app.knowledge.prompts import PromptLibrary
 from app.orchestrator.question_bank import load_bank
+from app.orchestrator.talk import load_script
 from app.storage.db import Database
-from app.storage.models import InterviewSession, ReviewSession
+from app.storage.models import InterviewSession, ReviewSession, TalkSession
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.settings_repo import SettingsRepository
+from app.storage.repositories.talks import TalkRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.summary.service import SummaryService
 from tests.fakes import FakeDecoder, FakeStt, FakeTts
@@ -66,6 +68,7 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     (prompts / "review_system.txt").write_text(
         "review system\n{{interview_qa_segments}}\n{{profile_condensed}}"
     )
+    (prompts / "talk_system.txt").write_text("talk system {{profile_condensed}}")
     (prompts / "summary_system.txt").write_text("summary system")
     (prompts / "minimal_summary_system.txt").write_text("minimal system")
     # Контейнер обязан быть ПОЛНЫМ: с 2026-08-15 суммаризация чинит негодный
@@ -109,6 +112,11 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
         review_enforcer=ContractEnforcer(
             load_contract(REPO_ROOT / "data" / "contracts" / "review.contract.yaml")
         ),
+        talks=TalkRepository(db),
+        talk_enforcer=ContractEnforcer(
+            load_contract(REPO_ROOT / "data" / "contracts" / "talk.contract.yaml")
+        ),
+        talk_script=load_script(REPO_ROOT / "data" / "talk" / "talk.yaml"),
         question_bank=load_bank(
             REPO_ROOT / "data" / "questions" / "technical_project_walkthrough.yaml"
         ),
@@ -171,6 +179,16 @@ def fetch_review(database_url: str, review_id: str) -> ReviewSession | None:
     async def go() -> ReviewSession | None:
         db = Database(database_url)
         row = await ReviewRepository(db).get(review_id)
+        await db.dispose()
+        return row
+
+    return asyncio.run(go())
+
+
+def fetch_talk(database_url: str, talk_id: str) -> TalkSession | None:
+    async def go() -> TalkSession | None:
+        db = Database(database_url)
+        row = await TalkRepository(db).get(talk_id)
         await db.dispose()
         return row
 

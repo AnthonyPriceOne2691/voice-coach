@@ -110,6 +110,14 @@ class SessionFlow[RepoT: SessionRepository]:
         await self._checkpoint()
         await self.repo.finish(self.session_id, status=status)
 
+    def _counters(self) -> dict[str, int]:
+        """Счётчики нарушений для метаданных чекпойнта."""
+        return {
+            "hard_violations": self.hard_violations,
+            "soft_violations": self.soft_violations,
+            "fallback_count": self.fallback_count,
+        }
+
     # -- чем наполняет наследник ------------------------------------------------
 
     async def _checkpoint(self) -> None:
