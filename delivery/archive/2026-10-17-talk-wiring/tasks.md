@@ -7,4 +7,4 @@
       разговора в `ws_voice.py`; контейнер и конфиг
 - [x] W4. Доки 12, 15, 20; концепты `model-split`, `sentence-streaming`
 - [x] W5. Гейты, предохранитель объёма, `eval-smoke.md`, `verify-report.md`
-- [ ] W6. PR, CI, `merge_guard`, архив
+- [x] W6. PR, CI, `merge_guard`, архив
