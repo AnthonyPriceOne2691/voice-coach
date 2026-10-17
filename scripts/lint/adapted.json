@@ -20,10 +20,6 @@
     "reason": "канонный pre-push брал --diff-base из @{u}: после первого push'а базой становится сама ветка, «дифф поставки» схлопывается в последний инкремент, и требование §12.5 «≥2 цитаты из диффа» становится арифметически невыполнимым (замер: против origin/main 27 файлов и 34 идентификатора, против origin/contour/2.01 — 1 и 1). CI судит тот же блок против цели мержа и зелёный — два оракула на одном правиле расходились по базе",
     "changed": "в .pre-commit-config.yaml у хука delivery-gate: --diff-base берётся из refs/remotes/origin/HEAD с fallback на origin/main, а не из @{u}. Круг ответственности не меняется: circuit breakers на kind=bootstrap всё равно exempt, а фазовые артефакты судятся по всей поставке, как в CI"
   },
-  "complexity_halves.sh": {
-    "reason": "фронт живёт в подкаталоге, а гейт зовёт eslint из корня репозитория: flat-config ищется от cwd, и eslint выходил кодом 2 — TS-половина роняла гейт вместо того, чтобы судить",
-    "changed": "добавлена функция _ts_config_flag() и её вызов в ts_counts(): eslint получает --config фронт-конфига, найденного по кандидатам; переопределяется через LINT_ESLINT_CONFIG. Отсутствие конфига поведения не меняет — тогда всё ровно как в каноне"
-  },
   ".dependency-cruiser.cjs": {
     "reason": "шаблон канона написан под фронт в корне репозитория (пути ^src/..., tsconfig.json рядом); здесь фронт в frontend/, а depcruise зовётся из корня, поэтому и пути правил, и путь к tsconfig считаются от корня",
     "changed": "правила переписаны под слои этого фронта (types/ и lib/ — листья, hooks не тянет UI, components не знает страниц, no-circular), пути с префиксом ^frontend/src; tsConfig.fileName указывает на корневой tsconfig.depcruise.json, который наследует frontend/tsconfig.json и пере-базирует include (без этого TS18003 «No inputs were found»)"

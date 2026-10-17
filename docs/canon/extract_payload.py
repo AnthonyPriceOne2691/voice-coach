@@ -142,7 +142,8 @@ PARTS = {
         "scripts/lint/doctor_probes.py",
         "scripts/lint/doctor_deployment.py"),
     "scripts/lint/check_ast_gate.py": (
-        "scripts/lint/ast_rules.py", "scripts/lint/ast_web_rules.py"),
+        "scripts/lint/ast_rules.py", "scripts/lint/ast_web_rules.py",
+        "scripts/lint/doctor_hooks.py"),
     "scripts/lint/check_new_dependency.py": ("scripts/lint/dependency_manifests.py",),
     "scripts/lint/check_complexity_gate.sh": ("scripts/lint/complexity_halves.sh",),
     "scripts/lint/check_mutation_gate.sh": (

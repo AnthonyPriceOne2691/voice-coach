@@ -13,15 +13,21 @@
 # Просмотренное считается по ОБЕИМ живым половинам. «Просмотрено N» — это
 # доказательство §6, и на fullstack-репо оно обязано складываться: иначе число
 # врёт в меньшую сторону ровно там, где вторая половина как раз работает.
+#
+# ⚠ Считается то, что СУДИЛ ИНСТРУМЕНТ, а не то, что угадала маска расширений
+# (поле portfolio-site 17.10): «просмотрено 7» при 23 записях eslint — 16 .astro
+# судились и несли находки в снимок, а в счёт не входили; .jsx/.cts без блока в
+# конфиге проекта — наоборот; неотслеживаемый файл судится и не считается.
+# TS — число записей того же JSON, по которому считаются нарушения (ts_counts
+# пишет его в $ts_seen); python — список файлов ruff при тех же настройках.
 count_seen() {
   local n=0 half
   if (( py_live )); then
-    half=$(git ls-files -- "$PY_SRC" 2>/dev/null | grep -cE "${LINT_SRC_EXT_RE:-\.py$}") || true
+    half=$("$RUFF" check --show-files -- "$PY_SRC" 2>/dev/null | grep -c .) || true
     n=$(( n + ${half:-0} ))
   fi
   if (( ts_live )); then
-    half=$(git ls-files -- "$TS_SRC" 2>/dev/null \
-             | grep -cE "${LINT_TS_EXT_RE:-\.(ts|tsx|js|jsx|mts|cts)$}") || true
+    half=$(cat "$ts_seen" 2>/dev/null) || true
     n=$(( n + ${half:-0} ))
   fi
   printf '%d' "$n"
@@ -59,35 +65,62 @@ py_counts() {
 # 3. JSON читается НЕСТРОГО (`strict=False`): сообщение об ошибке разбора несёт
 #    сырой управляющий символ, и строгий `json.loads` падает трейсбеком ровно на
 #    том случае, который гейт обязан диагностировать.
-# ⚠ АДАПТАЦИЯ ПРОЕКТА (объявлена в `scripts/lint/adapted.json`), одна строка.
-# Гейт зовёт eslint из КОРНЯ репозитория, а flat-config ищется от cwd — здесь
-# `eslint.config.js` лежит во фронт-каталоге, и eslint выходил кодом 2
-# («couldn't find an eslint.config.(js|mjs|cjs) file»), то есть TS-половина
-# роняла гейт вместо того, чтобы судить. Флаг `--config` заодно чинит и базу
-# glob'ов: с ним `files: ['src/**']` считается от каталога конфига, как и задумано
-# автором конфига. Ищется по кандидатам, отсутствие — не ошибка: тогда поведение
-# ровно канонное. `LINT_ESLINT_CONFIG` переопределяет, если раскладка изменится.
-_ts_config_flag() {
+# 4. Считаются ТОЛЬКО правила гейта. Замер: полевой прогон дал 5 нарушений при 4
+#    настоящих — пятым пришёл `@typescript-eslint/no-non-null-assertion`, правило
+#    ПРОЕКТА из его же конфига (канонный `eslint.config.js` ставит его `warn`).
+#    Флаг `--rule` навязывает пороги гейта, но не глушит остальные, поэтому снимок
+#    «сложности» смешивался с линтерным долгом проекта и рос от правок, к сложности
+#    отношения не имеющих: ратчет краснел бы на чужой находке и чинился бы
+#    пересъёмом вверх (`cqg@2.04`).
+
+# Конфиг eslint ищется ПО КАНДИДАТАМ — тем же приёмом, каким четыре гейта ищут venv
+# (находка 5 первого развёртывания). Причина замерена: flat-config разрешается от
+# CWD, а §5.0 кладёт фронтовый конфиг в ПОДКАТАЛОГ (`<frontend>/eslint.config.js`),
+# и гейт, звавший eslint из корня репозитория, получал exit 2 «ESLint couldn't find
+# an eslint.config.(js|mjs|cjs) file». Переопределяется `LINT_ESLINT_CONFIG` (§6).
+eslint_config() {
   local c
   for c in "${LINT_ESLINT_CONFIG:-}" "$FE_DIR/eslint.config.js" \
-           "$FE_DIR/eslint.config.mjs" "$FE_DIR/eslint.config.cjs"; do
-    [[ -n "$c" && -f "$c" ]] && { printf -- '--config\n%s\n' "$c"; return 0; }
+           "$FE_DIR/eslint.config.mjs" "$FE_DIR/eslint.config.cjs" \
+           eslint.config.js eslint.config.mjs eslint.config.cjs; do
+    [[ -n "$c" && -f "$c" ]] && { printf '%s' "$c"; return 0; }
   done
+  return 1
+}
+
+# eslint запускается ИЗ КАТАЛОГА КОНФИГА, а не с `--config` из корня, и это тоже
+# замер: канонный конфиг объявляет `files: ['src/**/*.{ts,tsx}']`, а flat-config
+# сверяет такие маски с CWD. `--config frontend/eslint.config.js` из корня дал бы
+# НОЛЬ подходящих файлов — то есть зелёное на непросмотренном (класс F17), что хуже
+# честного exit 2. Цель и инструмент передаются абсолютными путями: cwd меняется.
+ts_eslint() {
+  local cfg dir
+  cfg=$(eslint_config) || cfg=""
+  dir="."
+  [[ -n "$cfg" ]] && dir=$(dirname "$cfg")
+  ( cd "$dir" || exit 2; "$ESLINT_ABS" "$TS_ABS" "$@" )
 }
 
 ts_counts() {
   local out rc body prc
-  local cfg=(); while IFS= read -r line; do cfg+=("$line"); done < <(_ts_config_flag)
-  out=$("$ESLINT" "$TS_SRC" "${cfg[@]}" --format json --no-color --rule "$TS_RULES" 2>"$errf")
+  out=$(ts_eslint --format json --no-color --rule "$TS_RULES" 2>"$errf")
   rc=$?
   if (( rc > 1 )); then
     printf '%sERROR%s: eslint вышел с кодом %d — снимок НЕ снят и старый не тронут.\n' \
       "$red" "$reset" "$rc" >&2
     sed 's/^/  eslint: /' "$errf" >&2
     printf 'Код 2 у eslint — это ошибка конфига или CLI, а не находки.\n' >&2
+    # Причина НАЗЫВАЕТСЯ вместе с переменной, которой правится: чужие слова
+    # («couldn't find eslint.config») отправляют чинить не туда — искать конфиг,
+    # который лежит на месте, просто не там, откуда звали.
+    if ! eslint_config >/dev/null; then
+      printf 'Конфига eslint не найдено. Искал: %s/eslint.config.{js,mjs,cjs} и то же\n' \
+        "$FE_DIR" >&2
+      printf 'в корне репо. Правится LINT_ESLINT_CONFIG или LINT_FE_DIR (§6).\n' >&2
+    fi
     return 2
   fi
-  body=$(printf '%s' "$out" | python3 -c '
+  body=$(printf '%s' "$out" | TS_RULES="$TS_RULES" TS_SEEN="$ts_seen" python3 -c '
 import json, os, sys
 raw = sys.stdin.read()
 try:
@@ -95,6 +128,16 @@ try:
 except Exception:
     sys.stderr.write("вывод eslint не разобран как JSON\n")
     raise SystemExit(3)
+# Знаменатель — ровно эти записи: один файл, который eslint разобрал, — одна запись.
+if os.environ.get("TS_SEEN"):
+    open(os.environ["TS_SEEN"], "w").write("%d" % len(data))
+# Правила ГЕЙТА, и считаются только они (свойство 4 в шапке). Пустой набор — не
+# фильтровать: порог задан проектом через LINT_TS_COMPLEXITY_RULES и разобрать его
+# нечем, а тихо обнулить счёт значило бы выдать непроверенное за чистое.
+try:
+    own = set(json.loads(os.environ.get("TS_RULES") or "{}"))
+except Exception:
+    own = set()
 root = os.getcwd().rstrip(os.sep) + os.sep
 counts, fatal = {}, []
 for entry in data:
@@ -106,6 +149,8 @@ for entry in data:
             head = (str(m.get("message", "")).splitlines() or [""])[0]
             fatal.append(path + ": " + head)
             continue
+        if own and m.get("ruleId") not in own:
+            continue          # правило проекта, не порог гейта
         counts[path] = counts.get(path, 0) + 1
 if fatal:
     sys.stderr.write("файлы НЕ разобраны — это не «ноль нарушений»:\n")
