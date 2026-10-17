@@ -49,4 +49,4 @@ or scoring».
 - [x] T2. Обновить R2: старый тест закреплял формулировку «violated interview rules»
 - [x] T3. Нейтральный к режиму текст `STRICT_REGENERATE` с комментарием о причине и долге
 - [x] T4. Гейты: `run_checks.sh`, `pre-commit run --all-files`
-- [x] T5. Отчёт verify, PR, мерж через `merge_guard`, архив и урок в `INDEX.md`
+- [ ] T5. Отчёт verify, PR, мерж через `merge_guard`, архив и урок в `INDEX.md`
