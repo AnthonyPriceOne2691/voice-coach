@@ -61,6 +61,26 @@
 Живой прогон на настоящей модели не проводился — инференс только с разрешения
 человека; поведение на модели — сигнал наблюдения (`observe_signal`).
 
+## Независимый прогон на handoff (2026-10-17)
+
+Сессия voice-interview-coach — не builder: поставку собрала сессия local-web-agent,
+передала её 17.10 и больше в репозитории не работает. Прогон на ветке, перенесённой
+на `main` `dac424a` (контур `delivery@2.01 · cqg@2.55`):
+
+| Проверка | Результат |
+|---|---|
+| дифф против mini-spec | правка ровно в `STRICT_REGENERATE` и двух тестах; R1–R3 покрыты, лишнего нет |
+| `pytest tests/test_turn_runner.py` | **8 passed** |
+| различение: `turn_runner.py` из `main` подставлен на место правки | **2 failed** (R1 `test_regenerate_hint_carries_no_interview_era_rules`, R2 `test_violation_on_first_sentence_regenerates`), 6 passed; правка возвращена `git checkout HEAD --` |
+| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — 213 passed, coverage 95.23%, mypy strict, ruff, размер модулей |
+
+## Verdict
+
+**READY FOR HANDOFF** — R1–R3 зелёные, различение подтверждено подстановкой прежнего
+текста дважды (builder и независимый прогон), машинные гейты зелёные по правилам
+delivery@2.01 · cqg@2.55. Поведение на настоящей модели — сигнал наблюдения до
+2026-11-07, не условие закрытия.
+
 ## Дайджест утверждений
 
 ## Assertion digest (ревью ожиданий, не кода)
@@ -94,13 +114,13 @@ asserts_reviewed_by: n/a (класс S — правило §3.1d уровня 3 
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 2 code (+2 process docs) / +58/-6 (net +52) |
-| commits | 1 |
+| files_touched / loc_diff | 2 code (+3 process docs) / +58/-6 (net +52) |
+| commits | 2 |
 | time_to_accepted_spec | n/a (no spec.md in history — class S?) |
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | no |
-| implement_retries | MANUAL — fills from session log |
-| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
-| est_token_or_cost | MANUAL / n/a |
+| implement_retries | n/a — журнал сессии builder (local-web-agent) этой сессии недоступен; в отчёте builder повторов реализации не записано |
+| verify_fails_before_green | 0 — локальные прогоны зелёные с первого раза в обеих сессиях (builder 17.10 и независимый прогон на dac424a); CI ветки — в PR |
+| est_token_or_cost | n/a |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.

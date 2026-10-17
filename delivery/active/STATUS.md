@@ -1,12 +1,15 @@
 # Active delivery status
 
 - **slug:** regenerate-mode-neutral
-- **stack:** delivery@2.00, cqg@2.51, okf@1.19
+- **stack:** delivery@2.01, cqg@2.55, okf@1.19
+  <!-- Ветка начата от main 24167fd (delivery@2.00, cqg@2.51) сессией local-web-agent и
+       перенесена на main dac424a после того, как перенос двух окон наблюдения (#24) и
+       обновление контура (#25) ушли в main: правила последней версии проверяют её на handoff. -->
 - **class:** S
 - **kind:** bugfix
 - **repro_test:** `backend/tests/test_turn_runner.py::test_regenerate_hint_carries_no_interview_era_rules` — до правки красный: `AssertionError: в подсказке перегенерации остался 'interview rules'`; вместе с ним краснеет обновлённый `test_violation_on_first_sentence_regenerates`
 - **diagnosis:** n/a reason=гипотез не было: дефект найден чтением кода при подготовке режима разговора — текст константы прямо противоречит контракту interview 2.0 и лимитам review, второй причины не искали, потому что расхождение видно в одной строке
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
@@ -16,6 +19,11 @@
 - **artifact_oracle:** n/a reason=правка текстовой константы бэкенда и тестов; фронт и сборка не затронуты
 - **ci-oracles:** tooling
 - **worktree:** none (S) — ветка fix/regenerate-mode-neutral в основном клоне
+- **parallel_sessions:** merge-guard
+  <!-- §5.1a: 17.10 над репозиторием работали две сессии (local-web-agent, затем
+       voice-interview-coach), и от main было отведено три ветки параллельно. Интеграция —
+       только через scripts/merge_guard.sh, по одной и на слитом состоянии: окна (#24),
+       контур (#25), затем эта поставка. -->
 - **hooks:** claude (scripts/hooks/)
 - **blockers:** none
 - **waivers:** none
