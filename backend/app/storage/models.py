@@ -25,20 +25,38 @@ class InterviewSession(Base):
     created_at: Mapped[str] = mapped_column(Text)
 
 
-class ReviewSession(Base):
+class SessionRecord:
+    """Общие колонки записи голосовой сессии: транскрипт пишется на каждом ходе (doc 12).
+
+    Вынесены, когда у разговора (D3a) появилась третья такая таблица: колонки
+    разбора и разговора совпадали подряд, и гейт DRY это поймал.
+    """
+
+    started_at: Mapped[str] = mapped_column(Text)
+    ended_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transcript_json: Mapped[str] = mapped_column(Text, default="[]")
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(Text, default="in_progress")
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class ReviewSession(SessionRecord, Base):
     __tablename__ = "review_sessions"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     source_interview_id: Mapped[str] = mapped_column(
         Text, ForeignKey("interview_sessions.id"), nullable=False
     )
-    started_at: Mapped[str] = mapped_column(Text)
-    ended_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     persona: Mapped[str] = mapped_column(Text, default="recruiter_friend")
-    transcript_json: Mapped[str] = mapped_column(Text, default="[]")
-    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
-    status: Mapped[str] = mapped_column(Text, default="in_progress")
-    created_at: Mapped[str] = mapped_column(Text)
+
+
+class TalkSession(SessionRecord, Base):
+    """Разговор с Генри (D3a) — своя таблица: не интервью, разбора и сводки у него нет."""
+
+    __tablename__ = "talk_sessions"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    persona: Mapped[str] = mapped_column(Text, default="friend_mentor")
 
 
 class VocabularyEntry(Base):

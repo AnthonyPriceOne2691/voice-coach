@@ -7,6 +7,7 @@ import contextlib
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -17,11 +18,18 @@ from app.contracts.enforcer import TurnContext
 from app.llm.ollama_client import OllamaError
 from app.orchestrator import meta_request, pace
 from app.orchestrator.review import build_segments
+from app.orchestrator.talk import TalkPlan
 from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
 from app.voice.prosody import lead_in
 from app.voice.review_flow import ReviewFlow
-from app.voice.session_factory import build_interview_flow, build_review_flow, mode_params
+from app.voice.session_factory import (
+    build_interview_flow,
+    build_review_flow,
+    build_talk_flow,
+    mode_params,
+)
+from app.voice.talk_flow import TalkFlow
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
 from app.voice.tts_paced import PacedTts
 from app.voice.turn_runner import AgentCompleted, AgentSentence, TurnRunner
@@ -46,7 +54,7 @@ _PACE_TEMPLATES = {
     (pace.PaceRequest.FASTER, True): "pace_fastest",
 }
 
-VoiceFlow = InterviewFlow | ReviewFlow
+VoiceFlow = InterviewFlow | ReviewFlow | TalkFlow
 
 
 #: Сколько ждём уборку сессии, если клиент отвалился. Секунды, не минуты: это
@@ -114,6 +122,8 @@ class _SessionHandler:
             await self._on_start_interview()
         elif msg_type == "start_review":
             await self._on_start_review(str(payload.get("interview_id", "")))
+        elif msg_type == "start_talk":
+            await self._on_start_talk()
         elif msg_type == "utterance_end":
             await self._on_utterance_end(payload)
         elif msg_type == "end_session":
@@ -168,17 +178,26 @@ class _SessionHandler:
         self._restore_pace(user_settings)
         duration = int(user_settings.get("interview_duration_min", 15))
         flow = build_interview_flow(self._c, duration_min=duration)
-        self._flow, self._kind = flow, "interview"
-        self._started_at = time.monotonic()
-        await self._send(
-            "session_started", {"session_kind": "interview", "session_id": flow.session_id}
-        )
         intro = self._c.prompts.template("interview_intro")
+        await self._open(flow, "interview", intro, lambda: flow.start(intro))
+
+    async def _on_start_talk(self) -> None:
+        self._restore_pace(await self._c.user_settings.get_all())
+        flow = build_talk_flow(self._c)
+        await self._open(flow, "talk", " ".join(flow.current_plan.lines), flow.start)
+
+    async def _open(
+        self, flow: VoiceFlow, kind: str, line: str, start: Callable[[], Awaitable[Any]]
+    ) -> None:
+        """Сессия, которую открывает реплика кода: интервью и разговор."""
+        self._flow, self._kind = flow, kind
+        self._started_at = time.monotonic()
+        await self._send("session_started", {"session_kind": kind, "session_id": flow.session_id})
         await self._state("speaking")
-        await self._send_audio(await self._tts.synthesize(intro), final=False)
-        await flow.start(intro)
+        await self._send_audio(await self._tts.synthesize(line), final=False)
+        await start()
         self._start_warmup()
-        await self._transcript("agent", intro)
+        await self._transcript("agent", line)
         await self._send_audio(b"", final=True)
         await self._state("listening")
 
@@ -255,7 +274,7 @@ class _SessionHandler:
         # Просьба о темпе перехватывается ДО оркестратора. Иначе она уходит в
         # `on_user_answer` как ответ, тратит follow-up или целый вопрос из шести
         # и оседает в транскрипте против чужого question_id.
-        request = pace.detect(text)
+        request = pace.detect(text, casual=isinstance(flow, TalkFlow))  # разговор: по форме
         if request is not None:
             await self._handle_pace_request(flow, text, request)
             return
@@ -273,6 +292,10 @@ class _SessionHandler:
 
         plan = await flow.on_user(text)
         await self._transcript("user", text)
+
+        if isinstance(flow, TalkFlow) and isinstance(plan, TalkPlan) and plan.lines:
+            await self._speak_plan(flow, plan)
+            return
 
         if plan.state.value in TERMINAL_STATES:
             await self._state("speaking")
@@ -304,15 +327,33 @@ class _SessionHandler:
 
     async def _speak_meta_turn(self, flow: VoiceFlow, text: str, lines: list[str]) -> None:
         """Произнести мета-ход и записать его вне вопросов интервью (P9)."""
-        spoken = [line for line in lines if line]
         await self._transcript("user", text)
+        spoken = await self._speak(lines)
+        await flow.on_meta(text, spoken)
+        await self._transcript("agent", spoken)
+        await self._send_audio(b"", final=True)
+        await self._state("listening")
+
+    async def _speak_plan(self, flow: TalkFlow, plan: TalkPlan) -> None:
+        """Ход разговора, который говорит код: тема, отказ, прощание (D3a)."""
+        lines = list(plan.lines)
+        if plan.repeat_question:
+            lines.append(meta_request.last_question(last_agent_text(flow.buffer)))
+        spoken = await self._speak(lines)
+        await flow.on_spoken(spoken)
+        await self._transcript("agent", spoken)
+        await self._send_audio(b"", final=True)
+        if plan.finished:
+            await self._finish_naturally(flow)
+        else:
+            await self._state("listening")
+
+    async def _speak(self, lines: list[str]) -> str:
+        spoken = [line for line in lines if line]
         await self._state("speaking")
         for line in spoken:
             await self._send_audio(await self._tts.synthesize(line), final=False)
-        await flow.on_meta(text, " ".join(spoken))
-        await self._transcript("agent", " ".join(spoken))
-        await self._send_audio(b"", final=True)
-        await self._state("listening")
+        return " ".join(spoken)
 
     async def _agent_generation(self, flow: VoiceFlow, plan: Any) -> None:
         params, enforcer = mode_params(self._c, self._kind)
@@ -349,7 +390,9 @@ class _SessionHandler:
     async def _finish_naturally(self, flow: VoiceFlow) -> None:
         await self._cancel_warmup()
         await flow.finish(status="completed")
-        next_action = "offer_review" if self._kind == "interview" else "generate_summary"
+        next_action = {"interview": "offer_review", "review": "generate_summary"}.get(
+            self._kind, "none"
+        )
         await self._session_ended(flow, reason="finished", next_action=next_action)
         if isinstance(flow, ReviewFlow):
             self._c.summaries.schedule_full(flow.source_interview_id, flow.session_id)

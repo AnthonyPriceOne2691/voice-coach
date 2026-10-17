@@ -9,10 +9,12 @@ from app.contracts.spec import load_contract
 from app.knowledge.prompts import PromptLibrary
 from app.llm.ollama_client import OllamaClient
 from app.orchestrator.question_bank import Question, load_bank
+from app.orchestrator.talk import TalkScript, load_script
 from app.storage.db import Database
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.settings_repo import SettingsRepository
+from app.storage.repositories.talks import TalkRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.summary.service import SummaryService
 from app.voice.audio import FfmpegDecoder
@@ -35,6 +37,9 @@ class Container:
     user_settings: SettingsRepository
     interview_enforcer: ContractEnforcer
     review_enforcer: ContractEnforcer
+    talks: TalkRepository
+    talk_enforcer: ContractEnforcer
+    talk_script: TalkScript
     question_bank: list[Question]
     behavioral_bank: list[Question]
     summaries: SummaryService
@@ -69,6 +74,11 @@ def build_container(settings: Settings) -> Container:
         review_enforcer=ContractEnforcer(
             load_contract(settings.contracts_dir / "review.contract.yaml")
         ),
+        talks=TalkRepository(db),
+        talk_enforcer=ContractEnforcer(
+            load_contract(settings.contracts_dir / "talk.contract.yaml")
+        ),
+        talk_script=load_script(settings.talk_dir / "talk.yaml"),
         question_bank=load_bank(settings.questions_dir / "technical_project_walkthrough.yaml"),
         behavioral_bank=load_bank(settings.questions_dir / "behavioral.yaml"),
         summaries=SummaryService(

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     interview_max_tokens: int = 220
     review_temperature: float = 0.6
     review_max_tokens: int = 300
+    talk_temperature: float = 0.8  # разговор (D3a): живее интервью, та же модель (D-8)
+    talk_max_tokens: int = 200  # 4 предложения ≤ 450 символов (G3-H1/H2) с запасом
     summary_temperature: float = 0.3
     summary_max_tokens: int = 4096  # R1: thinking included (doc 20)
     summary_num_ctx: int = 16384  # two full transcripts don't fit 8192 (doc 20)
@@ -48,6 +50,7 @@ class Settings(BaseSettings):
     sessions_dir: Path = REPO_ROOT / "data" / "sessions"
     contracts_dir: Path = REPO_ROOT / "data" / "contracts"
     questions_dir: Path = REPO_ROOT / "data" / "questions"
+    talk_dir: Path = REPO_ROOT / "data" / "talk"
 
     min_transcript_words: int = 1  # после junk-фильтра; «Hello» — валидная реплика
 
