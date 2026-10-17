@@ -28,6 +28,8 @@ interface FakeSocket {
 }
 
 let socket: FakeSocket | null = null;
+/** Типы сообщений, которые хук отправил серверу, по порядку. */
+let sent: string[] = [];
 
 function domError(name: string): Error {
   const error = new Error(name);
@@ -73,7 +75,9 @@ function stubEnvironment(
       onopen: unknown = null;
       onerror: unknown = null;
       onclose: unknown = null;
-      send = () => undefined;
+      send = (data: string) => {
+        sent.push((JSON.parse(data) as { type: string }).type);
+      };
       close = () => undefined;
       constructor() {
         socket = this as unknown as FakeSocket;
@@ -141,6 +145,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   socket = null;
+  sent = [];
 });
 
 describe("useVoiceSession · выбранный микрофон", () => {
@@ -202,5 +207,26 @@ describe("useVoiceSession · порог тишины из Settings", () => {
     expect(vad.stop).not.toHaveBeenCalled();
     vad.run(POLL_MS);
     expect(vad.stop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useVoiceSession · вид сессии выбирает стартовое сообщение", () => {
+  it.each([
+    { name: "интервью — по умолчанию", mode: undefined, first: "start_interview" },
+    { name: "разговор (T1)", mode: { kind: "talk" } as const, first: "start_talk" },
+    {
+      name: "разбор",
+      mode: { kind: "review", interviewId: "int-1" } as const,
+      first: "start_review",
+    },
+  ])("$name → $first", async ({ mode, first }) => {
+    stubEnvironment(vi.fn(() => Promise.resolve(fakeStream())));
+    const { result } = renderHook(() => useVoiceSession());
+
+    await act(() => result.current.start(mode));
+    act(() => (socket as unknown as { onopen: () => void }).onopen());
+
+    expect(sent).toEqual(["hello", first]);
+    act(() => result.current.end());
   });
 });
