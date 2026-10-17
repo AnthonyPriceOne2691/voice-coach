@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app import __version__
+from app.common.interfaces import ChatMessage
 from app.container import Container
 from app.contracts.enforcer import TurnContext
 from app.llm.ollama_client import OllamaError
@@ -196,7 +197,7 @@ class _SessionHandler:
         await self._state("speaking")
         await self._send_audio(await self._tts.synthesize(line), final=False)
         await start()
-        self._start_warmup()
+        self._start_warmup(flow.messages)  # префикс сессии — в кэш, пока звучит приветствие
         await self._transcript("agent", line)
         await self._send_audio(b"", final=True)
         await self._state("listening")
@@ -423,9 +424,10 @@ class _SessionHandler:
 
     # -- plumbing --------------------------------------------------------------------
 
-    def _start_warmup(self) -> None:
+    def _start_warmup(self, messages: list[ChatMessage] | None = None) -> None:
+        model = self._c.settings.ollama_model_interview
         self._warmup_task = asyncio.create_task(
-            warm_up(self._c.stt, self._c.llm, model=self._c.settings.ollama_model_interview)
+            warm_up(self._c.stt, self._c.llm, model=model, messages=messages)
         )
 
     async def _send(self, msg_type: str, payload: dict[str, Any]) -> None:
