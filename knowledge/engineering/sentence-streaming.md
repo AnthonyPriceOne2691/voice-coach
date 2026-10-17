@@ -12,6 +12,7 @@ implementation:
   - backend/app/voice/interview_flow.py
   - backend/app/voice/review_flow.py
   - backend/app/voice/talk_flow.py
+  - backend/app/voice/warmup.py
   - backend/app/contracts/enforcer.py
   - frontend/src/lib/audioQueue.ts
 ---
@@ -46,6 +47,11 @@ implementation:
   енфорсер на каждом предложении. Своё у него — окно истории ступенькой
   (`talk_flow.py`): префикс промпта для KV-кэша меняется раз в 20 сообщений, а не
   на каждом ходе, иначе окно съело бы выигрыш prefill (doc 20).
+- **Прогревать префикс, а не модель.** Прогрев «hi» грузит веса и не кэширует ничего:
+  первый ход платит полный prefill системного промпта с профилем после реплики
+  человека — замер 2026-10-17: 8,763 ms до первого звука при гейте 3,000, тёплые
+  ходы — ~1.7 s. Сессия, открытая репликой кода, прогревает СВОИ сообщения
+  (системный промпт и приветствие), пока приветствие звучит (`voice/warmup.py`).
 - **Темп речи — параметр каждого синтеза, а не константа процесса.** `length_scale`
   живёт на шве `TextToSpeech` и приходит от сессии (`PacedTts`), потому что
   пользователь меняет его голосом на лету (doc 04, мета-ходы). Голосовая модель
@@ -66,6 +72,7 @@ implementation:
 | Синтез | `backend/app/voice/tts_piper.py` |
 | Темп сессии | `backend/app/voice/tts_paced.py` |
 | Дыхание между предложениями | `backend/app/voice/prosody.py` |
+| Прогрев префикса сессии | `backend/app/voice/warmup.py` |
 | Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py`, `backend/app/voice/talk_flow.py` |
 | Per-sentence контракты | `backend/app/contracts/enforcer.py` |
 | Проигрывание на клиенте | `frontend/src/lib/audioQueue.ts` |
