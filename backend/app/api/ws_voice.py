@@ -4,20 +4,16 @@ import asyncio
 import base64
 import binascii
 import contextlib
-import io
 import json
 import logging
-import tempfile
 import time
-import wave
-from pathlib import Path
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app import __version__
 from app.container import Container
-from app.contracts.enforcer import ContractEnforcer, TurnContext
+from app.contracts.enforcer import TurnContext
 from app.llm.ollama_client import OllamaError
 from app.orchestrator import meta_request, pace
 from app.orchestrator.review import build_segments
@@ -25,10 +21,11 @@ from app.storage.turns import last_agent_text
 from app.voice.interview_flow import InterviewFlow
 from app.voice.prosody import lead_in
 from app.voice.review_flow import ReviewFlow
-from app.voice.session_factory import build_interview_flow, build_review_flow
+from app.voice.session_factory import build_interview_flow, build_review_flow, mode_params
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
 from app.voice.tts_paced import PacedTts
-from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
+from app.voice.turn_runner import AgentCompleted, AgentSentence, TurnRunner
+from app.voice.warmup import warm_up
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +47,6 @@ _PACE_TEMPLATES = {
 }
 
 VoiceFlow = InterviewFlow | ReviewFlow
-
-
-def _silent_wav(duration_s: float = 1.0, rate: int = 16000) -> bytes:
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)
-        wav_file.setframerate(rate)
-        wav_file.writeframes(b"\x00\x00" * int(duration_s * rate))
-    return buffer.getvalue()
 
 
 #: Сколько ждём уборку сессии, если клиент отвалился. Секунды, не минуты: это
@@ -190,7 +177,7 @@ class _SessionHandler:
         await self._state("speaking")
         await self._send_audio(await self._tts.synthesize(intro), final=False)
         await flow.start(intro)
-        self._warmup_task = asyncio.create_task(self._warmup())
+        self._start_warmup()
         await self._transcript("agent", intro)
         await self._send_audio(b"", final=True)
         await self._state("listening")
@@ -215,7 +202,7 @@ class _SessionHandler:
         await self._send(
             "session_started", {"session_kind": "review", "session_id": flow.session_id}
         )
-        self._warmup_task = asyncio.create_task(self._warmup())
+        self._start_warmup()
         await self._state("processing")
         await self._agent_generation(flow, flow.current_plan)
 
@@ -328,7 +315,7 @@ class _SessionHandler:
         await self._state("listening")
 
     async def _agent_generation(self, flow: VoiceFlow, plan: Any) -> None:
-        params, enforcer = self._mode_params()
+        params, enforcer = mode_params(self._c, self._kind)
         ctx = TurnContext(state=plan.state.value)
         if isinstance(flow, ReviewFlow):
             ctx = TurnContext(
@@ -356,26 +343,6 @@ class _SessionHandler:
                 await self._transcript("agent", event.text)
                 await self._send_audio(b"", final=True)
                 await self._state("listening")
-
-    def _mode_params(self) -> tuple[LlmParams, ContractEnforcer]:
-        settings = self._c.settings
-        if self._kind == "review":
-            return (
-                LlmParams(
-                    model=settings.ollama_model_interview,  # D-8: Qwen for all voice
-                    temperature=settings.review_temperature,
-                    max_tokens=settings.review_max_tokens,
-                ),
-                self._c.review_enforcer,
-            )
-        return (
-            LlmParams(
-                model=settings.ollama_model_interview,
-                temperature=settings.interview_temperature,
-                max_tokens=settings.interview_max_tokens,
-            ),
-            self._c.interview_enforcer,
-        )
 
     # -- session end ---------------------------------------------------------------
 
@@ -413,25 +380,10 @@ class _SessionHandler:
 
     # -- plumbing --------------------------------------------------------------------
 
-    async def _warmup(self) -> None:
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
-                wav_path = Path(tmp) / "warmup.wav"
-                wav_path.write_bytes(_silent_wav())
-                await self._c.stt.transcribe(wav_path)
-        except Exception:
-            logger.warning("STT warmup failed", exc_info=True)
-        try:
-            settings = self._c.settings
-            async for _ in self._c.llm.stream_chat(
-                [{"role": "user", "content": "hi"}],
-                model=settings.ollama_model_interview,
-                temperature=0.0,
-                max_tokens=1,
-            ):
-                break
-        except Exception:
-            logger.warning("LLM warmup failed", exc_info=True)
+    def _start_warmup(self) -> None:
+        self._warmup_task = asyncio.create_task(
+            warm_up(self._c.stt, self._c.llm, model=self._c.settings.ollama_model_interview)
+        )
 
     async def _send(self, msg_type: str, payload: dict[str, Any]) -> None:
         # Проверки «а жив ли клиент» здесь СОЗНАТЕЛЬНО нет, и это замер, а не

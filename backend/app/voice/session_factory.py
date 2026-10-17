@@ -9,11 +9,13 @@ import random
 import uuid
 
 from app.container import Container
+from app.contracts.enforcer import ContractEnforcer
 from app.orchestrator.interview import InterviewOrchestrator
 from app.orchestrator.question_bank import pick_session_pool
 from app.orchestrator.review import QASegment, ReviewOrchestrator, render_segments
 from app.voice.interview_flow import InterviewFlow
 from app.voice.review_flow import ReviewFlow
+from app.voice.turn_runner import LlmParams
 
 QUESTIONS_PER_SESSION = 6
 
@@ -57,3 +59,17 @@ def build_review_flow(
         container.prompts.review_system(render_segments(segments)),
         container.reviews,
     )
+
+
+def mode_params(container: Container, kind: str) -> tuple[LlmParams, ContractEnforcer]:
+    """Параметры модели и контракт режима. D-8: весь голос — одна модель (qwen2.5)."""
+    s = container.settings
+    temperature, max_tokens, enforcer = {
+        "interview": (
+            s.interview_temperature,
+            s.interview_max_tokens,
+            container.interview_enforcer,
+        ),
+        "review": (s.review_temperature, s.review_max_tokens, container.review_enforcer),
+    }[kind]
+    return LlmParams(s.ollama_model_interview, temperature, max_tokens), enforcer
