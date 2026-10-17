@@ -74,6 +74,7 @@ def test_topic_change_picks_a_topic_not_heard_yet(said: str) -> None:
 
 
 def test_topics_never_run_out() -> None:
+    """T3: банк тем не кончается, и тема не повторяется подряд."""
     talk = _talk()
     talk.intro_plan()
     openers = [talk.on_user("Change the topic, please.").lines[1] for _ in range(7)]
@@ -145,6 +146,10 @@ def test_words_without_the_shape_of_a_request_stay_talk(said: str) -> None:
 
 
 def test_after_the_time_limit_henry_says_goodbye() -> None:
+    """T8: прощание — решение кода; кроме «bye» его запускает потолок 20 минут.
+
+    Потолок — из подписанной спеки («Что меняется», п. 2); до него реплика — беседа (T2).
+    """
     clock = Clock()
     talk = _talk(clock)
     talk.intro_plan()
@@ -169,7 +174,10 @@ def test_the_real_script_has_every_line_and_a_bank_of_topics() -> None:
 
 
 def test_every_scripted_line_survives_the_talk_contract() -> None:
-    """Реплики сценария звучат дословно, мимо енфорсера, — значит, судятся здесь."""
+    """T6, T7: реплики сценария — по-английски и без оценок.
+
+    Они звучат дословно, мимо енфорсера, — значит, судятся здесь.
+    """
     script = load_script(REPO_ROOT / "data" / "talk" / "talk.yaml")
     talk = ContractEnforcer(load_contract(REPO_ROOT / "data" / "contracts" / "talk.contract.yaml"))
     lines = [*script.lines.values(), *(o for openers in script.topics.values() for o in openers)]

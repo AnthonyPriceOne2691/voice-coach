@@ -59,7 +59,7 @@ def test_long_utterance_is_never_a_request_even_if_it_says_slower() -> None:
 
 
 def test_the_interview_detector_would_take_a_story_for_a_request() -> None:
-    """Почему разговору нужна своя таблица: в интервью короткий рассказ — редкость."""
+    """T4: почему разговору нужна своя таблица — в интервью короткий рассказ редкость."""
     assert detect("It was a slow day.") is PaceRequest.SLOWER
 
 
@@ -85,6 +85,7 @@ def test_the_interview_detector_would_take_a_story_for_a_request() -> None:
 def test_in_talk_only_the_shape_of_a_request_changes_the_pace(
     utterance: str, expected: PaceRequest | None
 ) -> None:
+    """T4, T5: в разговоре темп меняет только форма просьбы, а не слово о скорости."""
     assert detect(utterance, casual=True) is expected
 
 
