@@ -7,4 +7,4 @@
       `talk_system.txt`; тест T6 на контракт, реплики сценария проходят контракт
 - [x] W4. Doc 13; концепт `orchestrator-owns-structure`; реестр исполнителей
 - [x] W5. Гейты, предохранитель объёма, `eval-smoke.md`, `verify-report.md`
-- [ ] W6. PR, CI, `merge_guard`, архив
+- [x] W6. PR, CI, `merge_guard`, архив
