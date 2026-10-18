@@ -204,19 +204,19 @@ repos:
       - id: silent-except-gate
         name: silent-except — broad-except без raise/лога (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule silent-except'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; P=""; for c in "${LINT_BE_DIR:-backend}/${LINT_VENV:-.venv}/bin/python" "${LINT_VENV:-.venv}/bin/python" "backend/.venv/bin/python"; do [ -x "$c" ] && { P="$c"; break; }; done; [ -n "$P" ] || P="$(command -v python3)"; "$P" scripts/lint/check_ast_gate.py --rule silent-except'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: inline-prompt-gate
         name: inline-prompt — LLM-промпт инлайном в .py (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule inline-prompt'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; P=""; for c in "${LINT_BE_DIR:-backend}/${LINT_VENV:-.venv}/bin/python" "${LINT_VENV:-.venv}/bin/python" "backend/.venv/bin/python"; do [ -x "$c" ] && { P="$c"; break; }; done; [ -n "$P" ] || P="$(command -v python3)"; "$P" scripts/lint/check_ast_gate.py --rule inline-prompt'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
       - id: cpu-in-async-gate
         name: cpu-in-async — разбор/регулярка в цикле внутри async def (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule cpu-in-async'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; P=""; for c in "${LINT_BE_DIR:-backend}/${LINT_VENV:-.venv}/bin/python" "${LINT_VENV:-.venv}/bin/python" "backend/.venv/bin/python"; do [ -x "$c" ] && { P="$c"; break; }; done; [ -n "$P" ] || P="$(command -v python3)"; "$P" scripts/lint/check_ast_gate.py --rule cpu-in-async'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
@@ -228,7 +228,7 @@ repos:
       - id: unbounded-list-gate
         name: unbounded-list — эндпоинт отдаёт список без границы (AST)
         language: system
-        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" && backend/.venv/bin/python scripts/lint/check_ast_gate.py --rule unbounded-list'
+        entry: env LINT_PY_SRC=backend/app bash -c 'cd "$(git rev-parse --show-toplevel)" || exit 1; P=""; for c in "${LINT_BE_DIR:-backend}/${LINT_VENV:-.venv}/bin/python" "${LINT_VENV:-.venv}/bin/python" "backend/.venv/bin/python"; do [ -x "$c" ] && { P="$c"; break; }; done; [ -n "$P" ] || P="$(command -v python3)"; "$P" scripts/lint/check_ast_gate.py --rule unbounded-list'
         files: ^(backend/.*\.py|pyproject\.toml|setup\.cfg|\.pre-commit-config\.yaml|scripts/lint/.*)$
         pass_filenames: false
 
@@ -389,7 +389,7 @@ repos:
         # один токен. CI при этом судит тот же блок против `origin/main`
         # (`BASE: origin/${{ github.base_ref }}` в quality.yml) и зелёный —
         # то есть два оракула на одном правиле расходились по базе.
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"'
+        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'b(){ git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null && return 0; for c in origin/main origin/master; do git rev-parse --verify --quiet "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }; done; echo origin/main; }; PY=$(command -v python3 || command -v python); "$PY" scripts/delivery_check.py --diff-base "$(b)"'
         language: system
         stages: [pre-push]
         pass_filenames: false
@@ -401,11 +401,14 @@ repos:
         pass_filenames: false
       # Гейт, который исполняется только в CI, — не автоматика, а украшение: на
       # проекте без раннера он не срабатывал НИ РАЗУ (lab-12). Замер: 0.06 c на
-      # манифест — бюджет §8.6 (≤10 c) он не трогает. База — тот же upstream-ref,
-      # что у delivery-gate: судить надо то, что уедет в push.
+      # манифест — бюджет §8.6 (≤10 c) он не трогает. База — та же ЦЕЛЬ МЕРЖА, что
+      # у delivery-gate: вопрос «вносит ли ПОСТАВКА необъявленную зависимость», а
+      # не «внёс ли её последний push». По `@{u}` зависимость, добавленную первым
+      # push'ом, следующие уже не видят — и объявление можно снять из STATUS
+      # безнаказанно (`cqg@2.05`; здесь портировано 18.10, до того жил `@{u}`).
       - id: new-dependency
         name: новая зависимость объявлена в STATUS (pre-push)
-        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'PY=$(command -v python3 || command -v python); BASE="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo origin/main)" "$PY" scripts/lint/check_new_dependency.py'
+        entry: env LINT_PY_SRC=backend/app LINT_COV_PKG=app LINT_FE_DIR=frontend LINT_BE_DIR=backend bash -c 'b(){ git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null && return 0; for c in origin/main origin/master; do git rev-parse --verify --quiet "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }; done; echo origin/main; }; PY=$(command -v python3 || command -v python); BASE="$(b)" "$PY" scripts/lint/check_new_dependency.py'
         language: system
         stages: [pre-push]
         pass_filenames: false
