@@ -120,7 +120,13 @@ jobs:
           missing=""; checked=""
           expect() { skip "$1" || { checked="$checked $1"; have "$1" || missing="$missing $1"; }; }
           expect detect-secrets
-          if ls **/pyproject.toml **/requirements*.txt >/dev/null 2>&1; then
+          # ⚠ Условие идёт через `grep -q .`, а не через код возврата `ls`: `ls A B`
+          # при существующем A и отсутствующем B выходит ЕДИНИЦЕЙ (замер: rc=1),
+          # поэтому прежняя форма `ls **/pyproject.toml **/requirements*.txt`
+          # на pyproject-проекте БЕЗ requirements.txt (uv/poetry — тот же случай,
+          # что lab-11 F9) не ожидала ни ruff, ни mypy. Шаг, заведённый против
+          # тихого пропуска, сам уходил в тихий пропуск.
+          if ls pyproject.toml */pyproject.toml requirements*.txt */requirements*.txt 2>/dev/null | grep -q .; then
             expect ruff; expect mypy
           fi
           if [ -f package.json ] || [ -f "$LINT_FE_DIR/package.json" ]; then
@@ -154,9 +160,32 @@ jobs:
         if: always()
         run: bash scripts/lint/check_gate_coverage.sh
 
+      # ⚠ Третий из трёх РАЗНЫХ вопросов §5 шаг 5: вписаны ли гейты · зелены ли
+      # вписанные · СУДЯТ ли вписанные. Третий тут не стоял, и это была не
+      # мелочь: в GitLab-адаптере (§8.3a) доктор был, в этом workflow — нет,
+      # то есть у инструмента был постоянный исполнитель на одном хостинге и не
+      # было на другом. А канон сам требует (карта §7.1): `auto` — это про
+      # постоянного исполнителя, а не про существование команды. Значит все
+      # вердикты доктора — расхождение конфига со снимком, слепые гейты,
+      # разъехавшиеся записи о версии — на GitHub-проекте читал только тот, кто
+      # вспомнит запустить руками. Асимметрию внёс `cqg@2.01` и не заметил.
+      #
+      # `DEAD` роняет шаг, `WEAK`/`ABSENT`/`SKIP` — нет: доктор красен ровно
+      # тогда, когда объявленная проверка молчит на своём же нарушении.
+      # Замер цены: 4.7–5.5 с против двадцатиминутного бюджета джобы.
+      - name: Contour doctor (гейты не только вписаны, но и судят)
+        if: always()
+        run: python3 scripts/lint/contour_doctor.py
+
       - name: Baseline ratchet (снимки только вниз)
         if: always()
         run: bash scripts/lint/check_baseline_ratchet.sh
+
+      # Новая прямая зависимость обязана быть объявлена решением в STATUS.
+      # Здесь, а не на коммите: нужен remote-ref для сравнения манифестов.
+      - name: New dependency declared
+        if: always()
+        run: python scripts/lint/check_new_dependency.py
 
       # Сьют идёт здесь ОДИН раз — если у проекта нет своей джобы тестов. Есть
       # (`ci.yml` с pytest) — второй прогон ради покрытия это двойная работа
@@ -296,4 +325,84 @@ jobs:
             python scripts/okf_validate.py knowledge/
           else
             echo "no OKF bundle — skip"
+          fi
+
+      # Строка приёмки §6 «Payload самих канонов не сломан» помечена `auto`, а
+      # `auto` по легенде §6 — «прибито скриптом», НЕ «есть команда, которую надо
+      # не забыть набрать». До версии cqg@1.31 самопроверка вызывалась только из
+      # чеклиста самой приёмки, то есть исполнителем был человек, читающий §6, —
+      # и строка закрывалась заявлением (F7 восьмого развёртывания). §7.1 объявляет
+      # вариант C дефолтом, но шага, который его исполняет, не было ни здесь, ни
+      # в десяти шагах §5.
+      # PyYAML ставится ЯВНО и до прогона: без парсера yaml-блоки проверяются
+      # только на табы, самопроверка печатает «0 failures», и битый конфиг
+      # проходит молча — реальный случай `stack-map@1.32` (`.pre-commit-config.yaml`
+      # не парсился целиком, pre-commit не стартовал ни одним хуком).
+      - name: Canon payload selftest (§7.1)
+        if: always()
+        run: |
+          pip install PyYAML
+          # Сверка записи со снимком. Сам selftest этого не ловит: он сверяет шапки
+          # снимка с таблицей §1 ТОГО ЖЕ снимка, то есть сам с собой, — поэтому
+          # «снимок отстал от upstream» изнутри проекта невидимо (lab-9 №3).
+          # Здесь проверяется то, что изнутри видно: `stack:` в STATUS обязан
+          # называть версии, которые в снимке реально лежат.
+          if [ -d docs/canon ] && [ -f delivery/active/STATUS.md ]; then
+            python - <<'CHECK'
+          import re, pathlib, sys
+          status = pathlib.Path("delivery/active/STATUS.md").read_text(encoding="utf-8")
+          m = re.search(r"(?m)^\s*[-*]?\s*\**stack\**\s*:\s*(.+)$", status)
+          if not m:
+              print("нет строки stack: в STATUS — сверять не с чем"); sys.exit(0)
+          claimed = dict(re.findall(r"([a-z]+)@([\d.]+)", m.group(1)))
+          bad = []
+          for layer, f in (("delivery", "AGENT_DELIVERY_HARNESS.md"),
+                           ("cqg", "CODE_QUALITY_GATES.md"),
+                           ("okf", "OKF_KNOWLEDGE_BUNDLE.md")):
+              p = pathlib.Path("docs/canon") / f
+              if layer not in claimed or not p.is_file():
+                  continue
+              h = re.search(r"\*\*Canon version:\*\*\s*`[a-z]+@([\d.]+)`",
+                            p.read_text(encoding="utf-8"))
+              if h and h.group(1) != claimed[layer]:
+                  bad.append(f"{layer}: STATUS says {claimed[layer]}, snapshot has {h.group(1)}")
+          if bad:
+              print("::error::snapshot drifted from STATUS (AGENT_STACK §7.1):")
+              for b in bad:
+                  print("::error::" + b)
+              sys.exit(1)
+          print("stack: в STATUS совпадает со снимком docs/canon/")
+          CHECK
+          fi
+          if [ -f docs/canon/stack_selftest.py ]; then
+            python docs/canon/stack_selftest.py docs/canon     # вариант C (дефолт)
+          elif [ -f stack_selftest.py ]; then
+            python stack_selftest.py .                         # вариант A
+          elif [ -d docs/canon ]; then
+            echo "::error::docs/canon/ есть, а stack_selftest.py в снимке нет:"
+            echo "::error::снимок неполон, проверять payload нечем (§7.1 вариант C, §5 шаг 11)"
+            exit 1
+          elif grep -qs 'stack-selftest:' delivery/STACK-ACCEPTANCE.md delivery/active/STATUS.md; then
+            # Вариант B/D законен: каноны лежат вне репо, в CI их физически нет.
+            # Но §7.1 требует ЗАПИСАТЬ это — иначе инвариант выглядит покрытым,
+            # хотя не покрыт ничем. До cqg@1.31 правило держалось на честности
+            # исполнителя.
+            #
+            # ⚠ Источников ДВА, и порядок несущий: `STACK-ACCEPTANCE.md` первым.
+            # Объявление — свойство РЕПОЗИТОРИЯ, а `delivery/active/STATUS.md`
+            # живёт одну поставку: на handoff он уезжает в архив (§2.3a), и
+            # строка исчезает вместе с ним. Замер `ahrefs-cases` (уроки L7, L16)
+            # — дважды: сначала строка не переехала между срезами и уронила CI,
+            # потом поставка ушла в архив, и CI покраснел СНОВА, уже без всякой
+            # ошибки исполнителя. Третий случай нашла соседняя сессия 01.10 в
+            # `outreach-donors` ДО того, как он случился: первый же срез продаж
+            # заменил бы STATUS и уронил бы прогон.
+            echo "каноны вне репо — вариант B/D; объявление найдено, инвариант назван"
+          else
+            echo "::error::снимка канонов в репо нет, и строки stack-selftest: нет НИ В ОДНОМ"
+            echo "::error::из двух мест: delivery/STACK-ACCEPTANCE.md (постоянное) или"
+            echo "::error::delivery/active/STATUS.md (живёт одну поставку)."
+            echo "::error::Разверни вариант C (§5 шаг 11) или объяви B/D:"
+            echo "::error::stack-selftest: external (<путь>) — лучше в STACK-ACCEPTANCE."
+            exit 1
           fi

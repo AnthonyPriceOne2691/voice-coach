@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from delivery_base import (ACTIVE, ActiveCtx, field, is_placeholder,
+from delivery_base import (ActiveCtx, field, is_placeholder,
                            list_entries, read, unfilled, verdict_blocks)
 from delivery_artifact import (check_artifact_oracle,
                                check_weak_names_the_cheap_gap)
@@ -35,7 +35,7 @@ def check_diagnosis(status: str, ctx: ActiveCtx, kind: str, phase: str,
         "handoff",
     }:
         diag = field(status, "diagnosis")
-        diag_file = ACTIVE / "diagnosis.md"
+        diag_file = ctx.home / "diagnosis.md"
         if is_placeholder(diag):
             errors.append(
                 f"kind={kind.split()[0]} at verify+: missing diagnosis (§12.1) "
@@ -79,7 +79,7 @@ def check_escalation(status: str, ctx: ActiveCtx, phase: str,
         "нет",
         "n/a",
     }:
-        esc = ACTIVE / "escalation.md"
+        esc = ctx.home / "escalation.md"
         if not esc.is_file():
             errors.append(
                 f"blockers непусты ({blockers[:50]}), а active/escalation.md "
@@ -130,6 +130,14 @@ def check_escalation(status: str, ctx: ActiveCtx, phase: str,
                 )
 
 
+#: Чем запись называет причину отказа (§12.2a). Форма — признак того, что причина
+#: ЕСТЬ, а не того, что она верна, и глагол отказа с двоеточием или тире — такая же
+#: форма, как «потому что»: поле G connect 17.10 — «— отклонён: <причина>» гейт
+#: читал записью без причины (`delivery@2.05`). Пустое «отклонён:» причиной не стало.
+REASON_RE = re.compile(r"(?i)потому что|because|reason=|причина\s*:\s*\S"
+                       r"|(отклон\w*|rejected)\s*[:—–-]+\s*\S")
+
+
 def check_rejected_options(ctx: ActiveCtx, klass: str, phase: str,
                            errors: list[str], warnings: list[str]) -> None:
     """Отклонённые варианты оставляют след (§12.2a).
@@ -156,14 +164,15 @@ def check_rejected_options(ctx: ActiveCtx, klass: str, phase: str,
             entries = [
                 ln
                 for ln in list_entries(sec.group(1))
-                if not unfilled(ln)
-                and re.search(r"(?i)потому что|because|reason=", ln)
+                if not unfilled(ln) and REASON_RE.search(ln)
             ]
             if not entries:
                 msg_alt = (
                     "plan.md: 'Rejected alternatives' без заполненных записей "
-                    "с причиной (§12.2a) — законна и запись «рассматривали "
-                    "только X, потому что Y исключён требованием Z»"
+                    "с причиной (§12.2a) — причину пишут «потому что …», "
+                    "«because …», «reason=…», «причина: …» или «отклонён: …»; "
+                    "законна и запись «рассматривали только X, потому что Y "
+                    "исключён требованием Z»"
                 )
         if msg_alt:
             (errors if klass == "L" else warnings).append(msg_alt)
@@ -176,7 +185,7 @@ def check_decisions_format(status: str, args, ctx: ActiveCtx, klass: str, phase:
     implement_like = ctx.implement_like
     # --- §12.2: журнал решений. Проверяется ФОРМАТ: лента без альтернатив
     # неаудируема, а именно аудируемость — весь смысл файла.
-    dec_file = ACTIVE / "decisions.md"
+    dec_file = ctx.home / "decisions.md"
     late = phase in {"verify", "converge", "handoff"}
     if dec_file.is_file():
         good, bad = decision_lines(read(dec_file))

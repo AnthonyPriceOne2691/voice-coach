@@ -173,6 +173,7 @@ def check_yaml(code: str) -> str | None:
         # safe_load ронял их с ComposerError (ложное срабатывание).
         list(yaml.safe_load_all(code))  # noqa: F821 - есть при HAVE_YAML
     except Exception as exc:  # noqa: BLE001 -- любая ошибка парсера = провал блока
+        # silent-ok: ошибка не глушится — возвращается вызывающему как провал блока
         return f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
     return None
 

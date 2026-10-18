@@ -103,6 +103,7 @@ SCRIPTS = {
     "scripts/lint/check_gate_value.sh": ("cqg", "### `scripts/lint/check_gate_value.sh`", "bash"),
     "scripts/lint/check_mutation_gate.sh": ("cqg", "### `scripts/lint/check_mutation_gate.sh`", "bash"),
     "scripts/lint/mutation_ts.sh": ("cqg", "### `scripts/lint/mutation_ts.sh`", "bash"),
+    "scripts/lint/mutation_shard.sh": ("cqg", "### `scripts/lint/mutation_shard.sh`", "bash"),
     "scripts/lint/mutation_py.sh": ("cqg", "### `scripts/lint/mutation_py.sh`", "bash"),
     "scripts/lint/mutation_verdict.sh": ("cqg", "### `scripts/lint/mutation_verdict.sh`", "bash"),
     "scripts/lint/check_jscpd_gate.sh": ("cqg", "### `scripts/lint/check_jscpd_gate.sh`", "bash"),
@@ -147,8 +148,8 @@ PARTS = {
     "scripts/lint/check_new_dependency.py": ("scripts/lint/dependency_manifests.py",),
     "scripts/lint/check_complexity_gate.sh": ("scripts/lint/complexity_halves.sh",),
     "scripts/lint/check_mutation_gate.sh": (
-        "scripts/lint/mutation_ts.sh", "scripts/lint/mutation_py.sh",
-        "scripts/lint/mutation_verdict.sh"),
+        "scripts/lint/mutation_ts.sh", "scripts/lint/mutation_shard.sh",
+        "scripts/lint/mutation_py.sh", "scripts/lint/mutation_verdict.sh"),
     "scripts/lint/check_gate_coverage.sh": (
         "scripts/lint/gate_coverage_roles.sh", "scripts/lint/gate_coverage_template.sh"),
 }
