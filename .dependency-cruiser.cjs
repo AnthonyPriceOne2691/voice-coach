@@ -72,7 +72,18 @@ module.exports = {
     // `tsPreCompilationDeps` обязателен: без него не видно `import type`, а
     // контракт «types/ — лист» держится ровно на них. Замер: 36 зависимостей
     // без флага против 44 с ним — восемь связей типа были невидимы.
-    tsConfig: { fileName: "tsconfig.depcruise.json" },
+    // Резолвер канона (`cqg@2.16`): `LINT_TSCONFIG` перекрывает, иначе первый
+    // существующий — здесь это `tsconfig.depcruise.json` в корне (порт 18.10).
+    tsConfig: {
+      fileName:
+        process.env.LINT_TSCONFIG ||
+        [
+          "tsconfig.depcruise.json",
+          `${process.env.LINT_FE_DIR || "frontend"}/tsconfig.json`,
+          "tsconfig.json",
+        ].find((p) => require("fs").existsSync(p)) ||
+        "tsconfig.json",
+    },
     tsPreCompilationDeps: true,
     exclude: { path: "(\\.test\\.|\\.spec\\.|__tests__)" },
   },

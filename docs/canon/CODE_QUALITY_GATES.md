@@ -9,7 +9,7 @@
 > ([AGENT_STACK.md](AGENT_STACK.md) §2.A), потом этот канон.
 > © 2026 — proprietary; правообладатель и условия — в [LICENSE](LICENSE).
 
-**Canon version:** `cqg@2.63` · 2026-10-17 (Changelog — в конце файла). Версию впиши в
+**Canon version:** `cqg@2.69` · 2026-10-18 (Changelog — в конце файла). Версию впиши в
 `delivery/CONSTITUTION.md` / `STATUS.md` (`stack:`) при развёртывании.
 
 **Самодостаточный документ.** Всё, что нужно для этой системы качества, — здесь: правила с порогами,
@@ -82,6 +82,15 @@
 Статус — один из: `как есть` · `адаптирован (<имя>)` · `n/a + причина`.
 `n/a` без причины не бывает.
 
+**Как мета-гейт читает строку** (`cqg@2.60`, `cqg@2.65`). Статус — ведущий токен ячейки
+после первой. `как есть` и `адаптирован` — такое же заявление «подключён», как ✅. Имя
+гейта берётся только из ячеек ДО первого статуса: имя в объяснении предметом строки не
+становится. Строка, заявившая «подключён», противоречит ключу на весь скрипт в
+`not-applicable.json`, только если в ней нет ни одного живого скрипта. Строка замены —
+канонный гейт `n/a`, роль держит свой скрипт проекта — противоречием не считается. Ключ
+`имя:правило` снимает часть гейта, и ✅ живого гейта при нём противоречием не становится
+(`cqg@2.64`).
+
 **Где живёт причина — `scripts/lint/not-applicable.json` в проекте** (`cqg@1.67`):
 
 ```json
@@ -98,6 +107,18 @@
 объявленное с учёта и **печатает причину на каждом прогоне** — состояние проекта
 меняется («появился python»), и устаревшее исключение обязано попадаться на
 глаза. Объявление без причины — отказ, а не пропуск.
+
+**Объявление «до первого кода» истекает само** (`cqg@2.66`, решение Anthony 18.10).
+Причина «кода этого стека ещё нет» верна ровно до первого файла. Проба Smart Friend
+Ally 03.10 показала, что первый закоммиченный `.swift` прошёл и мета-гейт, и доктора:
+роли были объявлены n/a, и код поехал мимо всех гейтов. Такое объявление пишется
+объектом с маской:
+`"check_ast_gate.py": {"reason": "питона ещё нет", "until": "backend/*.py"}`. С первым
+файлом по маске (`git ls-files`: индекс и неигнорируемое дерево) мета-гейт краснеет и
+называет файл. Маска называет путь продукта: `*.py` истёк бы сразу на скриптах самого
+контура, а `backend/**/*.py` пропускает файлы верхнего уровня — `*` в маске git и так
+проходит `/`. Решение за человеком: подключить гейт либо переобъявить n/a с причиной,
+верной при коде, уже без `until`.
 
 ⚠ **Править `not_wired_reason()` внутри скрипта для этого НЕЛЬЗЯ**, и до
 `cqg@1.67` другого способа не было. Payload сверяется байт-в-байт
@@ -122,8 +143,8 @@
   [OKF_KNOWLEDGE_BUNDLE.md](OKF_KNOWLEDGE_BUNDLE.md).
 - **HITL / agent stop-gates** — не здесь, а в Delivery §10.
 
-**Стоимость чтения.** Канон — §1–§8 (≈3399 строк): правила, пороги, механика, CI.
-Приложения A и B — **bootstrap payload** (≈8265 строк, 74% файла): дословные
+**Стоимость чтения.** Канон — §1–§8 (≈3674 строк): правила, пороги, механика, CI.
+Приложения A и B — **bootstrap payload** (≈9243 строк, 72% файла): дословные
 исходники, нужны только при развёртывании или правке конкретного скрипта.
 Ревью кода и ответ на «можно ли так писать» не требуют приложений вообще.
 
@@ -1243,6 +1264,68 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 <id>` читает `mutants/`, и уборка забрала бы единственный способ посмотреть, какое
 поведение не проверено. Каталог добавлен и в `.gitignore` (§3.5).
 
+#### TS-половина: «не просудил» — красное; доли считают, судит сумма (`cqg@2.64`)
+
+**Правило то же, что у python-половины с `cqg@2.46`** (решение Anthony 18.10). Если
+Stryker нет, база недоступна, раннер не выбран, маска не разобралась, бюджет исчерпан
+или отчёта нет, то гейт не судил, и это не «мутанты убиты». Законных выходов два:
+объявить неприменимой роль целиком (`"check_mutation_gate.sh"`) или одну TS-половину
+(`"check_mutation_gate.sh:ts"`). Обе записи — в `not-applicable.json`, с причиной.
+Ключ `имя:правило` снимает часть гейта, поэтому ✅ гейта в карте ролей при нём
+противоречием не считается. Ключ на весь скрипт — по-прежнему считается.
+Честное «судить нечего» остаётся тихим, и его граница замерена (Stryker 9.6). Дифф из
+одних типов даёт «Instrumented 1 source file(s) with 0 mutant(s)», после чего
+vitest-раннер падает `ConfigError` без отчёта. Поэтому ноль узнаётся по словам Stryker'а,
+а не по отчёту: файлов без мутантов в отчёте нет вовсе.
+
+**Доли — по выбору проекта, для PR, не влезающих в бюджет.** `MUTATION_SHARD=k/N` берёт
+каждый N-й файл отсортированного списка, начиная с k-го. Доля пишет счёт в
+`reports/mutation/shards/shard-k-of-N.counts` и порог НЕ судит. Порог судит отдельный
+шаг `MUTATION_SUM=N` по сумме. Доля без счёта для него — «не просудил». Порог на
+каждой доле делает вердикт функцией разбиения: у G connect доля упала на 59% при общих
+70% (их урок L31). Доли есть только у TS-половины. На fullstack-репо, где судится
+python, `MUTATION_SHARD` — отказ: иначе N долей N раз гнали бы полный python-прогон.
+
+```yaml
+  mutation:                       # вместо шага «Mutation testing» в джобе gates
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # установка Node и зависимостей — как в джобе gates
+      - name: Mutation testing (доля)
+        env:
+          MUTATION_SHARD: ${{ matrix.shard }}/4
+        run: bash scripts/lint/check_mutation_gate.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mutation-shard-${{ matrix.shard }}
+          path: reports/mutation/shards/
+  mutation-sum:
+    needs: mutation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mutation-shard-*
+          path: reports/mutation/shards/
+          merge-multiple: true
+      - name: Mutation testing (сумма долей)
+        env:
+          MUTATION_SUM: "4"
+        run: bash scripts/lint/check_mutation_gate.sh
+```
+
+На GitLab то же даёт `parallel: 4`: `MUTATION_SHARD: $CI_NODE_INDEX/$CI_NODE_TOTAL`, а
+сумма — следующая стадия с `needs:` и артефактами (§8.3a).
+
 ## 4. Оркестрация (`pre-commit`)
 
 Движок — [pre-commit](https://pre-commit.com). Конфиг `.pre-commit-config.yaml` — в корне репозитория.
@@ -1309,7 +1392,7 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 | `scripts/lint/check_new_dependency.py` | Приложение A |
 | `scripts/lint/dependency_manifests.py` (разбор манифестов) | Приложение A |
 | `scripts/lint/check_mutation_gate.sh` | Приложение A |
-| `scripts/lint/mutation_ts.sh` · `mutation_py.sh` · `mutation_verdict.sh` | Приложение A |
+| `scripts/lint/mutation_ts.sh` · `mutation_shard.sh` · `mutation_py.sh` · `mutation_verdict.sh` | Приложение A |
 | `scripts/lint/check_diff_coverage.sh` | Приложение A |
 | `scripts/lint/check_ci_status.sh` | Приложение A |
 | `scripts/lint/check_layers_gate.sh` (python + ts) | Приложение A |
@@ -1335,7 +1418,7 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 | `.github/workflows/main-guard.yml` (issue на красное в main) | §8.5.1 ④ |
 
 **Правило:** сверяйся с этой таблицей, а не с оглавлением приложений. Если
-скриптовый обход даёт меньше 36 файлов в `scripts/**` — обход неполон, и
+скриптовый обход даёт меньше 37 файлов в `scripts/**` — обход неполон, и
 `check_gate_coverage.sh` это подтвердит.
 
 ⚠ **Скрипт может быть КОМПЛЕКТОМ, а не файлом** (`cqg@1.82`–`1.83`, планка 300
@@ -1359,7 +1442,7 @@ mutants/tests/test_calc.py`, `Interrupted: 1 error during collection`. Заме�
 нужен ровно в момент развёртывания.
 
 ```bash
-python3 extract_payload.py                     # всё ли извлекается (79 из 79)
+python3 extract_payload.py                     # всё ли извлекается (80 из 80)
 python3 extract_payload.py --manifest          # пути payload'а, по одному на строку
 python3 extract_payload.py --extract КАТАЛОГ   # разложить
 # ⚠ Плейсхолдер БЕЗ угловых скобок: блоки канона проверяются `bash -n` (§7), а
@@ -1628,7 +1711,7 @@ diff /tmp/ожидается /tmp/есть        # пусто = комплек�
    print(json.dumps({
        "_": "Провенанс снимка (AGENT_STACK §7.1). Отвечает на вопрос «откуда он», на который SHA256SUMS не отвечает: хеши держат «копию не правили ПОСЛЕ вендоринга» и молчат о том, из чего вендорили. Сверяет запись обход флота, а не сам проект: сравнить с источником может только тот, у кого к нему доступ. Пересоздавать при каждом перевендоривании.",
        "upstream": sh("git", "remote", "get-url", "origin") or "<адрес источника>",
-       "commit": sh("git", "rev-parse", "HEAD"),
+       "commit": "git:" + sh("git", "rev-parse", "HEAD"),
        # ⚠ Сама запись из счёта грязи ИСКЛЮЧЕНА: редирект создаёт файл раньше, чем
        # выполняется проверка, и генератор объявлял бы грязным любое дерево — то
        # есть поле выродилось бы в константу и перестало что-либо значить.
@@ -1636,23 +1719,24 @@ diff /tmp/ожидается /tmp/есть        # пусто = комплек�
                       if "VENDORED.json" not in l]),
        "vendored_at": date.today().isoformat(),
        "versions": vers,
-       "sha256": {f.name: hashlib.sha256(f.read_bytes()).hexdigest()
+       "sha256": {f.name: "sha256:" + hashlib.sha256(f.read_bytes()).hexdigest()
                   for f in sorted(snap.iterdir()) if f.is_file() and f.name != "VENDORED.json"},
    }, ensure_ascii=False, indent=2))
    PY
    ```
 
-   ⚠ **Сразу после генерации — обнови базу секретов**, иначе следующий коммит
-   не пройдёт: `sha256`-хеши записи это Hex High Entropy String, и
-   `detect-secrets` считает их секретами. Замер: первое живое обновление
-   получило девять находок на одном файле, который канон САМ и предписывает
-   создать. Хеш не секрет, но гейт этого не знает, а канон о последствии молчал —
-   то есть выдавал артефакт, валящий собственный гейт.
+   ⚠ **Значения пишутся с префиксами `git:` и `sha256:`, и это не украшение**
+   (`cqg@2.69`). Голый hex `detect-secrets` читает «Hex High Entropy String»:
+   первое живое обновление получило девять находок на файле, который канон сам
+   предписывает создать. Прежнее лекарство — переснимать базу секретов на КАЖДОМ
+   накате — превращало каждый накат в правку базы, а с `delivery@2.04` и в
+   ревью «безопасность» (замер флота 17.10: у voice, fake-office и Ally база
+   секретов целиком из этого файла). Замер `detect-secrets 1.5.0`: с префиксами —
+   ноль находок. Записи прежней формы один раз снимаются пересъёмом базы:
 
    ```bash
    detect-secrets scan $(git ls-files -c -o --exclude-standard) \
-     --baseline .secrets.baseline    # sha256-хеши записи — не секреты, но гейт
-                                     # об этом не знает, а канон молчал
+     --baseline .secrets.baseline    # один раз: уходят записи docs/canon/VENDORED.json
    ```
 
    ⚠ Скан ограничен отслеживаемыми файлами и `-o` — это правило §2.7 того же
@@ -4646,8 +4730,16 @@ baseline_lookup() {
 # поставляет сам канон, — как продуктовый код. Ровно F14, только по другому пути.
 # И то же правило читает доктор (CONTOUR_RE): зеркало обязано совпадать, иначе
 # полная канонная раскладка обвиняет сама себя (замер: DEAD 1 на свежем стенде).
+#
+# ⚠ Принцип — «что приносит накат», а не перечень (`cqg@2.67`). Здесь стояло
+# `scripts/delivery_(check|metrics)\.py`: разрез `delivery@1.53` дал тринадцать
+# модулей, и одиннадцать сюда не попали — тот же рецидив, что `BREAKER_EXCLUDE`
+# закрыл префиксом ещё тогда. Поле Ally 18.10: маска длины `*.swift`, и доктор
+# звал модули Delivery DEAD «их не видит ни один гейт». Едущие файлы (§7.1 карты)
+# — тоже механика: копия `stack_selftest.py` у проекта судилась AST-гейтом.
+# Полноту держит `test_contour_population.py` — по манифесту payload'а.
 exclude_contour() {
-  grep -vE '^(scripts/lint/|scripts/delivery_(check|metrics)\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|delivery/|knowledge/|docs/canon/|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)'
+  grep -vE '^(scripts/lint/|scripts/delivery_[a-z_]+\.py$|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$|scripts/(check_irreversible_signature|sign_irreversible)\.sh$|(scripts/)?(stack_selftest|selftest_sizes|extract_payload)\.py$|delivery/|knowledge/|docs/canon/|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)'
 }
 
 scanned=0
@@ -6581,7 +6673,9 @@ class DeploymentScreen:
             raw = json.loads(f.read_text(encoding="utf-8")) or {}
         except (OSError, ValueError) as exc:
             return {}, f"{self.CANON_DIR}/VENDORED.json не разобран ({exc})"
-        table = raw.get("sha256") or {}
+        # Обе формы значения: голый hex и `sha256:<hex>` (`cqg@2.69` — форма, которую
+        # не берут сканеры секретов; у флота старые записи живут до наката).
+        table = {k: str(v).removeprefix("sha256:") for k, v in (raw.get("sha256") or {}).items()}
         return table, "" if table else "VENDORED.json без раздела sha256"
 
     def _diverged_copies(self, name: str, body: bytes, adapted: dict) -> list[str]:
@@ -7133,8 +7227,10 @@ class HookReaders:
     #: гейта длины `*.py *.ts *.tsx` их не покрывает — и не должна: это конфиги, а
     #: не продуктовый код, и их размер живёт под ратчетом веса канона.
     #: Регрессия развёртывания видела один конфиг из девяти, поэтому сьют молчал.
-    CONTOUR_RE = re.compile(r"^(scripts/lint/|scripts/delivery_(check|metrics)\.py$"
+    CONTOUR_RE = re.compile(r"^(scripts/lint/|scripts/delivery_[a-z_]+\.py$"
                             r"|scripts/okf_[a-z_]+\.py$|scripts/merge_guard\.sh$"
+                            r"|scripts/(check_irreversible_signature|sign_irreversible)\.sh$"
+                            r"|(scripts/)?(stack_selftest|selftest_sizes|extract_payload)\.py$"
                             r"|delivery/|knowledge/|docs/canon/"
                             r"|([^/]+/)*(\.dependency-cruiser|eslint\.config)\.[cm]?js$)")
 
@@ -8438,7 +8534,8 @@ class ProbeChecks:
 # Это НЕ гейт: он ничего не запрещает, exit всегда 0. Его продукт — текст в
 # verify-report.md, под которым человек ставит подпись (DoD §3.2 для M/L).
 #
-# Настройка (env): BASE (origin/main), LINT_TEST_GLOB.
+# Настройка (env): BASE (origin/main), LINT_TEST_GLOB — маски тест-файлов через
+# пробел (дефолт ниже; обещана шапкой с первой редакции, подключена с `cqg@2.68`).
 #
 # Использование:
 #   bash scripts/lint/assert_digest.sh                    # в stdout
@@ -8461,8 +8558,40 @@ fi
 # `grep` — обёртка над ugrep, см. §3.1a; на /usr/bin/grep то же выражение проходит,
 # поэтому проверка «у меня работает» тут ничего не значит). Незаэкранированный `+`
 # в BRE — обычный символ, и это работает во всех трёх реализациях.
-added=$(git diff "$BASE"...HEAD -- '*test*.py' '*test*.ts' '*test*.tsx' '*_test.go' 2>/dev/null \
+read -r -a TEST_GLOBS <<< "${LINT_TEST_GLOB:-*test*.py *test*.ts *test*.tsx *_test.go *Tests.swift *Test.swift}"
+added=$(git diff "$BASE"...HEAD -- "${TEST_GLOBS[@]}" 2>/dev/null \
   | grep '^+' | grep -v '^+++' | sed 's/^+//')
+
+# «Не видел» обязано отличаться от «утверждений нет» (`cqg@2.68`). Поле Smart Friend
+# Ally 18.10: в диффе 12 `XCTAssert`, а сводка — «Новых утверждений нет» и 0
+# непривязанных, то есть `asserts_reviewed_by: n/a` проходил на пустоте: маска не
+# знала Swift. Тест-файл опознаётся ПРИНЦИПОМ — именем (`test_*`, `*_test.*`,
+# `*_spec.*`, `*.test.*`, `*Tests.*`, `*Spec.*`) или каталогом `__tests__/`, где имена
+# не помечены, — а не списком языков. Каталог `tests/` сам по себе признаком не
+# служит: на том же поле он дал бы `unknown` генератору фикстур
+# `Tests/…/Fixtures/make_fixtures.py`. Файл мимо масок выше разобран не был, и
+# маркер тогда `unknown`, а не число.
+unseen=$(comm -23 \
+  <(git diff --name-only --diff-filter=d "$BASE"...HEAD 2>/dev/null \
+      | grep -E '\.(py|pyi|ts|tsx|js|jsx|mjs|cjs|mts|cts|go|swift|kt|kts|java|rb|php|cs|rs|scala|dart|m|mm|c|cc|cpp|h)$' \
+      | grep -E '(^|/)__tests__/|(^|/)(test_[^/]*|[^/]*_(test|spec)\.[^/]*|[^/]*\.(test|spec)\.[^/]*|[^/]*(Tests?|Spec)\.[^/]*)$' \
+      | sort -u) \
+  <(git diff --name-only --diff-filter=d "$BASE"...HEAD -- "${TEST_GLOBS[@]}" 2>/dev/null | sort -u))
+
+# Маркер — последней строкой: его дописывают в verify-report, и его же читает
+# delivery_check. Неразобранный тест-файл делает число непроверенным — `unknown`.
+marker() {
+  if [[ -n "$unseen" ]]; then
+    echo "⚠ **Тест-файлы, которых дайджест не разбирал** (маски — \`LINT_TEST_GLOB\`):"
+    printf '%s\n' "$unseen" | sed 's/^/- `/; s/$/`/'
+    echo "Их утверждений здесь нет, поэтому число непривязанных неизвестно, и"
+    echo "\`asserts_reviewed_by: n/a\` недоступно: подпись human:… at=… либо маски проекта."
+    echo
+    echo "asserts_without_example: unknown"
+  else
+    echo "asserts_without_example: $1"
+  fi
+}
 
 # Классификация каждого утверждения: привязано к примеру спеки или нет.
 #
@@ -8477,7 +8606,7 @@ added=$(git diff "$BASE"...HEAD -- '*test*.py' '*test*.ts' '*test*.tsx' '*_test.
 # бага, что `^\+` выше). Побочно это отсеивает `MD5`/`UTF8`: там перед цифрой
 # стоит буква внутри слова, то есть границы нет.
 classified=$(printf '%s\n' "$added" | awk '
-  /(^|[^a-zA-Z_])(def[ \t]+test|it\(|test\(|func[ \t]+Test)/ { cur = "" }
+  /(^|[^a-zA-Z_])(def[ \t]+test|it\(|test\(|func[ \t]+[Tt]est)|@Test/ { cur = "" }
   {
     if (match($0, /(^|[^A-Za-z0-9_])[A-Z][0-9]+([^A-Za-z0-9_]|$)/)) {
       tok = substr($0, RSTART, RLENGTH)
@@ -8485,7 +8614,7 @@ classified=$(printf '%s\n' "$added" | awk '
       cur = tok
     }
   }
-  /(^|[^a-zA-Z_])(assert[a-zA-Z_]*|expect|require|should)[ (]/ {
+  /(^|[^a-zA-Z_])(assert[a-zA-Z_]*|XCTAssert[a-zA-Z]*|XCTFail|expect|require|should)[ (]/ {
     line = $0
     sub(/^[ \t]+/, "", line)
     printf "%s\t%s\n", (cur == "" ? "-" : cur), line
@@ -8503,7 +8632,7 @@ if [[ -z "$classified" ]]; then
   # «утверждений нет» из-за незакоммиченного теста = разрешение подписать пустоту.
   # Класс уже закрыт у `check_diff_coverage.sh` и `check_grep_gate.sh`; здесь его
   # не было, и приёмочное развёртывание поймало это staged-тестом с `assert 2+2==5`.
-  staged=$(git status --porcelain -- '*test*.py' '*test*.ts' '*test*.tsx' 2>/dev/null | wc -l | tr -d ' ')
+  staged=$(git status --porcelain -- "${TEST_GLOBS[@]}" 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${staged:-0}" -gt 0 ]]; then
     echo
     echo "⚠ **Внимание: $staged незакоммиченных тест-файл(ов).** Дайджест считает"
@@ -8518,7 +8647,7 @@ if [[ -z "$classified" ]]; then
   echo
   # Маркер печатается ВСЕГДА, в том числе здесь: delivery_check требует его
   # наличия, а «утверждений нет» — законный ноль непривязанных.
-  echo "asserts_without_example: 0"
+  marker 0
   exit 0
 fi
 
@@ -8535,7 +8664,11 @@ printf '%s\n' "$classified" | cut -c1-160
 echo '```'
 echo
 ids=$(printf '%s\n' "$classified" | cut -f1 | grep -v '^-$' | sort -u | paste -sd' ' -)
-if [[ "$bare" -eq 0 ]]; then
+if [[ "$bare" -eq 0 && -n "$unseen" ]]; then
+  # Совет «пиши n/a» тут был бы ложью: часть тест-файлов не разобрана (ниже).
+  echo "Разобранные утверждения ведут к примерам спеки ($ids), но разобраны НЕ все"
+  echo "тест-файлы — список ниже, и до него \`n/a\` не заслужен."
+elif [[ "$bare" -eq 0 ]]; then
   echo "✅ **Каждое утверждение ведёт к примеру спеки** ($ids), а примеры человек"
   echo "подписал до кода (\`human_ok_spec\`). Подпись под дайджестом здесь"
   echo "**не требуется**: она уже стоит, заранее и на числах. Пиши в verify-report"
@@ -8555,7 +8688,7 @@ echo
 # Машинно-читаемый маркер: по нему delivery_check решает, заслужен ли `n/a`
 # (Delivery §3.1d уровень 3). Держать последней строкой — её дописывают в
 # verify-report, и она должна быть видна глазами тоже.
-echo "asserts_without_example: $bare"
+marker "$bare"
 exit 0
 ```
 
@@ -8631,7 +8764,8 @@ fi
 
 not_judged() {
   printf '%s✗ мутационный гейт не просудил НИЧЕГО (причина выше) — это НЕ «мутанты убиты».\n' "$red"
-  printf 'Почини причину либо объяви роль неприменимой в %s с причиной.%s\n' "$NA" "$reset"
+  printf 'Почини причину либо объяви неприменимой в %s с причиной роль целиком\n' "$NA"
+  printf '("check_mutation_gate.sh") или одну TS-половину ("check_mutation_gate.sh:ts").%s\n' "$reset"
   [[ "$STRICT" == "0" ]] && { printf '%sWARNING (STRICT=0)%s\n' "$yellow" "$reset" >&2; exit 0; }
   exit 1
 }
@@ -8656,6 +8790,11 @@ not_judged() {
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/mutation_ts.sh"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/mutation_shard.sh"
+
+# Сумма долей — отдельный шаг, ей не нужен ни инструмент, ни дифф (CQG §3.7).
+[[ -n "${MUTATION_SUM:-}" ]] && { ts_sum; exit $?; }
 
 if [[ ! -d "$REPO_ROOT/$PY_SRC" ]]; then
   # Python-каталога нет — но это ещё не значит «смотреть не на что». Прежде чем
@@ -8666,11 +8805,22 @@ if [[ ! -d "$REPO_ROOT/$PY_SRC" ]]; then
     ts_mutation
     exit $?
   fi
-  printf '%s⚠ mutation: нет ни %s, ни %s — мутационный гейт пропущен (§6).\n' \
+  # Не смотрел никуда — это «не просудил», а не пропуск (`cqg@2.64`): здесь стоял
+  # жёлтый `exit 0`, и TS-проект с опечаткой в LINT_TS_SRC проходил молча. Замер
+  # флота 18.10: этим путём не идёт ни один проект.
+  printf '%s⚠ mutation: нет ни %s, ни %s — гейт не смотрел никуда (§6).\n' \
     "$yellow" "$PY_SRC" "$TS_SRC"
-  printf 'Это НЕ «изменений нет»: гейт не смотрел никуда. Пакет проекта редко зовётся\n'
-  printf '`features` — задай LINT_PY_SRC/LINT_TS_SRC во ВСЕХ местах вызова, не только в CI.%s\n' "$reset"
-  exit 0
+  printf 'Пакет проекта редко зовётся `features` — задай LINT_PY_SRC/LINT_TS_SRC во ВСЕХ\n'
+  printf 'местах вызова, не только в CI.%s\n' "$reset"
+  not_judged
+fi
+
+# Доли умеет только TS-половина: без этой ветки матрица из N долей на fullstack-репо
+# N раз гнала бы ПОЛНЫЙ python-прогон, и каждая доля выдавала бы его за свою.
+if [[ -n "${MUTATION_SHARD:-}" ]]; then
+  printf '%s⚠ mutation: MUTATION_SHARD задан, а судится python — доли есть только у TS-половины%s\n' \
+    "$yellow" "$reset"
+  not_judged
 fi
 
 # shellcheck source=/dev/null
@@ -8716,21 +8866,18 @@ TS_SRC=${LINT_TS_SRC:-$FE_DIR/src}
 # bash — тем же приёмом, которым `undecided` в `mutation_verdict.sh` читает `out`
 # и `rc`.
 #
-# ⚠ Код возврата тут — РЕШЕНИЕ, а не вердикт гейта: 1 значит «пропуск уже назван
-# вслух, судить нечем», и выход остаётся у вызывающего (`|| return 0`). Возврат
-# нулём означал бы «продолжай», то есть прогон Stryker'а без Stryker'а.
+# ⚠ Код возврата тут — РЕШЕНИЕ, а не вердикт гейта: 1 значит «честно судить
+# нечего», и выход остаётся у вызывающего (`|| return 0`). Возврат нулём означал
+# бы «продолжай», то есть прогон Stryker'а без Stryker'а. «Не смог судить» сюда
+# не возвращается вовсе: это `not_judged`, красное (`cqg@2.64`, решение Anthony
+# 18.10, симметрично python-половине с `cqg@2.46`).
+#
+# Порядок «сначала есть ли работа, потом чем её делать» — несущий: без него
+# проект без Stryker краснел бы и на PR, где TS не тронут.
 ts_stryker_setup() {
-  STRYKER="$FE_DIR/node_modules/.bin/stryker"
-  [[ -x "$STRYKER" ]] || STRYKER="node_modules/.bin/stryker"
-  [[ -x "$STRYKER" ]] || STRYKER=$(command -v stryker 2>/dev/null || true)
-  if [[ -z "$STRYKER" ]]; then
-    printf '%s⚠ mutation: Stryker не найден — TS-половина пропущена.\n' "$yellow"
-    printf 'Установка: npm i -D @stryker-mutator/core @stryker-mutator/<runner>-runner%s\n' "$reset"
-    return 1
-  fi
   if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
-    printf '%s⚠ mutation: ref %s недоступен — TS-половина пропущена%s\n' "$yellow" "$BASE" "$reset"
-    return 1
+    printf '%s⚠ mutation: ref %s недоступен — TS-половина не судит%s\n' "$yellow" "$BASE" "$reset"
+    not_judged
   fi
   # Тесты из населения исключаются: мутировать надо продуктовый код. Маска шире
   # дефолта Stryker намеренно — проекты зовут каталог и `test`, и `tests`, и `__tests__`.
@@ -8744,17 +8891,25 @@ ts_stryker_setup() {
       "$green" "$BASE" "$TS_SRC" "$reset"
     return 1
   fi
+  STRYKER="$FE_DIR/node_modules/.bin/stryker"
+  [[ -x "$STRYKER" ]] || STRYKER="node_modules/.bin/stryker"
+  [[ -x "$STRYKER" ]] || STRYKER=$(command -v stryker 2>/dev/null || true)
+  if [[ -z "$STRYKER" ]]; then
+    printf '%s⚠ mutation: Stryker не найден — TS-половина не судит.\n' "$yellow"
+    printf 'Установка: npm i -D @stryker-mutator/core @stryker-mutator/<runner>-runner%s\n' "$reset"
+    not_judged
+  fi
   return 0
 }
 
 # Чем запускать Stryker: конфиг проекта либо единственный установленный раннер.
 # Наружу уходят два имени — `cfg` и `runner`; `runners` за границу не выходит и
-# потому объявлен здесь. Возврат 1 — «пропуск назван, дальше не судим».
+# потому объявлен здесь.
 #
 # Конфиг проекта, если он есть, Stryker находит сам — тогда гейт добавляет только
 # область и репортёр. Если конфига нет, нужен раннер, и угадывать его нельзя:
-# берём тот, что реально установлен, и только когда он ОДИН. Два раннера — это
-# выбор проекта, а не гейта; ноль — честный пропуск с командой установки.
+# берём тот, что реально установлен, и только когда он ОДИН. Два раннера — выбор
+# проекта, ноль — нечем запускать; оба исхода «не судит», то есть `not_judged`.
 ts_stryker_config() {
   local runners
   cfg=""
@@ -8771,13 +8926,13 @@ ts_stryker_config() {
   if [[ -z "$runners" ]]; then
     printf '%s⚠ mutation: ни конфига Stryker, ни раннера — TS-половина не судит.\n' "$yellow"
     printf 'Поставь раннер под свой сьют: npm i -D @stryker-mutator/vitest-runner%s\n' "$reset"
-    return 1
+    not_judged
   fi
   if [[ $(printf '%s\n' "$runners" | wc -l | tr -d ' ') -gt 1 ]]; then
     printf '%s⚠ mutation: раннеров несколько (%s) — какой брать, решает ПРОЕКТ.\n' \
       "$yellow" "$(printf '%s' "$runners" | tr '\n' ',')"
     printf 'Заведи stryker.config.json с полем testRunner — гейт его подхватит.%s\n' "$reset"
-    return 1
+    not_judged
   fi
   runner="$runners"
   return 0
@@ -8832,7 +8987,7 @@ for path in sys.stdin.read().split():
     if keep and os.path.isfile(path):
         print(path)
 ' "$cfg") || { printf '%s⚠ mutation: маска %s не разобрана — TS-половина не судит, Stryker не запущен%s\n' \
-      "$yellow" "$cfg" "$reset"; return 1; }
+      "$yellow" "$cfg" "$reset"; not_judged; }
   dropped=$(comm -23 <(printf '%s\n' "$changed" | sort) <(printf '%s\n' "$kept" | sort) | tr '\n' ' ')
   [[ -n "${dropped// /}" ]] && printf 'mutation/ts: вне маски %s — %s\n' "$cfg" "$dropped"
   changed="$kept"
@@ -8843,14 +8998,10 @@ for path in sys.stdin.read().split():
   return 0
 }
 
-ts_mutation() {
-  local STRYKER changed n cfg runner out rc report score
-  ts_stryker_setup || return 0
-  ts_stryker_config || return 0
-  ts_scope_filter || return 0
-  n=$(printf '%s\n' "$changed" | wc -l | tr -d ' ')
-  printf 'mutation/ts: %s файл(ов), бюджет %ss, цель ≥%s%% убитых\n' "$n" "$BUDGET_SEC" "$MIN_KILLED"
-
+# Запуск Stryker'а и путь к отчёту (шов по §2.1: `ts_mutation` вырос до 89 строк).
+# Наружу — `report`. Честный ноль — возврат 1 со счётом «0 0»; «не смог» — `not_judged`.
+ts_run() {
+  local out rc
   out=$(mktemp)
   # Бюджет держим тем же способом, что python-половина: 124 от timeout — это
   # НЕПОЛНЫЕ данные, а не «зелено».
@@ -8862,10 +9013,21 @@ ts_mutation() {
       --mutate "$(printf '%s' "$changed" | tr '\n' ',')" --reporters json >"$out" 2>&1
   fi
   rc=$?
+  # Честное «судить нечего» узнаётся по словам Stryker'а, а не по отчёту. Замер
+  # Stryker 9.6 (`cqg@2.64`): дифф из одних типов — «Instrumented 1 source file(s)
+  # with 0 mutant(s)», дальше vitest-раннер не находит связанных тестов и падает
+  # `ConfigError` с rc=1 и БЕЗ отчёта; а файлы без мутантов в отчёт не попадают
+  # вовсе. Без этой ветки правка одних типов краснела бы «не просудил».
+  if grep -qE 'Instrumented [0-9]+ source file\(s\) with 0 mutant\(s\)' "$out"; then
+    printf '%smutation/ts: изменённые файлы не дали мутантов (только типы?) — судить нечего%s\n' \
+      "$green" "$reset"
+    rm -f "$out"; ts_counts 0 0; return 1
+  fi
   if (( rc == 124 )); then
     printf '%s⚠ mutation: бюджет %ss исчерпан — данные НЕПОЛНЫЕ, гейт не судит.\n' "$yellow" "$BUDGET_SEC"
-    printf 'Это не «зелено»: часть мутантов не проверена. Сузь дифф или подними BUDGET_SEC.%s\n' "$reset"
-    rm -f "$out"; return 0
+    printf 'Это не «зелено»: часть мутантов не проверена. Сузь дифф, подними BUDGET_SEC\n'
+    printf 'или раздели прогон на доли (MUTATION_SHARD, CQG §3.7).%s\n' "$reset"
+    rm -f "$out"; not_judged
   fi
 
   # Путь к отчёту берём из СЛОВ САМОГО Stryker'а, а не из своего представления о
@@ -8875,8 +9037,31 @@ ts_mutation() {
   [[ -n "$report" && -f "$report" ]] || report="${MUTATION_TS_REPORT:-reports/mutation/mutation.json}"
   if [[ ! -f "$report" ]]; then
     printf '%s⚠ mutation: Stryker отработал, но отчёт не найден — гейт НЕ судит.%s\n' "$yellow" "$reset"
-    tail -5 "$out" >&2; rm -f "$out"; return 0
+    tail -5 "$out" >&2; rm -f "$out"; not_judged
   fi
+
+  rm -f "$out"
+  return 0
+}
+
+ts_mutation() {
+  local STRYKER changed n cfg runner report score src
+  # Неприменима ПОЛОВИНА, а не роль (`cqg@2.64`): ключ `имя:правило`, как у правил
+  # AST- и grep-гейтов. Python-половина и карта ролей им не задеваются.
+  if [[ -f "$NA" ]] && grep -q '"check_mutation_gate.sh:ts"' "$NA"; then
+    printf '%s⚠ mutation: TS-половина объявлена неприменимой в %s — пропуск НАЗВАН.%s\n' \
+      "$yellow" "$NA" "$reset"
+    return 0
+  fi
+  ts_stryker_setup || { ts_counts 0 0; return 0; }
+  ts_stryker_config
+  ts_scope_filter || { ts_counts 0 0; return 0; }
+  ts_shard || { ts_counts 0 0; return 0; }
+  n=$(printf '%s\n' "$changed" | wc -l | tr -d ' ')
+  printf 'mutation/ts: %s файл(ов)%s, бюджет %ss, цель ≥%s%% убитых\n' \
+    "$n" "${MUTATION_SHARD:+, доля $MUTATION_SHARD}" "$BUDGET_SEC" "$MIN_KILLED"
+
+  ts_run || return 0
 
   score=$(python3 -c '
 import json, sys
@@ -8892,29 +9077,111 @@ for info in d.get("files", {}).values():
             det += 1
         elif s in ("Survived", "NoCoverage"):
             und += 1
-total = det + und
-if total == 0:
-    sys.stderr.write("мутанты не сгенерированы\n"); raise SystemExit(4)
-sys.stdout.write("%d %d %d" % (det, total, 100 * det // total))
+sys.stdout.write("%d %d" % (det, det + und))
 ' "$report" 2>&1)
-  if [[ ! "$score" =~ ^[0-9]+\ [0-9]+\ [0-9]+$ ]]; then
+  src=$?
+  if (( src != 0 )) || [[ ! "$score" =~ ^[0-9]+\ [0-9]+$ ]] || [[ "$score" == *" 0" ]]; then
+    # Ноль засчитываемых при мутантах в отчёте — все CompileError/Ignored: это не
+    # «нечего судить» (тот случай узнан выше по словам Stryker'а), а «не судил».
     printf '%s⚠ mutation: отчёт есть, а вердикта из него нет — гейт НЕ судит: %s%s\n' \
-      "$yellow" "$score" "$reset"
-    rm -f "$out"; return 0
+      "$yellow" "${score:-пусто}" "$reset"
+    not_judged
   fi
-  rm -f "$out"
   set -- $score
-  printf 'mutation/ts: убито %s из %s (%s%%), порог %s%%\n' "$1" "$2" "$3" "$MIN_KILLED"
-  if (( $3 < MIN_KILLED )); then
+  if [[ -n "${MUTATION_SHARD:-}" ]]; then
+    ts_counts "$1" "$2"
+    printf 'mutation/ts: доля %s — убито %s из %s; порог судит сумма долей (MUTATION_SUM)\n' \
+      "$MUTATION_SHARD" "$1" "$2"
+    return 0
+  fi
+  ts_verdict "$1" "$2" "прогон" "$report"
+}
+```
+
+### `scripts/lint/mutation_shard.sh`
+
+```bash
+#!/usr/bin/env bash
+# Доли мутационного прогона и общий порог (`cqg@2.64`).
+#
+# Часть `check_mutation_gate.sh`, вынесена из `mutation_ts.sh` по планке 300 строк
+# (Delivery §9.1a п.5): доли, счёт доли, сумма долей и порог — одна тема, «сколько
+# убито и кто это судит», отдельно от запуска Stryker'а. Подключается через
+# `source`; `MIN_KILLED`, `STRICT`, палитру и `not_judged` задаёт вход, `changed` —
+# вызывающий `ts_mutation`.
+
+# Доли прогона (`cqg@2.64`, решение Anthony 18.10). `MUTATION_SHARD=k/N` оставляет
+# каждый N-й файл отсортированного списка, начиная с k-го, — деление G connect. Доля
+# только СЧИТАЕТ, порог судит сумма (`ts_sum`): порог на доле делает вердикт функцией
+# разбиения — у G connect доля упала на 59% при общих 70% (их урок L31).
+ts_shard() {
+  [[ -n "${MUTATION_SHARD:-}" ]] || return 0
+  if [[ ! "$MUTATION_SHARD" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] \
+     || (( BASH_REMATCH[1] > BASH_REMATCH[2] )); then
+    printf '%s⚠ mutation: MUTATION_SHARD=%s — ждал k/N, 1 ≤ k ≤ N%s\n' "$yellow" "$MUTATION_SHARD" "$reset"
+    not_judged
+  fi
+  changed=$(printf '%s\n' "$changed" | sort \
+    | awk -v k="${BASH_REMATCH[1]}" -v n="${BASH_REMATCH[2]}" '(NR - 1) % n == k - 1')
+  [[ -n "$changed" ]] && return 0
+  printf '%smutation: доля %s — файлов на неё не пришлось%s\n' "$green" "$MUTATION_SHARD" "$reset"
+  return 1
+}
+
+# Счёт доли — файл `shard-k-of-N.counts` («убито всего»). Пишется и тогда, когда
+# доле честно нечего судить: сумма, не нашедшая файла, не отличила бы «нечего» от
+# «не отчиталась». Вне долей не пишет ничего.
+ts_counts() {
+  [[ -n "${MUTATION_SHARD:-}" ]] || return 0
+  local dir=${MUTATION_COUNTS_DIR:-reports/mutation/shards}
+  mkdir -p "$dir" \
+    && printf '%s %s\n' "$1" "$2" > "$dir/shard-${MUTATION_SHARD%/*}-of-${MUTATION_SHARD#*/}.counts"
+}
+
+# Порог — одно место на прогон и на сумму долей. $1 убито, $2 всего, $3 что судим,
+# $4 — отчёт с выжившими, если он есть.
+ts_verdict() {
+  local pct
+  if (( $2 == 0 )); then
+    printf '%smutation/ts: %s — мутантов нет, судить нечего%s\n' "$green" "$3" "$reset"
+    return 0
+  fi
+  pct=$(( $1 * 100 / $2 ))
+  printf 'mutation/ts: %s — убито %s из %s (%s%%), порог %s%%\n' "$3" "$1" "$2" "$pct" "$MIN_KILLED"
+  if (( pct < MIN_KILLED )); then
     printf '\n%sERROR%s: тесты не убивают мутантов изменённого кода — они его не проверяют.\n' \
       "$red" "$reset" >&2
     printf 'Выживший мутант = поведение, которое сьют пропустил бы в проде.\n' >&2
-    printf 'Кто выжил: %s\n' "$report" >&2
+    [[ -n "${4:-}" ]] && printf 'Кто выжил: %s\n' "$4" >&2
     [[ "$STRICT" == "0" ]] && { printf '%sWARNING (STRICT=0)%s\n' "$yellow" "$reset" >&2; return 0; }
     return 1
   fi
   printf '%smutation/ts: OK%s\n' "$green" "$reset"
   return 0
+}
+
+# Сумма долей (`MUTATION_SUM=N`) — отдельный шаг после всех долей, Stryker ему не
+# нужен. Доля без счёта — «не просудил»: сумма без неё врала бы о полноте.
+ts_sum() {
+  local dir=${MUTATION_COUNTS_DIR:-reports/mutation/shards} k line det=0 total=0 missing=""
+  if [[ ! "$MUTATION_SUM" =~ ^[1-9][0-9]*$ ]]; then
+    printf '%s⚠ mutation: MUTATION_SUM=%s — ждал число долей N%s\n' "$yellow" "$MUTATION_SUM" "$reset"
+    not_judged
+  fi
+  for (( k = 1; k <= MUTATION_SUM; k++ )); do
+    line=$(cat "$dir/shard-$k-of-$MUTATION_SUM.counts" 2>/dev/null)
+    if [[ ! "$line" =~ ^([0-9]+)\ ([0-9]+)$ ]]; then
+      missing="$missing $k"
+      continue
+    fi
+    det=$(( det + BASH_REMATCH[1] )); total=$(( total + BASH_REMATCH[2] ))
+  done
+  if [[ -n "$missing" ]]; then
+    printf '%s⚠ mutation: нет счёта долей%s в %s — сумма неполная, гейт не судит%s\n' \
+      "$yellow" "$missing" "$dir" "$reset"
+    not_judged
+  fi
+  ts_verdict "$det" "$total" "сумма $MUTATION_SUM долей"
 }
 ```
 
@@ -10823,6 +11090,7 @@ try:
 except Exception:
     sys.exit(0)
 v = d.get("check_ci_status.sh") or d.get("ci-status")
+v = v.get("reason") if isinstance(v, dict) else v  # объектная форма, `cqg@2.66`
 sys.stdout.write(v if isinstance(v, str) else "")' 2>/dev/null)
   fi
   if [[ -n "$reason" ]]; then
@@ -11041,6 +11309,20 @@ red=$(printf '\033[31m'); yellow=$(printf '\033[33m'); green=$(printf '\033[32m'
 # Причина ОБЯЗАТЕЛЬНА и печатается на каждом прогоне — как у `not_wired_reason()`,
 # и по той же причине: состояние проекта меняется («тестов нет», «нет TS»), и
 # устаревшее исключение должно попадаться на глаза, а не лежать в файле.
+#
+# Попадаться на глаза мало, если причина — «кода ещё нет» (`cqg@2.66`, решение
+# Anthony 18.10, образец Ally `check_na_expiry.py`). Проба Ally 03.10: первый
+# закоммиченный `.swift` прошёл и мета-гейт, и доктора — роли Swift были n/a «до
+# кода», код поехал мимо всех гейтов. Такое объявление пишется объектом с маской,
+# и с первым файлом по маске оно ИСТЕКАЕТ — мета-гейт красный, пока человек не
+# решит: подключить гейт либо переобъявить n/a с причиной, верной при коде:
+#
+#     "check_ast_gate.py": {"reason": "питона ещё нет", "until": "backend/*.py"}
+#
+# `until` — маска `git ls-files` (или список масок): индекс и неигнорируемое дерево.
+# Маска называет путь ПРОДУКТА: `*.py` истёк бы сразу на питоновских скриптах самого
+# контура, а `**/` в маске git лишний — `*` и так проходит `/`, и `backend/**/*.py`
+# пропускает файлы верхнего уровня (замер 18.10).
 NA_FILE="$LINT_DIR/not-applicable.json"
 na_reasons=""
 if [[ -f "$NA_FILE" ]]; then
@@ -11056,7 +11338,7 @@ if [[ -f "$NA_FILE" ]]; then
     # должна стоять причина. Гейт, не назвавший причину, — тот же класс, что
     # «пропуск с чужим диагнозом»: поймано собственным тестом.
     na_out=$("$PY_NA" - "$NA_FILE" 2>&1 <<'PYNA'
-import json, sys
+import json, subprocess, sys
 try:
     data = json.load(open(sys.argv[1], encoding="utf-8"))
 except Exception as exc:
@@ -11065,17 +11347,40 @@ except Exception as exc:
 if not isinstance(data, dict):
     sys.stderr.write("ожидался объект {ключ: причина}\n")
     raise SystemExit(2)
+lines, expired = [], []
 for k, v in data.items():
     if str(k).startswith("_"):
         continue          # ключ-комментарий, не объявление роли (§5.5)
-    reason = str(v).strip()
+    spec = v if isinstance(v, dict) else {"reason": v}
+    reason = str(spec.get("reason") or "").strip()
     if not reason:
         sys.stderr.write("%s: объявление БЕЗ причины\n" % k)
         raise SystemExit(3)
-    sys.stdout.write("%s\t%s\n" % (k, reason))
+    until = spec.get("until") or []
+    until = [until] if isinstance(until, str) else [str(m) for m in until]
+    if until:
+        hits = [h for h in subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *until],
+            capture_output=True, text=True, check=False).stdout.split("\0") if h]
+        if hits:
+            expired.append("%s: n/a «пока нет %s» истёк — таких файлов %d, первый %s"
+                           % (k, " ".join(until), len(hits), hits[0]))
+            continue
+    lines.append("%s\t%s\n" % (k, reason))
+if expired:
+    sys.stderr.write("\n".join(expired) + "\n")
+    raise SystemExit(4)
+sys.stdout.write("".join(lines))
 PYNA
 )
     na_rc=$?
+    if (( na_rc == 4 )); then
+      printf '%s✗ объявления n/a «до первого кода» истекли (%s):%s\n' "$red" "$NA_FILE" "$reset" >&2
+      printf '%s\n' "$na_out" | sed 's/^/  /' >&2
+      printf 'Код этого стека появился. Подключи гейт (убери ключ) либо переобъяви n/a\n' >&2
+      printf 'с причиной, верной при коде, — уже без "until" (карта ролей §Применимость).\n' >&2
+      exit 1
+    fi
     if (( na_rc != 0 )); then
       printf '%s✗ %s не применён:%s\n' "$red" "$NA_FILE" "$reset" >&2
       printf '%s\n' "$na_out" | sed 's/^/  /' >&2
@@ -11238,6 +11543,10 @@ if os.path.isfile(na_file):
 # множество; для «n/a без объявления» — оба: причина печатается в обоих случаях.
 na_scripts = {str(k).split(":")[0] for k in declared}
 reasoned = na_scripts | canon_na
+# «Плюс против n/a» судят только ключи на ВЕСЬ скрипт (`cqg@2.64`). Ключ
+# имя:правило снимает часть гейта (правило AST, TS-половину мутаций), а сам гейт
+# жив, и его ✅ в карте — правда, а не противоречие.
+na_whole = {str(k) for k in declared if ":" not in str(k)}
 
 # Строка карты называет роль ЛИБО именем файла (check_jscpd_gate.sh), либо
 # ярлыком (jscpd-DRY) — обе формы живые, и вторая встречается чаще: карта
@@ -11258,12 +11567,33 @@ scripts = [f for f in sorted(os.listdir(lint_dir))
     if os.path.isdir(lint_dir) else []
 by_alias = {a: f for f in scripts for a in aliases(f)}
 
+# Статус — ВЕДУЩИЙ токен ячейки-заявления, а не подстрока где угодно в строке
+# (поле Ally 17.10). Канон задаёт статус перечнем «как есть · адаптирован ·
+# n/a + причина»: токен стоит В НАЧАЛЕ поля, дальше проза. Первая ячейка —
+# ПРЕДМЕТ строки (роль или гейт) и заявлением не бывает: в «Объявления n/a
+# истекают с кодом» n/a — о чём роль, а не её статус. Подстрока роняла такой
+# коммит («n/a без объявления»), гасила соседнее ✅ при объявленном n/a и
+# читала «не подключён» как ✅. Колонку по шапке не ищем: образец карты в
+# каноне кладёт статус и в «В этом проекте», флот пишет так же.
+STATUS = ("✅", "⛔", "n/a", "подключ", "не подключ", "как есть", "адаптир")
+# «как есть» и «адаптирован» — тоже «подключён» (`cqg@2.65`, решение Anthony 18.10):
+# это статусы из перечня самого канона, и без них карты формы шаблона заявлений не
+# несли вовсе — замер флота 18.10: проверка видела 14 строк из 96.
+ON = ("✅", "подключ", "как есть", "адаптир")
+
 problems = []
 for line in open(mp, encoding="utf-8"):
     if not line.lstrip().startswith("|"):
         continue
+    cells = line.strip().strip("|").split("|")
+    leads = [re.sub(r"^[^\w⛔✅]+", "", c).lower() for c in cells[1:]]
+    # Имена — только из ячеек ДО первого статуса (`cqg@2.65`): дальше проза, и имя
+    # гейта, упомянутое в объяснении, читалось как предмет строки. Тот же класс, что
+    # статус из прозы у `2.60`, на том же месте: тогда разбирали статус, а имена
+    # продолжали брать из всей строки.
+    first = next((i + 1 for i, s in enumerate(leads) if s.startswith(STATUS)), len(cells))
     names = []
-    for tok in re.findall(r"\x60([^\x60]+)\x60", line):
+    for tok in re.findall(r"\x60([^\x60]+)\x60", "|".join(cells[:first])):
         key = tok.strip().lower()
         # jscpd-DRY -> ярлык jscpd;  check_x.sh --rule y -> имя файла
         key = re.split(r"\s|--", key)[0].strip()
@@ -11274,22 +11604,17 @@ for line in open(mp, encoding="utf-8"):
     names = sorted(set(names))
     if not names:
         continue
-    # Статус — ВЕДУЩИЙ токен ячейки-заявления, а не подстрока где угодно в строке
-    # (поле Ally 17.10). Канон задаёт статус перечнем «как есть · адаптирован ·
-    # n/a + причина»: токен стоит В НАЧАЛЕ поля, дальше проза. Первая ячейка —
-    # ПРЕДМЕТ строки (роль или гейт) и заявлением не бывает: в «Объявления n/a
-    # истекают с кодом» n/a — о чём роль, а не её статус. Подстрока роняла такой
-    # коммит («n/a без объявления»), гасила соседнее ✅ при объявленном n/a и
-    # читала «не подключён» как ✅. Колонку по шапке не ищем: образец карты в
-    # каноне кладёт статус и в «В этом проекте», флот пишет так же.
-    leads = [re.sub(r"^[^\w⛔✅]+", "", c).lower()
-             for c in line.strip().strip("|").split("|")[1:]]
     claims_na = any(s.startswith(("n/a", "⛔")) for s in leads)
-    claims_on = any(s.startswith(("✅", "подключ")) for s in leads) and not claims_na
+    claims_on = any(s.startswith(ON) for s in leads) and not claims_na
+    # Строка замены: канонный гейт объявлен n/a, роль держит свой скрипт проекта
+    # («адаптирован»: check_grep_gate_ts.sh вместо check_grep_gate.sh у G connect).
+    # Противоречие — только когда живого скрипта в строке нет ни одного.
+    live = [n for n in names if n not in na_whole]
     for n in names:
-        if claims_on and n in na_scripts:
+        if claims_on and n in na_whole and not live:
             problems.append(
-                "%s: в карте ролей ✅, а в not-applicable.json объявлен n/a" % n)
+                "%s: в карте ролей ✅, а в not-applicable.json объявлен n/a "
+                "(подключён — и «как есть», и «адаптирован»)" % n)
         if claims_na and n not in reasoned and os.path.isfile(
                 os.path.join(lint_dir, n)):
             problems.append(
@@ -12455,6 +12780,12 @@ import-linter>=2.0
 
 | Дата | Версия | Изменение |
 |---|---|---|
+| 2026-10-18 | **2.69** | **Инструменты флота: провенанс снимка чист для сканеров секретов, план видит отставание адаптаций.** **① `VENDORED.json` наполнял базу секретов.** Накат (`apply_update.revendor`) и ручной рецепт §5 шаг 11 писали голый hex коммита и sha256, а `detect-secrets` читает его «Hex High Entropy String». Замер флота 17.10: у voice 9 из 9 записей базы — этот файл, у fake-office 8 из 8, у Ally 8 из 8. Каждый накат менял базу, а с `delivery@2.04` ещё и требовал ревью «безопасность» (PR #24 Ally). CQG §2.7a сам называет такие записи находкой канона, а рецепт предписывал «переснимать базу на каждом накате» — лекарство, ставшее ценой. `test_payload_clean_for_scanners.py` файла не видел: его пишет накат, а не канон. **Что встало:** значения с префиксами `git:` и `sha256:` в обоих писателях. Замер `detect-secrets 1.5.0`: ноль находок против двух на тех же значениях без префикса. Читатели — доктор (`_provenance`) и `preflight.provenance` (за ним `collect`) — принимают обе формы: у флота старые записи живут до наката. Прежние записи базы снимаются одним пересъёмом. **② План видит, насколько адаптация разошлась с каноном СТАРОГО пина.** BACKLOG «адаптация прячет отставание», четыре случая: local-web-agent (`delivery_base.py`), portfolio (`quality.yml` без шага selftest `cqg@2.43`), outreach, voice (`complexity_halves.sh` без свойства `cqg@2.04`). `plan_update` сравнивал канон старого пина с новым, и отставание, случившееся раньше пина, находило только чтение. Теперь `adaptation_drift` печатает по каждому адаптированному файлу размер расхождения с каноном старого пина и объявленную причину рядом. Судит человек, план перестаёт молчать. Замер на voice (только чтение): семь адаптаций, от `+1/−1` у `.prettierrc` до `+146/−142` у `pyproject.toml`, каждая со своей причиной. **③ Попутно** (поле G connect 17.10): накат печатал «нет docs/canon — вариант B», хотя проект объявил D. Теперь печатает то, что видит: «снимка docs/canon в клоне нет». `VENDORED.md` у voice держал версии руками — проект сам заменил их ссылкой на `VENDORED.json`, а канон этот файл не предписывает: правки не нужно. **Двенадцать прогонов** (`test_provenance_is_scanner_clean.py`, `test_plan_shows_adaptation_drift.py`). **Обратный прогон:** на `2.68` красны десять, включая настоящий скан `detect-secrets` по записи наката; зелены стражи старой формы у доктора и `preflight`. **вес: +2 строк, за что** — снятие префикса у доктора и префиксы в рецепте. **field: +58 строк, за что** — префиксы наката, чтение обеих форм в `preflight`, `adaptation_drift` и `report_drift`. **объём: +2 строк, за что** — абзац о префиксах вместо «переснимай базу на каждом накате» и эта запись. **класс:** gate-mask-misses-the-population @ field/fleet/apply_update.py::revendor |
+| 2026-10-18 | **2.68** | **Дайджест утверждений: «не видел» — не «утверждений нет».** Поле Smart Friend Ally 18.10 (их инцидент `2026-10-18-assert-digest-swift`): в диффе поставки 12 `XCTAssert`, а `assert_digest.sh` писал «Новых утверждений нет» и `asserts_without_example: 0`. `delivery_check` разрешает `asserts_reviewed_by: n/a` ровно при нуле (§3.1d ур. 3) — n/a проходил на пустоте. Сверено с кодом: маска знала только `*test*.py|ts|tsx` и `*_test.go`; ручку `LINT_TEST_GLOB` шапка обещала с первой редакции, а код её не читал ни разу; разбор не брал `XCTAssert…` и не открывал блок `func test…`/`@Test`. `#expect(` шаблон брал — вопреки описанию инцидента, дыра была в населении, а не в шаблоне. **Что встало:** маски — из `LINT_TEST_GLOB` (дефолт прежний плюс `*Tests.swift`, `*Test.swift`). Тест-файл опознаётся ПРИНЦИПОМ — именем (`test_*`, `*_test.*`, `*_spec.*`, `*.test.*`, `*Tests.*`, `*Spec.*`) или каталогом `__tests__/` — на исходнике любого языка. Тот, что мимо масок, разобран не был: маркер `unknown`, список таких файлов печатается, совета «пиши n/a» нет. Разбор знает `XCTAssert…`, `XCTFail`, блоки `func test…` и `@Test`. **Замер на настоящем диффе Ally** (`dcc77c6`): было «утверждений нет», 0; стало 12 утверждений, все привязаны к примерам C2–C5, маркер 0 — n/a заслужен честно. Первая редакция признака брала любой исходник в `Tests/` и на том же поле дала `unknown` генератору фикстур `Tests/…/Fixtures/make_fixtures.py`, а следом ещё и противоречила себе («✅ пиши n/a» над «n/a недоступно»): признак сужен до имён, совет при `unknown` снят. Встречная половина — `delivery@2.06`: `unknown` отказывался и раньше (регулярка ждала число), но с чужим диагнозом «дайджест не вставлен». **Семь прогонов** (`test_assert_digest_sees_the_language.py`). **Обратный прогон:** красны пять, зелены стражи — генератор фикстур и прежний python. **вес: +47 строк, за что** — маски из `LINT_TEST_GLOB`, опознание тест-файла принципом, маркер `unknown`, разбор XCTest; в сумме и строки `delivery@2.06`. **объём: +3 строк, за что** — эта запись и встречные строки `delivery@2.06` (фраза §3.1d и её запись). **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md scripts/lint/assert_digest.sh |
+| 2026-10-18 | **2.67** | **Механика контура — всё, что приносит накат: оба зеркала правила перечисляли случаи.** Поле Smart Friend Ally 18.10 (их инцидент `2026-10-18-exclude-contour-delivery-modules`): с маской длины `*.swift` доктор звал модули Delivery DEAD — «их не видит ни один гейт». Механику из населения продуктовых гейтов исключают два зеркала одного правила: `exclude_contour` у гейта длины и `CONTOUR_RE` у доктора (его же с `2.59` берёт AST-гейт). Оба перечисляли `scripts/delivery_(check|metrics).py`, а разрез `delivery@1.53` дал тринадцать модулей — одиннадцать мимо. `BREAKER_EXCLUDE` этот рецидив закрыл префиксом ещё тогда («ПРЕФИКСЫ, а не точные пути»), а здесь его не досмотрели. Тест принципа, выводящий население из манифеста, нашёл ещё двоих: `scripts/check_irreversible_signature.sh` и `scripts/sign_irreversible.sh` (Delivery §3.4a). Сегодня их не берёт ни маска длины, ни знаменатель доктора, но маска с `*.sh` дала бы ложный красный. **Едущие файлы — тоже механика.** `stack_selftest.py`, `selftest_sizes.py`, `extract_payload.py` ложатся в проект тем же накатом, в корень или в `scripts/`, и AST-гейт проекта судил копию `stack_selftest.py`: у хендлера на строке 175 нет пометки `# silent-ok:`. Хендлер ошибку не глушит — возвращает её вызывающему как провал блока; пометка поставлена. Сам канон этого не видел: самопроверка `test_payload_passes_own_gates.py` судила только блоки канонов, без едущих файлов. Теперь судит и их — списком накатчика `TRAVELLING`, второго не заводя. **Что встало:** префикс `scripts/delivery_[a-z_]+\.py`, два скрипта §3.4a и едущие файлы (`(scripts/)?…\.py`) в обоих зеркалах. `test_contour_population.py` выводит население из манифеста payload'а и `TRAVELLING` и требует, чтобы оба зеркала покрыли его целиком, а продуктовые пути не тронули. Новый скрипт вне правила краснит сьют, а не поле. ⚠ **Третье зеркало — `BREAKER_EXCLUDE` Delivery — выравнивается своей ревизией** (`delivery@2.05`): два скрипта §3.4a и едущие файлы в него тоже не входят. **Шесть прогонов** плюс расширенная самопроверка. **Обратный прогон:** на `2.66` красны оба зеркала и самопроверка (сам `silent-except`), зелены стражи продукта и непустого населения. **вес: +11 строк, за что** — префикс и едущие файлы в двух зеркалах, пометка в `stack_selftest.py`, разбор принципа у `exclude_contour`. **объём: CQG +0 строк** — прозы CQG правка не добавила; запись карты `stack-map@1.54` несёт свои. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md check_file_length.sh::exclude_contour, CODE_QUALITY_GATES.md doctor_hooks.py::HookReaders.CONTOUR_RE |
+| 2026-10-18 | **2.66** | **Объявление n/a «до первого кода» истекает с первым файлом. Решение Anthony 18.10 ③, образец Smart Friend Ally.** Проба Ally 03.10: роли Swift были объявлены n/a с причиной «кода ещё нет», и первый закоммиченный `.swift` прошёл и мета-гейт, и доктора — код поехал мимо всех гейтов. Канон держал устаревшее объявление только видимостью (причина печатается на каждом прогоне, `cqg@1.67`), а причина «кода нет» верна ровно до первого файла. Ally закрыли это своим гейтом `check_na_expiry.py` и отдельным файлом условий. **Что встало в каноне:** нового гейта нет (бюджет 22 из 22), истечение судит мета-гейт, который `not-applicable.json` и так разбирает. Объявление пишется объектом `{"reason": …, "until": маска | [маски]}`. С первым файлом по маске (`git ls-files`: индекс и неигнорируемое дерево) мета-гейт краснеет «объявления n/a истекли», называет ключ и первый файл и говорит, что решить: подключить гейт или переобъявить n/a уже без `until`. Объект без причины — тот же отказ, что пустая строка. Строковая форма не тронута. Второй читатель значения, `check_ci_status.sh`, брал только строку, и объект с причиной там молча не считался бы — читает `reason`. Доктор объектную форму понимал и раньше. **Маски — по замеру, а не догадкой:** `*.py` истёк бы сразу на питоновских скриптах самого контура, а `backend/**/*.py` в маске git пропускает файлы верхнего уровня, потому что `*` и так проходит `/`. Пример в каноне — `backend/*.py`, ловушки названы в прозе. **Семь прогонов** (`test_na_expires_with_code.py`). **Обратный прогон:** на `2.65` красны четыре, зелены три стража — строковая форма, объявление без кода, скрипты контура при маске продукта. **вес: +38 строк, за что** — разбор объектной формы, истечение по маске, отказ с решением, `reason` у `check_ci_status.sh`. **объём: +13 строк, за что** — абзац «Объявление «до первого кода» истекает само» и эта запись. **класс:** absent-is-not-unneeded @ scripts/lint/check_gate_coverage.sh |
+| 2026-10-18 | **2.65** | **Карта ролей: «как есть» и «адаптирован» — заявления, имена гейтов — не из прозы. Решение Anthony 18.10 ④ и рецидив класса `2.60` на том же месте.** `2.60` научил мета-гейт брать СТАТУС из ведущего токена ячейки, но перечень заявлений «подключён» знал только ✅ и «подключ…», хотя сам канон задаёт статус перечнем «как есть · адаптирован · n/a + причина». Замер флота 18.10: проверка «подключён, а объявлен n/a» видела 14 строк карт из 96 — формы шаблона заявлений не несли вовсе. **Включённое в лоб ④ дало бы два ложных красных у G connect** — строки ЗАМЕНЫ: канонный `check_grep_gate.sh`/`check_ast_gate.py` объявлен n/a, роль держит свой скрипт (`check_grep_gate_ts.sh`, eslint `no-empty`), статус «адаптирован». Поэтому противоречие — только когда живого скрипта в строке нет ни одного. **А «живой скрипт» нельзя брать из прозы:** имена гейтов собирались из ВСЕЙ строки, и упомянутый в объяснении гейт становился предметом — получал чужое ✅ или чужое «n/a без объявления», а с правилом замены ещё и гасил бы настоящее противоречие. Это пункт «имена из прозы», названный остатком ещё в «Итоге 17.10»: `2.60` разобрал статус и оставил имена на том же месте, и реестр выводит это рецидивом. **Что встало:** имена — только из ячеек ДО первого статуса; `как есть`/`адаптир…` в перечне заявлений «подключён»; противоречие с ключом на весь скрипт — только без живого скрипта в строке. Текст сообщения прежний, с пояснением в хвосте. Проза — «Применимость → Карта ролей». **Замер на картах флота настоящим разборщиком:** вердикт не изменился ни у одного из восьми проектов, проверка теперь видит 96 строк вместо 14. **Шесть прогонов** (`test_role_claims_and_names.py`). **Обратный прогон:** на `2.64` красны четыре, зелены оба стража — строка замены и прозаическое имя, не гасящее противоречие. **вес: +16 строк, за что** — перечень статусов, имена до первого статуса, правило замены. **объём: +10 строк, за что** — абзац «как мета-гейт читает строку» и эта запись. **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md scripts/lint/gate_coverage_roles.sh |
+| 2026-10-18 | **2.64** | **TS-половина мутационного гейта: «не просудил» — красное, а доли считают и судит сумма. Решения Anthony 18.10 ① и ②.** G connect №2 (17.10): у TS-половины каждый исход «не смог судить» выходил нулём и читался «мутанты убиты», хотя python-половина в том же состоянии с `cqg@2.46` красная. **Что встало:** `not_judged` на всех исходах TS-половины, где судить не смогли: нет Stryker'а, база недоступна, раннер не выбран (ни конфига, ни раннера / их несколько), маска не разобралась, бюджет исчерпан, отчёта нет, вердикта из отчёта нет (в том числе одни CompileError). Порядок «сначала есть ли работа, потом чем её делать»: без правки TS проект без Stryker'а не краснеет. Тем же отказом стал путь «нет ни python-, ни TS-каталога»: был жёлтый exit 0, и опечатка в LINT_TS_SRC проходила молча. Законный выход — ключ `check_mutation_gate.sh:ts` в `not-applicable.json` (неприменима ПОЛОВИНА) или прежний ключ на весь гейт. Карта ролей (`gate_coverage_roles.sh`) судит «✅ против n/a» только ключами на весь скрипт: ключ `имя:правило` резался до имени и делал ✅ живого гейта противоречием, без законного выхода. **Честный ноль — по замеру, а не догадкой.** Stryker 9.6 на диффе из одних типов: «Instrumented 1 source file(s) with 0 mutant(s)», затем vitest-раннер падает `ConfigError` с rc=1 и без отчёта; файлов без мутантов в отчёте нет вовсе. Поэтому ноль узнаётся по словам Stryker'а, до отчёта. **Доли** (`MUTATION_SHARD=k/N`, по выбору проекта): каждый N-й файл отсортированного списка — деление G connect. Доля пишет счёт `reports/mutation/shards/shard-k-of-N.counts` («убито всего»), в том числе «0 0», когда ей нечего судить, и порог не судит. Порог судит `MUTATION_SUM=N` по сумме. Доля без счёта — «не просудил». Довод — их урок L31: доля, судившая сама, упала на 59% при общих 70%. `MUTATION_SHARD` при судимой python-половине — отказ, иначе N долей N раз гнали бы полный прогон. Пример CI — матрица долей и джоба суммы на `upload-artifact@v7`/`download-artifact@v8` (§3.7). **Замер флота 18.10:** TS-половину судит только G connect — у voice, local-web-agent и fake-office есть python-каталог, и диспетчер судит его; Ahrefs, outreach, Ally и portfolio объявили неприменимым весь гейт. Значит, прежняя оценка «Итога 17.10» («voice, local-web-agent и fake-office покраснеют») была неверна: не краснеет никто, кроме G connect, а он этого и просил. ⚠ **Названный остаток:** у python-половины «mutmut не найден», «ref недоступен» и «нет timeout» по-прежнему именованный пропуск с exit 0 — `2.46` сделала красным только «инструмент есть, а судить не смог». Выровнять — отдельное решение: local-web-agent (148 файлов .py, mutmut нет) покраснел бы на ручном шаге. **Двадцать четыре прогона** (`test_mutation_ts_not_judged.py`) плюс переписанный `test_missing_tool_is_not_judged_unless_the_half_is_declared`, который закреплял старое поведение (exit 0 без Stryker'а). **Обратный прогон:** на `2.63` красны 22 из 24, зелены оба стража — ключ на весь гейт краснит ✅, хороший прогон проходит. **вес: +134 строк, за что** — исходы `not_judged`, узнавание честного нуля, доли со счётом и суммой, порядок «работа раньше инструмента», ключ половины, `na_whole` в карте ролей. Доли, счёт, сумма и порог вынесены новой частью `mutation_shard.sh` (82 строки): без шва `mutation_ts.sh` перешёл бы планку 300 (234 → 329), с ним 264; запуск Stryker'а и поиск отчёта — функция `ts_run`, иначе `ts_mutation` вышел бы за планку функции §2.1 (89 строк при 80); часть зарегистрирована в `PARTS` извлекателя, числа §5.0 — 37 файлов и 80 извлекаемых. **объём: +68 строк, за что** — подраздел §3.7 с примером CI и эта запись. **класс:** green-without-the-thing @ scripts/lint/mutation_ts.sh::ts_mutation, scripts/lint/check_mutation_gate.sh |
 | 2026-10-17 | **2.63** | **Накат вендорил рабочее дерево канона, а не коммит.** Поле voice-interview-coach 17.10: `plan_update` пообещал «станет cqg@2.57 · okf@1.21», хотя на `origin/main` лежали `cqg@2.56 · okf@1.21`: сессия канона правила CQG и не закоммитила, а `apply_update` перевендорил бы снимок с незаконченной правки. `VENDORED.json` честно пишет `dirty: true`, но накат при этом не останавливался. Сессия заметила сама и откатилась на чистый клон. Это класс D из `delivery@2.01` §5.1a на самом каноне: рабочее дерево Prepare — общий ресурс сессии канона и всех накатывающих, и незаконченное состояние читалось как источник. **Что встало:** `canon_dirt` — незакоммиченное из того, что едет в накат (`TRAVELLING` и инструменты флота `field/fleet/*.py`; снимки обхода и журналы дверь не держат); накат отказывает с именами, `--dry-run` предупреждает. Сессия канона со своей стороны правит в отдельном worktree и перематывает main только на готовые коммиты. ⚠ **Первая редакция резала имя файла:** разбор `status --porcelain` после `strip()` терял ведущий пробел статуса первой строки, и срез съедал первую букву имени («ODE_QUALITY_GATES.md») — поймал первый же прогон; вместо статуса — списки путей (`diff --name-only HEAD`, `ls-files --others`). **Прогоны:** правка канона в работе — названа; новый инструмент флота — назван; BACKLOG и снимок обхода — не держат; накат отказывает. Обратные: без отказа красен сквозной, без сужения путей — страж. **field: +27 строк, за что** — `canon_dirt` с разбором поля и отказ в `apply_update.py`. **объём: +1 строк, за что** — эта запись. **класс:** index-is-a-cache-not-a-source @ field/fleet/apply_update.py::revendor |
 | 2026-10-17 | **2.62** | **Область мутаций TS-половины затирала маску проекта — и защитное исключение вместе с ней.** Поле G connect 17.10: `--mutate "<изменённые>"` из командной строки ЗАМЕНЯЕТ `mutate` конфига Stryker, а не сужает его. Замер Stryker 9 (`--dryRunOnly`): `--mutate src/core/env.ts,src/core/ops.ts` — «Found 2 of 276», хотя в `stryker.config.json` стоит `!src/core/env.ts`. Исключение у G connect защитное: мутант `env.ts` 2026-09-02 записал фикстуры тестов в настоящий `~/.gconnect`. Это не точность, а безопасность: гейт мутировал то, что проект запретил мутировать. На вопрос «что мутируемо» было два ответа — маска проекта и список гейта, — и второй молча отменял первый. **Что встало:** изменённые файлы проходят маску конфига тем же порядком, что у Stryker (совпадение позже перекрывает раньше, `!` вычитает); не JSON-конфиг прочесть нечем — область не сужена, и это сказано; маска не разобралась — Stryker не запускается вовсе: мутировать защищённое хуже, чем не судить; удалённые файлы мимо (`--diff-filter=d`). Перенос — с исправления самого G connect (у проекта это ПОЧИНКА в `adapted.json`, оракул `tests/mutation-scope.test.ts`); в их CI во всех долях «вне маски — src/core/env.ts → судить нечего». **Прогоны** (фальшивый Stryker записывает, что ему передали в `--mutate`): исключённый файл не доезжает; всё вне маски — Stryker не запущен, «судить нечего»; удалённый файл не уходит (конфиг `.mjs` нарочно: иначе удалённый путь отсеял бы фильтр маски, и снятый `--diff-filter=d` не уронил бы ничего); без маски область прежняя. Матрица диагональная. ⚠ **Сознательно НЕ перенесено:** две другие правки G connect. «Не просудил» у TS-половины (исчерпан бюджет, нет отчёта, нет Stryker) по-прежнему именованный пропуск, а не `not_judged`, как у python-половины с `2.46`. По правилу канона это дефект, но у трёх проектов флота (voice, local-web-agent, fake-office) гейт стоит без Stryker и без объявления: их PR с правками TS станут красными, а объявить неприменимой можно только роль целиком, вместе с python-половиной. Доли прогона (`MUTATION_SHARD`) — новая возможность с ценой в CI. Оба — решение Anthony, в BACKLOG. **вес: +63 строк, за что** — `ts_scope_filter` с разбором глобов Stryker и разбором поля, `--diff-filter=d`. **объём: +1 строк, за что** — эта запись. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md scripts/lint/mutation_ts.sh --mutate |
 | 2026-10-17 | **2.61** | **«Просмотрено N» у complexity-gate считало не то население, что гейт судил.** Поле portfolio-site 17.10: гейт печатал «просмотрено 7 файл(ов)», а eslint в том же прогоне вернул 23 записи — 16 `.astro` судились и несли находки в снимок, но в счёт не входили. Разведка: счёт брался из `git ls-files` по маске расширений (`LINT_TS_EXT_RE`, по умолчанию `ts|tsx|js|jsx|mts|cts`), суд — из записей JSON eslint и файлов ruff; два населения считались независимо. Судилось, но не считалось: `.astro`, `.mjs`/`.cjs` (eslint берёт их по умолчанию), неотслеживаемые файлы (eslint ходит по диску); считалось, но не судилось: `.jsx`/`.cts` без блока в конфиге проекта, файлы под `ignores` (канонный конфиг игнорирует `src/test/**`). Дело не в astro: на проекте формы канона счёт 4 при суде 3. **Что встало:** знаменатель берётся у инструмента — для TS это число записей того же JSON, по которому считаются нарушения, для python — список файлов `ruff check --show-files` при тех же настройках. `LINT_TS_EXT_RE` у счёта был единственным потребителем и ушёл из §6. Пустой случай OK не печатает: eslint без файлов выходит 2 (гейт уже говорит об ошибке), ruff — 0 (срабатывает прежнее «0 файлов просмотрено»). **Прогоны:** счёт равен записям eslint (astro судится, jsx — нет; смесь подобрана так, чтобы два счёта не совпали случайно); обе половины складываются. Обратный: на `2.60` красен ровно первый. ⚠ **Фикстура держала дефект:** фальшивый eslint `CLEAN` отдавал одну запись на два файла, а тест требовал «просмотрено 2» и проходил только потому, что счёт шёл из git; настоящий eslint 10.8 отдаёт запись на каждый разобранный файл, чистый тоже (замер: 23 записи при нуле находок). Фикстура исправлена. ⚠ **Названо, что не закрыто:** строка OK печатает маску python-половины и тогда, когда половина пропущена; маска запуска хука в шаблоне (`frontend/src/.*\.(ts|tsx)`) — третье население: правка только `.js`/`.mjs`/`.astro` даёт «Skipped» локально, а CI их судит. В BACKLOG. **вес: +9 строк, за что** — знаменатель из инструмента в `complexity_halves.sh` с разбором поля. **объём: +1 строк, за что** — эта запись. **класс:** gate-mask-misses-the-population @ CODE_QUALITY_GATES.md scripts/lint/complexity_halves.sh::count_seen |

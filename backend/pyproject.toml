@@ -60,6 +60,8 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = [
   "--strict-markers",
+  # Опечатка в ключе конфига — ошибка, а не молча проигнорированная строка (канон, порт 18.10).
+  "--strict-config",
   "--cov=app",
   "--cov-report=term-missing",
   "--cov-fail-under=85",  # Phase 2 gate (doc 18)
@@ -74,6 +76,7 @@ markers = [
   "integration: hits multiple layers (still mocked external AI)",
   "slow: manual or e2e; not run in default CI",
 ]
+xfail_strict = true        # xfail, который вдруг прошёл, = сигнал, а не тишина
 
 [tool.coverage.run]
 source = ["app"]
@@ -145,6 +148,7 @@ known-first-party = ["app"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+warn_unreachable = true
 packages = ["app"]
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true

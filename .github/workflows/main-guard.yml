@@ -1,66 +1,46 @@
-# CQG §8.5.1 ④ — красное на main не остаётся тихим: открывается issue.
-#
-# АДАПТАЦИЯ ПРОЕКТА: канонический шаблон гоняет pre-commit сразу после checkout.
-# Здесь так нельзя — хуки `language: system` зовут backend/.venv/bin/mypy и
-# npx eslint, поэтому без установки зависимостей джоба падает с exit 127
-# («нет бинаря»), а не на реальном нарушении, и открыла бы ЛОЖНЫЙ issue.
-# Ставим то же и в том же порядке, что quality.yml.
+# .github/workflows/main-guard.yml
 name: main-guard
+
 on:
-  push:
+  workflow_run:
+    workflows: [quality]      # ← имя из `name:` в quality.yml
+    types: [completed]
     branches: [main]
+
 permissions:
   contents: read
   issues: write
-# §8.7 мера 5: новый push отменяет предыдущий прогон ТОЙ ЖЕ ветки. Без этого
-# три быстрых пуша подряд держат три прогона, и платятся все три. Группа по
-# workflow+ref, а не по workflow: параллельные ветки друг друга не гасят.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
-  verify:
+  alert:
+    # Только на красный результат quality: зелёный прогон даёт честный skipped,
+    # а не «успешно ничего не сделали». И только на push: `branches: [main]` у
+    # workflow_run судит ИМЯ ветки, и PR из ветки `main` (форк или PR в другую
+    # базу) с красной quality открывал ложный «RED on main» (`cqg@2.51`, починка
+    # `portfolio-site`, разбор безопасности 03.10).
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # §8.7: предохранитель на КАЖДОЙ джобе — дефолт GitHub 6 часов. Приёмочное
+    # развёртывание нашло, что таймауты стояли только в quality.yml.
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-      - uses: astral-sh/setup-uv@v5
-        with: {python-version: "3.12"}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      # Имя в кавычках: незакавыченный скаляр с ": " YAML читает как вложенный
-      # mapping, и весь workflow перестаёт парситься (гейт молча мёртв).
-      - name: "Install deps (гейты используют language: system)"
-        run: |
-          (cd backend && uv sync --all-extras)
-          (cd frontend && npm ci)
-
-      - id: gates
-        continue-on-error: true
-        env:
-          STRICT: "1"
-          LINT_PY_SRC: backend/app
-          LINT_FE_DIR: frontend
-          LINT_BE_DIR: backend
-          LINT_COV_PKG: app
-        run: |
-          pip install pre-commit
-          pre-commit run --all-files
-      - if: steps.gates.outcome == 'failure'
-        env:
+      - env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
         run: |
-          gh issue create \
-            --title "RED on main: ${{ github.sha }}" \
-            --body "Гейты на main красные. Слито мимо merge_guard.sh (CQG §8.5). Починить или откатить." \
-            --label bug
-      - if: steps.gates.outcome == 'failure'
-        run: exit 1
+          # Один открытый issue на проблему, а не по одному на каждый push.
+          existing=$(gh issue list --repo "$REPO" --state open \
+            --search "RED on main in:title" --json number --jq '.[0].number // ""')
+          body="Прогон quality на main завершился красным.
+          Commit: \`$SHA\`
+          Прогон: $RUN_URL
+
+          Скорее всего слито мимо \`merge_guard.sh\` (CQG §8.5). Починить или откатить."
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "RED on main: $SHA" --body "$body"
+          fi
+      - run: exit 1

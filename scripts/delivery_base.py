@@ -79,6 +79,15 @@ BREAKER_EXCLUDE = (
     # Оба хостинга: у контура гейт мержа чисто гитовый, а CI-контракт §10.4
     # описан шагами, поэтому путь конфига — свойство хостинга, не канона.
     ".gitlab-ci.yml",
+    # Третье зеркало правила «механика контура — всё, что приносит накат»
+    # (`delivery@2.05`, вслед за `cqg@2.67`): скрипты §3.4a лежат вне
+    # `scripts/lint/`, а едущие файлы (§7.1 карты) — в корне либо в `scripts/`, и
+    # накат, обновивший их, считался бы правкой кода. Полноту всех трёх зеркал
+    # держит `test_contour_population.py` — по манифесту payload'а.
+    "scripts/check_irreversible_signature.sh",
+    "scripts/sign_irreversible.sh",
+    "stack_selftest.py", "selftest_sizes.py", "extract_payload.py",
+    "scripts/stack_selftest.py", "scripts/selftest_sizes.py", "scripts/extract_payload.py",
 )
 
 # ВТОРОЙ принцип исключения — «сгенерированное, а не написанное». Пути выше
@@ -118,8 +127,16 @@ def out_of_blast_radius(path: str) -> bool:
     исключение, которого нет в печати, это ровно «исключение растворено», против
     чего §3.4 и требует печатать число.
     """
-    return (path.startswith(BREAKER_EXCLUDE)
-            or path.rsplit("/", 1)[-1] in GENERATED_FILENAMES)
+    name = path.rsplit("/", 1)[-1]
+    return (path.startswith(BREAKER_EXCLUDE) or name in GENERATED_FILENAMES
+            or name in CONTOUR_CONFIGS)
+
+
+#: Конфиги гейтов, которые поставляет канон, — механика по тому же принципу, что
+#: и `BREAKER_EXCLUDE`, но путь у проектов разный (`frontend/` или корень), поэтому
+#: по имени файла (`delivery@2.05`; зеркала CQG держат их с `cqg@2.04`).
+CONTOUR_CONFIGS = (".dependency-cruiser.cjs", "eslint.config.js", "eslint.config.mjs",
+                   "eslint.config.cjs")
 
 
 # Текстовые расширения для поиска id примеров в тестах. Маска `*test*` ловит и
@@ -361,7 +378,9 @@ class ActiveCtx:
     Восемь значений — вся связь между разделами активной поставки; внутри `main`
     их роль играли полсотни локальных переменных, и именно поэтому функция не
     резалась. Список получен замером: пересечение «присвоено раньше — прочитано
-    позже» по AST, а не на глаз.
+    позже» по AST, а не на глаз. Девятое, `home`, — каталог поставки
+    (`delivery@2.04`): поставку, которую архивирует этот же дифф, судят те же
+    разделы, и путь к её файлам обязан приходить отсюда, а не из `ACTIVE`.
     """
 
     phase: str
@@ -372,3 +391,4 @@ class ActiveCtx:
     verify: Path
     eval_smoke: Path
     implement_like: set[str]
+    home: Path = ACTIVE

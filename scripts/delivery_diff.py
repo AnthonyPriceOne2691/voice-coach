@@ -2,16 +2,68 @@
 """Что изменилось: дифф, идентификаторы правки, уроки из архива.
 
 Часть `delivery_check.py` (`delivery@1.53`). Ответ на вопрос «на что вообще
-смотреть»: объём диффа, какие имена в нём появились и какие строки архива к нему
-применимы. Суждения здесь нет — оно в разделах, которые этим пользуются.
+смотреть»: объём диффа, какие имена в нём появились, какие строки архива к нему
+применимы и какие поставки он архивирует. Суждения здесь нет — оно в разделах,
+которые этим пользуются.
 """
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
-from delivery_base import git, merge_base_of, out_of_blast_radius
+from delivery_base import ROOT, git, merge_base_of, out_of_blast_radius
 from delivery_decisions import DECISION_STOPWORDS
+
+#: STATUS поставки в архиве — тот же образец, что `ARCHIVED_STATUS` у `okf_sync_gate`
+#: (каноны друг друга не импортируют: проект вправе развернуть один без другого).
+ARCHIVED_STATUS = re.compile(r"^delivery/archive/[^/]+/STATUS\.md$")
+
+
+def archived_in_diff(base: str | None) -> list[Path]:
+    """Каталоги поставок, которые архивирует ЭТОТ дифф: их STATUS ДОБАВЛЕН в окне.
+
+    Поле Smart Friend Ally 17.10: handoff и перенос в `archive/` — один коммит, и
+    гейт, смотревший только в `active/`, видел пустоту — «idle», 0 ошибок при
+    неподписанной спеке (§2.3a). Окно — общее у всех потребителей базы. Только
+    ДОБАВЛЕННЫЕ: правка давнего архива поставкой не является (как у `okf@1.20`).
+    `--no-renames` — иначе перенос `active/` → `archive/` пришёл бы переименованием;
+    `-z` — кириллический slug git отдал бы в кавычках, и образец его не узнал бы.
+    """
+    merge_base = merge_base_of(base)
+    if not merge_base:
+        return []
+    out = git("-C", str(ROOT), "diff", "--name-only", "-z", "--diff-filter=A",
+              "--no-renames", f"{merge_base}..HEAD")
+    return [ROOT / Path(f).parent for f in out.split("\0") if ARCHIVED_STATUS.match(f)]
+
+
+def numstat(rng: str) -> list[tuple[str, str, str]]:
+    """(путь, добавлено, удалено) из `git diff --numstat -z` — пути как есть.
+
+    `-z` (`delivery@2.05`): без него git отдаёт кириллический путь в кавычках и
+    восьмеричных кодах (замер 17.10), `delivery/заметка.md` не узнавался как
+    `delivery/`, и документ поставки шёл в breaker'ы кодом. Переименование при `-z`
+    — запись «добавлено, удалено, пусто» и два пути следом; берётся новый, а не
+    строка «старый => новый», которую разбор без `-z` принимал за путь.
+    """
+    parts = git("diff", "--numstat", "-z", rng).split("\0")
+    out: list[tuple[str, str, str]] = []
+    i = 0
+    while i < len(parts):
+        fields = parts[i].split("\t")
+        if len(fields) != 3:
+            i += 1
+            continue
+        a, d, path = fields
+        if path:
+            i += 1
+        else:
+            path, i = (parts[i + 2] if i + 2 < len(parts) else ""), i + 3
+        if path:
+            out.append((path, a, d))
+    return out
+
 
 def diff_stats(base: str) -> tuple[int, int, int, int, list[str]] | None:
     """(files, added, deleted, excluded, paths) для base..HEAD; None если ref недоступен.
@@ -27,11 +79,7 @@ def diff_stats(base: str) -> tuple[int, int, int, int, list[str]] | None:
     merge_base = merge_base_of(base) or base
     files = added = deleted = excluded = 0
     paths: list[str] = []
-    for line in git("diff", "--numstat", f"{merge_base}..HEAD").splitlines():
-        parts = line.split("\t")
-        if len(parts) != 3:
-            continue
-        a, d, path = parts
+    for path, a, d in numstat(f"{merge_base}..HEAD"):
         if out_of_blast_radius(path):
             excluded += 1
             continue
