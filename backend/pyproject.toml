@@ -76,6 +76,19 @@ markers = [
   "integration: hits multiple layers (still mocked external AI)",
   "slow: manual or e2e; not run in default CI",
 ]
+# Каждое предупреждение в тесте — красный тест (канон cqg@1.13, порт 2026-10-23).
+# Исключения — поштучно и с причиной; список только сокращается.
+filterwarnings = [
+  "error",
+  # starlette.testclient на ИМПОРТЕ предупреждает, что ждёт httpx2, а стоит httpx.
+  # Строка канона, трёхполевая: модуль в 4-м поле на предупреждении с импорта не
+  # совпадает никогда (cqg@1.33). Без неё сбор падает в 7 модулях. Снимается
+  # вместе с переходом на httpx2 — это новая зависимость и решение человека.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:Warning",
+]
+# ⚠ Утечку соединения `error` ловит монеткой: в том тесте, где сработал сборщик
+# мусора (cqg@1.49; замер 2026-10-23 — 18 тестов-виновников, падали 5 других).
+# Синхронная проверка — autouse-сторож в tests/conftest.py.
 xfail_strict = true        # xfail, который вдруг прошёл, = сигнал, а не тишина
 
 [tool.coverage.run]
