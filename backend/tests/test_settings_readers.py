@@ -20,9 +20,8 @@ from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.storage.repositories.settings_repo import DEFAULTS
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Код, который ключ хранит, объявляет, показывает или валидирует, но не
 # применяет. Встреча ключа здесь читателем не считается.

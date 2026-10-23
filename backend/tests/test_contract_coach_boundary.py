@@ -12,14 +12,13 @@ prompt-level only), — а по конкретным конструкциям: *
 Односторонний был бы зелёным при любом контракте, включая пустой.
 """
 
-from pathlib import Path
-
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 
-CONTRACTS = Path(__file__).resolve().parents[2] / "data" / "contracts"
+CONTRACTS = REPO_ROOT / "data" / "contracts"
 
 
 @pytest.fixture(scope="module")
