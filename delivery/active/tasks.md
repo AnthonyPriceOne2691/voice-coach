@@ -6,7 +6,7 @@
 - [x] W4. Отложенные аннотации в `vocabulary.py`; `--no-cov` в `[tool.mutmut]`
 - [x] W5. `TurnEnforcer` без `@dataclass` — гейт видит проверки контракта (M12)
 - [x] W6. Тесты прогрева M8–M10 (`test_warmup.py`); обратный прогон M7
-- [ ] W7. Замер долей M11 по модулям на свежем `mutants/`; выжившие — разбор
-- [ ] W8. Канонный шаг мутаций в `quality.yml`; `adapted.json`; «Остатки 2.69» в STACK-ACCEPTANCE
+- [x] W7. Замер долей M11 по модулям на свежем `mutants/`; выжившие — разбор
+- [x] W8. Канонный шаг мутаций в `quality.yml`; `adapted.json`; «Остатки 2.69» в STACK-ACCEPTANCE
 - [ ] W9. PR, CI: шаг судит дифф PR (M13) — прочитать лог шага
 - [ ] W10. `eval-smoke.md`, `verify-report.md`, метрики; STATUS → verify
