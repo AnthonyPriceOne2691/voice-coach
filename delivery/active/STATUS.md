@@ -1,7 +1,7 @@
 # Active delivery status
 
 - **slug:** talk-check-core
-- **stack:** delivery@2.06, cqg@2.69, okf@1.21
+- **stack:** delivery@2.07, cqg@2.74, okf@1.21
 - **class:** M
   <!-- D3a.2 по одной спеке: talk-check-core (эта: решение кода, вызов модели, eval),
        talk-check-wiring (проводка), talk-notes (экран), talk-tips (вслух). Разрез
