@@ -7,10 +7,10 @@
 import json
 import random
 import string
-from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import load_contract
 from app.orchestrator.tips import (
@@ -24,7 +24,6 @@ from app.orchestrator.tips import (
     words,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PASSES = contract_gate(
     ContractEnforcer(load_contract(REPO_ROOT / "data" / "contracts" / "talk.contract.yaml"))
 )
