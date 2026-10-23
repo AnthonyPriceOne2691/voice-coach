@@ -9,7 +9,7 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_repo_root.py::test_mutants_copy_resolves_to_the_same_root
 - **diagnosis:** active/diagnosis.md
-- **phase:** implement
+- **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** deferred (reason=человек подписывает примеры на мерже — решение human:anthony 2026-10-23; at=2026-10-23)
