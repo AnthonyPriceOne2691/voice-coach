@@ -9,7 +9,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; решение кода о заметке к речи, оракулы спеки C1, C3–C9
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-23)
