@@ -21,7 +21,7 @@
 - **worktree:** .claude/worktrees/agent-a260dc0585f391a84 reason=параллельная сессия: основной клон ведёт talk-check; venv и node_modules свои (uv sync, npm ci), не симлинки (L13)
 - **parallel_sessions:** merge-guard
 - **hooks:** claude (scripts/hooks/)
-- **blockers:** none
+- **blockers:** breaker max_loc_diff — собранная поставка net 1,044 без доков (~1,115 с доками) при пределе 800; разрез или waiver — решение человека, active/escalation.md
 - **waivers:** none
 - **new_dependency:** none reason=REST на FastAPI и SQLAlchemy, экран на React, перевод — существующий SummaryService.translate_term; пакетов не добавляется
 - **runtime_paths:** none reason=ws_voice.py и useVoiceSession.ts не тронуты; новые пути — REST (исполняют тесты на TestClient) и экран (jsdom); отказ проигрывания Listen — отклонённый промис play(), который экран показывает, а не падение процесса
