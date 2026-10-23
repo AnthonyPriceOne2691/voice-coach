@@ -27,6 +27,7 @@ Builder: agent:claude-code (worktree `.claude/worktrees/agent-ad938971a5a5f44a4`
 | M12 | `contracts/enforcer.py` | **PASS** — 21 → 171 мутант, убито 80.7% |
 | M13 | шаг в CI PR #44 | **PASS** — «убито 267 из 324 (82%) — OK» за 85 s при бюджете 300 |
 | M14 | `test_storage.py::test_vocabulary_merge_keeps_going_and_list_filters` | **PASS**; доля `vocabulary.py` 61% → 84% |
+| M15 | `test_repo_root.py::test_tests_take_the_repo_root_from_app_config` | **PASS**; до правки красный — `['test_language_check.py:10', 'test_tips_policy.py:27']` (пришли из main с talk-check-core) |
 
 ## Находка верификации: `api/ws_voice.py` в 300 s раннера не укладывается
 
@@ -50,6 +51,16 @@ docstring `ws_voice.py`, бюджет поднят до 2400 s, чтобы по�
 Другие модули укладываются с запасом: PR #44, 324 мутанта, — 85 s. А PR, трогающий
 `ws_voice.py`, на раннере с двумя ядрами получит «бюджет исчерпан — данные неполные,
 гейт не судит», то есть красный шаг: и с умолчанием, и с × 3.
+
+## Находка после слияния main: класс вернулся через три часа
+
+Прогон quality на `bfb5b79` (40015859050) — шаг мутаций красный: «✗ мутационный гейт не просудил
+НИЧЕГО», `ERROR tests/test_tips_policy.py - FileNotFoundError: …/backend/data/contracts/talk.contract.yaml`.
+CI судит PR слитым с `main`, а `main` за это время принял talk-check-core (`384f8b2`): два новых
+тестовых файла считали корень `Path(__file__).resolve().parents[2]` — под копией mutmut это
+`backend/`. Правка тринадцати файлов закрыла случаи, а не класс. Закрыто сторожем на перечень
+(M15: все `backend/tests/*.py`, `parents[N]` от `__file__` при N ≥ 2) и правкой двух файлов;
+`main` слит обычным слиянием (`600e391`), а не перебазированием.
 
 ## Что ещё нашёл гейт (названо, не чинилось в этой поставке)
 
@@ -85,20 +96,23 @@ docstring `ws_voice.py`, бюджет поднят до 2400 s, чтобы по�
 
 | Гейт | Результат |
 |---|---|
-| `pytest` (бэкенд, после перебазирования) | **PASS** — 290 passed, coverage 95.91% (было 272 / 95.6% на `main` до этой поставки) |
-| `mypy app` (strict), `ruff check`, `ruff format --check` | **PASS** — 0 ошибок, 55 файлов |
+| `pytest` (бэкенд, после слияния `384f8b2`) | **PASS** — 318 passed, coverage 96.06% (было 272 / 95.6% на `main` до этой поставки) |
+| `mypy app` (strict), `ruff check`, `ruff format --check` | **PASS** — 0 ошибок, 57 файлов |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — 28 хуков |
 | pre-push (smoke S1–S6, delivery-gate, baseline-ratchet, new-dependency) | **PASS** — на каждом push |
 | `contour_doctor.py` | **DEAD 0** — AUTO 47 · WEAK 17 · ABSENT 0 · TOOL 3 · SKIP 1; «стражи исполнения: mutmut его найдёт» — AUTO |
-| мутационный гейт на диффе PR, локально | **PASS** — «убито 267 из 324 (82%)», 29 s, load 9 |
+| мутационный гейт на диффе PR, локально | **PASS** — «убито 267 из 324 (82%)»: 29 s при load 9, после слияния `384f8b2` — 21 s при load 6 |
 | CI PR #44: `backend`, `gates`, `delivery` | **PASS** — прогоны 40007693513 и 40007693515; первый прогон quality (40002688227) был красным в джобе delivery: `stack:` в STATUS отставал от снимка — main ушёл на контур 2.74, пока PR был открыт |
-| `delivery_check.py --diff-base origin/main` | 0 ошибок, 2 предупреждения (ниже); предохранитель — 21 файл кода, net +370 строк при лимитах 25 и 800 |
+| `delivery_check.py --diff-base origin/main` | 0 ошибок, 3 предупреждения (ниже); предохранитель — 23 файла кода, net +394 строки при лимитах 25 и 800 |
 
 ### Оставшиеся предупреждения
 
 - **`human_ok_spec: deferred`** — примеры M1–M14 человек подписывает на мерже.
 - **Реляционный оракул (§6.5)** — решение человека 2026-08-12: зависимость для
   тестов-свойств не добавляется.
+- **§3.1d, порядок M15** — пример M15 и его сторож приехали одним коммитом (`c8cb25f`): класс
+  нашёлся красным шагом CI после слияния `main`, сторож писался сразу на находку. Примеры
+  M1–M14 закоммичены спекой раньше кода (`3d28b6d`).
 
 ## Изменение поверхности модели (§14.1)
 
@@ -125,6 +139,8 @@ docstring `ws_voice.py`, бюджет поднят до 2400 s, чтобы по�
 4. **отложенные аннотации** в `vocabulary.py` — аннотации этого модуля становятся
    строками; во время исполнения их не читает никто (не pydantic, не FastAPI-маршрут),
    mypy их понимает.
+
+5. **производительность** (`re.compile` у `DEPTH` в `test_repo_root.py`, `rglob`/`ast.parse` у сторожа `test_mutation_copy.py`) — риска нет, потому что это тесты-сторожа: регулярка компилируется один раз на модуль, проход идёт по ~40 файлам тестов и ~55 модулям пакета — миллисекунды; в коде продукта новых разборов в цикле и выборок без границы нет.
 
 ## Исполнение рисковых путей (§12.6)
 
@@ -170,7 +186,7 @@ open questions), подписи человека под примерами и п
   вторую, потому что первую на этом коде не видел никто — гейт не гоняли ни в CI, ни
   руками. Чинить «инструмент не судит» — значит гнать до вердикта, а не до следующего
   стека; и код, который ищет ресурсы глубиной пути (`parents[N]`), ломается под
-  любым инструментом, копирующим пакет, — искать по маркерам данных.
+  любым инструментом, копирующим пакет, — искать по маркерам данных. Правка тринадцати файлов закрыла случаи, а не класс: через три часа talk-check-core принёс ещё два `parents[2]`, и шаг в CI снова «не просудил» — закрывает класс только сторож на перечень (M15, тот же урок, что L72).
 - **L92 (предварительно):** доля убитых без числа мутантов — не вердикт. mutmut 3.7
   молча не мутирует декорированное, и `@dataclass` на `TurnEnforcer` спрятал от гейта
   все проверки контракта: на файле стояло «100%» по 21 мутанту фабрики. Сверять надо
@@ -186,7 +202,7 @@ open questions), подписи человека под примерами и п
 
 База: `origin/main` · сгенерировано `assert_digest.sh`
 
-Новых/изменённых утверждений: **37**, из них без ссылки на пример спеки:
+Новых/изменённых утверждений: **38**, из них без ссылки на пример спеки:
 **0**. Вопрос к каждому непривязанному один: **откуда взято ожидаемое
 значение — из спеки или придумано под реализацию?**
 
@@ -204,6 +220,7 @@ M2	assert repo.resolve() == mutant.REPO_ROOT
 M3	assert find_repo_root(config) == worktree.resolve()
 M4	assert str(config) in message
 M4	assert "data/prompts и data/contracts" in message
+M15	assert offenders == [], (
 M14	assert await repo.merge(batch, session_id="s2") == 2
 M14	assert set(entries) == {"trade-off", "blast radius", "headroom"}
 M14	assert entries["trade-off"].times_seen == 2
@@ -230,7 +247,7 @@ M10	assert record.exc_info is not None
 M10	assert record.exc_info[0] is ConnectionError  # причина — сам отказ модели
 ```
 
-✅ **Каждое утверждение ведёт к примеру спеки** (M1 M10 M14 M2 M3 M4 M5 M8 M9), а примеры человек
+✅ **Каждое утверждение ведёт к примеру спеки** (M1 M10 M14 M15 M2 M3 M4 M5 M8 M9), а примеры человек
 подписал до кода (`human_ok_spec`). Подпись под дайджестом здесь
 **не требуется**: она уже стоит, заранее и на числах. Пиши в verify-report
 `asserts_reviewed_by: n/a (все утверждения ведут к одобренным примерам)`.
@@ -243,13 +260,13 @@ asserts_without_example: 0
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 23 code (+9 process docs) / +421/-41 (net +380) |
-| commits | 12 |
+| files_touched / loc_diff | 25 code (+9 process docs) / +451/-47 (net +404) |
+| commits | 17 |
 | time_to_accepted_spec | spec drafted, not yet accepted |
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — .github/workflows/quality.yml, backend/tests/test_mutation_copy.py (новый оракул), backend/tests/test_repo_root.py (новый оракул), backend/tests/test_warmup.py (новый оракул) |
 | implement_retries | 3 — гейт пробивался через три стены по одной (копия vocabulary.py → корень → порог покрытия), каждая видна только после предыдущей; плюс тест M10 доправлен после выжившего `exc_info=False` |
-| verify_fails_before_green | 1 — первый прогон quality (40002688227) красный в джобе delivery: «STATUS says 2.06/2.69, snapshot has 2.07/2.74» — main ушёл на контур 2.74, пока PR был открыт; после перебазирования и `stack:` — зелёный (40007693515) |
+| verify_fails_before_green | 2 — (1) quality 40002688227 красный в джобе delivery: «STATUS says 2.06/2.69, snapshot has 2.07/2.74» — main ушёл на контур 2.74; после перебазирования и `stack:` — зелёный (40007693515); (2) quality 40015859050 красный в шаге мутаций: «не просудил» — новые тесты main считали корень `parents[2]`; закрыто сторожем M15 и правкой двух файлов |
 | est_token_or_cost | n/a; раннер CI на замеры ws_voice.py — около 50 мин (#45 и #47) |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.

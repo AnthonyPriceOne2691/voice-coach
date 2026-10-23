@@ -109,6 +109,13 @@ mutation: OK
 29 s при load 9. На push в `main` шаг не запускается (`if: … github.event_name ==
 'pull_request'`).
 
+### M13 после слияния `main` (talk-check-core, `384f8b2`)
+
+Прогон [40015859050](https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40015859050) — шаг красный: `✗ мутационный гейт не просудил НИЧЕГО`,
+`ERROR tests/test_tips_policy.py - FileNotFoundError: …/backend/data/contracts/talk.contract.yaml`.
+Два новых теста из `main` считали корень `parents[2]`. После сторожа M15 и правки двух файлов —
+локально «убито 267 из 324 (82%) — OK» за 21 s (load 6); CI — в verify-report.
+
 ## Цена `api/ws_voice.py` в CI (замер, не пример спеки)
 
 Два временных draft-PR: база — `feat/mutation-gate`, в диффе только docstring
