@@ -18,6 +18,9 @@ from app.voice.session_flow import SessionFlow
 WINDOW_MAX = 40
 WINDOW_STEP = 20
 
+#: Счётчики проверки речи в метаданных разговора: `checks_run`, `checks_noted`, …
+CHECK_COUNTERS = ("run", "noted", "cancelled", "failed")
+
 
 def window_start(size: int) -> int:
     """С какого сообщения истории начинается окно: 0, пока всё влезает."""
@@ -39,6 +42,14 @@ class TalkFlow(SessionFlow[TalkRepository]):
         super().__init__(session_id, system_prompt, repo)
         self.orchestrator = orchestrator
         self.current_plan: TalkPlan = orchestrator.intro_plan()
+        #: Заметки к речи (D3a.2) — контракт с экраном talk-notes, doc 12.
+        self.language_notes: list[dict[str, Any]] = []
+        self.check_counts = dict.fromkeys(CHECK_COUNTERS, 0)
+        #: Реплика, на которую отвечает МОДЕЛЬ, и её индекс в транскрипте: только её
+        #: проверяет речь. Просьбу («change the topic», «bye») код отвечает сам —
+        #: проверять там нечего и незачем.
+        self.last_user_text = ""
+        self.last_user_turn_index: int | None = None
 
     async def start(self) -> str:
         """Записать начало разговора; вернуть реплику, которую говорит код."""
@@ -52,6 +63,9 @@ class TalkFlow(SessionFlow[TalkRepository]):
         plan: TalkPlan = self.orchestrator.on_user(text)
         self.current_plan = plan
         self.buffer.append("user", text, state=plan.state.value)
+        answered_by_model = not plan.lines
+        self.last_user_text = text if answered_by_model else ""
+        self.last_user_turn_index = len(self.buffer.turns) - 1 if answered_by_model else None
         if plan.remember:
             self._remember_user_message(text)
         await self._checkpoint()
@@ -69,6 +83,21 @@ class TalkFlow(SessionFlow[TalkRepository]):
         window = self._history[window_start(len(self._history)) :]
         return [{"role": "system", "content": self._system}, *window]
 
+    def add_note(self, note: dict[str, Any]) -> None:
+        """Заметка — только в память потока; в базу её несёт следующий чекпойнт.
+
+        ⚠ Без записи в базу НАМЕРЕННО: зовёт фоновая проверка, а её отменяет
+        следующая реплика. Отмена посередине `async with db.session()` — ровно класс
+        виса 2026-08 (соединение вне пула, L5–L7).
+        """
+        self.language_notes.append(note)
+        self.check_counts["noted"] += 1
+
     async def _checkpoint(self) -> None:
-        metadata: dict[str, Any] = {**self.orchestrator.snapshot(), **self._counters()}
+        metadata: dict[str, Any] = {
+            **self.orchestrator.snapshot(),
+            **self._counters(),
+            "language_notes": self.language_notes,
+            **{f"checks_{name}": count for name, count in self.check_counts.items()},
+        }
         await self.repo.checkpoint(self.session_id, self.buffer.to_json_list(), metadata)

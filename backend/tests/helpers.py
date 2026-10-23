@@ -75,6 +75,10 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     # перевод повторным запросом, и без этого файла первый же тест, дошедший до
     # починки, упал бы на отсутствующем промпте, а не на своём предмете.
     (prompts / "translate_term_system.txt").write_text("translate term")
+    # Просьба о проверке речи (D3a.2) — настоящая: тесты сверяют подстановку реплики.
+    (prompts / "language_check.txt").write_text(
+        (REPO_ROOT / "data" / "prompts" / "language_check.txt").read_text(encoding="utf-8")
+    )
     (prompts / "templates" / "interview_intro.txt").write_text(
         "Hi, I'm Henry. Walk me through an internal tool you built end-to-end."
     )

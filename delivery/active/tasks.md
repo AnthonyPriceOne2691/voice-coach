@@ -1,12 +1,10 @@
-# Tasks: talk-check-core
+# Tasks: talk-check-wiring
 
-- [x] T1 — `LlmClient.stream_chat` получает `json_schema` (Ollama `format`); параметры
-  вызова объявлены один раз (`ChatOptions` + `Unpack`); клиент, фейки, тест тела запроса.
-- [x] T2 — `data/prompts/language_check.txt`; `PromptLibrary.language_check` подставляет реплику.
-- [x] T3 — `orchestrator/tips.py`: разбор кандидата, решение кода, `contract_gate` (C1, C3–C7).
-- [x] T4 — `voice/language_check.py`: история + просьба последней, вызов со схемой (C8).
-- [x] T5 — eval C9: `delivery/evals/talk-check/cases.yaml` (37 случаев) и `run.py`
-  (+ `--latency` для C8); живой прогон — по «запускай».
-- [x] T6 — доки 13, 16, 20; концепты `orchestrator-owns-structure`, `model-split`;
-  `delivery/rule_enforcers.md`; `knowledge/log.md`.
-- [ ] T7 — живой eval C9 и замер C8 по «запускай»; verify-report.
+- [x] T1 — `voice/talk_checks.py`: фоновая задача с владельцем; `finished`, `cancel`.
+- [x] T2 — `TalkFlow`: заметки и счётчики в памяти, `language_notes` в чекпойнте,
+  реплика модели для проверки.
+- [x] T3 — WS: старт после ответа в беседе, отмена на реплике/конце/уборке; «вопрос N
+  из M» в `interview_flow.py`.
+- [x] T4 — тесты C1–C8 сквозь WS (`RoutingLlm`) и сбоев проверки.
+- [x] T5 — doc 12, концепт `sentence-streaming`, `knowledge/log.md`.
+- [ ] T6 — verify, handoff.
