@@ -109,7 +109,7 @@ def test_change_of_case_or_punctuation_only_is_not_a_correction() -> None:
 
 
 def test_retelling_instead_of_a_fragment_is_rejected() -> None:
-    """Вариант длиннее предела — это пересказ, а не поправка фрагмента."""
+    """C2: заметка — поправка фрагмента; вариант длиннее предела — пересказ, не заметка."""
     said = " ".join(["word"] * (MAX_FRAGMENT_WORDS + 1))
     candidate = Candidate(NoteKind.STYLE, said, said + " indeed", "")
     assert decide(candidate, said, seen=[], passes_contract=PASSES) is Rejection.TOO_LONG
@@ -168,7 +168,7 @@ def test_candidate_is_parsed_from_the_schema_answer() -> None:
 
 
 def test_words_ignore_case_punctuation_and_apostrophe_kind() -> None:
-    """Сверка фрагмента не спотыкается о вид апострофа, который ставит распознавание."""
+    """C6: сверка фрагмента не спотыкается о вид апострофа, который ставит распознавание."""
     assert words("Don’t worry, I'm FINE.") == ["don't", "worry", "i'm", "fine"]
 
 
