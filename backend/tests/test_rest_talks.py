@@ -168,7 +168,7 @@ def test_add_to_useful_words_translates_once_and_never_duplicates(tmp_path: Path
     assert word["example_en"] == f"Yesterday {BETTER}."
     assert word["context_note_en"] == f"You said: “{SAID}” — past tense"
     assert (word["type"], word["category"], word["session_id"]) == ("phrase", "fluency", "t1")
-    # Перевод — один вызов голосовой модели, не R1 (D-8, L57); повтор её не зовёт.
+    # C12: перевод — один вызов голосовой модели, не модели разбора (D-8, L57); повтор её не зовёт.
     assert llm.models == [container.settings.ollama_model_interview]
     assert llm.calls[0][-1]["content"] == f"{BETTER}\n\nUsage: Yesterday {BETTER}."
 
@@ -238,7 +238,7 @@ def test_listen_speaks_the_better_phrase_at_the_stored_pace(
 ) -> None:
     """C11: WAV лучшего варианта темпом из настроек; вне коридора — темп по умолчанию.
 
-    Проверяется значение КАЖДОГО вызова синтеза, а не записанная настройка (L29).
+    C11 по уроку L29: проверяется значение КАЖДОГО вызова синтеза, а не записанная настройка.
     """
     container = one_talk(tmp_path, FakeLlm([]), speech_length_scale=stored)
     tts = container.tts
