@@ -4,7 +4,7 @@
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-a30a52584f9fc3c47`, ветка `fix/test-leaks`)
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (все 15 новых утверждений ведут к примерам W3–W7 — дайджест ниже; сами примеры человек подписывает на мерже, `human_ok_spec: deferred`)
-**CI run:** PR #43 — `gh pr checks 43`; прогоны `quality` и `CI` на головном коммите ветки (номера — в отчёте ведущей сессии)
+**CI run:** PR #43, коммит `90d22ed` (весь код поставки и слияние с `main`): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40010466571 — **success**, по логу «280 passed», покрытие 95.64%, итог стражей канона «пул: взято 527, не вернулось 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40010466622 — **success**: `delivery_check: 0 error(s), 2 warning(s)`, `okf_sync_gate: OK`, «stack: в STATUS совпадает со снимком», smoke пройден, pre-commit STRICT (jscpd — 0 клон-пар), доктор в CI `DEAD 0`, diff-coverage — «изменённых prod-файлов нет»
 **Commit:** сторож `9fe3eac`, починка `8b4fbf0`, строгий рантайм `82b7848`, записи контура `24c8f29`, слияние с `main` `e9ef543`, комментарий конфига `ecdd906`
 
 Verify прогнан дважды. Первый раз — на базе `73342b3` (cqg@2.69), под нагрузкой
