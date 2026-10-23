@@ -81,7 +81,7 @@ exit 1
 | V4 | `npm test` на vitest 5 | те же 57 тестов в тех же 11 файлах зелёные, тесты не правлены; умолчание — node: без строки `// @vitest-environment jsdom` компонентный тест падает `document is not defined` |
 | V5 | `npm run build`, `npm run lint`, `prettier --check src` | сборка проходит, бандл побайтно прежний (`index-DEbu37-m.js`, `index-uwZHTTsa.css`); eslint — 0 ошибок и прежнее 1 предупреждение |
 | V6 | `npx vite --port 5273 --strictPort` без бэкенда | сервер стартует на 5273; `/` отдаёт приложение; `/sessions`, `/vocabulary`, `/settings`, `/health` и `/ws` уходят прокси на `127.0.0.1:8000` — ошибка прокси, а не страница приложения |
-| V7 | `UV_FROZEN=1 ./scripts/run_checks.sh` на новом `uv.lock` | 272 теста зелёные, coverage ≥ 85 %, mypy strict и ruff чистые |
+| V7 | `UV_FROZEN=1 ./scripts/run_checks.sh` на новом `uv.lock` | весь сьют зелёный — на базе `a4a0dce` 275 тестов, с поставкой 278 (+3 сторожа V2/V3); coverage ≥ 85 %, mypy strict и ruff чистые |
 | V8 | в дерево возвращается пакет с critical (vitest 2.1.9) | гейт красный (exit 1) при любом снимке — critical/high снимком не легализуются |
 
 ## Non-functional
