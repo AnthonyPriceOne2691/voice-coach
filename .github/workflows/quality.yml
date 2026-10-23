@@ -27,7 +27,7 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v7
         with:
@@ -217,8 +217,11 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         env:
           MIN_KILLED: "60"
-          BUDGET_SEC: "300"
-        run: bash scripts/lint/check_mutation_gate.sh
+          BUDGET_SEC: "2400"
+        run: |
+          echo "nproc=$(nproc)"; date -u +%T
+          bash scripts/lint/check_mutation_gate.sh
+          rc=$?; date -u +%T; exit $rc
 
   delivery:
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-"""WebSocket voice session handler — message contract per docs/15-api-websocket-spec.md."""
+"""WebSocket voice session handler — message contract per docs/15-api-websocket-spec.md (замер бюджета)."""
 
 import asyncio
 import base64
