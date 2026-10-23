@@ -164,12 +164,12 @@ asserts_reviewed_by: n/a (все 6 утверждений ведут к прим
 | Metric | Value |
 |---|---|
 | files_touched / loc_diff | 8 code (+8 process docs) / +375/-1390 (net -1015) |
-| commits | 12 |
-| time_to_accepted_spec | spec drafted, not yet accepted |
-| rework_after_done | 0 (handoff not declared yet) |
+| commits | 13 |
+| time_to_accepted_spec | 2.6h |
+| rework_after_done | 0 commit(s) after first phase: handoff |
 | harness_hardened | yes — .github/workflows/quality.yml, backend/tests/test_manual_gates_run_in_ci.py (новый оракул), scripts/lint/adapted.json, scripts/lint/deps_audit_baseline.txt |
-| implement_retries | MANUAL — fills from session log |
-| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
-| est_token_or_cost | MANUAL / n/a |
+| implement_retries | 2 — `uv lock --upgrade-package` без пина дал anyio 4.15.1 и certifi от дня поставки, перелочено с пинами (D1, D2); `main` ушёл на накат 2.74/2.07 — ветка перебазирована до первого push, гейты перепрогнаны (V7: 272 → 275 базы + 3); перед handoff слит `origin/main` 384f8b2 |
+| verify_fails_before_green | 0 — CI PR #46 зелёный с первого прогона (`40008573567`, `40008573576`, затем `40010473853`, `40010473874`); красные прогоны верификации — только намеренные мутации MS1–MS5 |
+| est_token_or_cost | n/a |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
