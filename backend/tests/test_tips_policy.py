@@ -5,11 +5,11 @@
 """
 
 import json
+import random
+import string
 from pathlib import Path
 
 import pytest
-from hypothesis import given
-from hypothesis import strategies as st
 
 from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import load_contract
@@ -185,45 +185,46 @@ def test_mixed_utterance_gives_one_note_about_the_error() -> None:
     assert note["kind"] == "error"
 
 
-# --- свойства (реляционные оракулы, §6.5): ожидаемого значения нет — есть инвариант ---
+# --- инварианты на переборе (§6.5 без зависимости — решение человека 2026-08-12) ---
+# Ожидаемого значения нет — есть отношение, которое обязано держаться на любом входе.
+# Входы — детерминированный перебор с фиксированным зерном: воспроизводимо и без
+# библиотеки тестов-свойств.
 
-_LETTERS = st.text(
-    alphabet=st.characters(whitelist_categories=("Ll", "Lu"), max_codepoint=127),
-    min_size=1,
-    max_size=8,
-)
-_SEPARATORS = st.sampled_from([" ", ", ", ". ", "! ", " — ", "? "])
+_SEPARATORS = (" ", ", ", ". ", "! ", " — ", "? ")
 
 
-@st.composite
-def _utterance_with_fragment(draw: st.DrawFn) -> tuple[str, list[str]]:
+def _samples(count: int = 300) -> list[tuple[str, list[str]]]:
     """Реплика из случайных слов с пунктуацией и кусок её слов подряд (до 19)."""
-    said = draw(st.lists(_LETTERS, min_size=2, max_size=25))
-    gaps = draw(st.lists(_SEPARATORS, min_size=len(said) - 1, max_size=len(said) - 1))
-    text = said[0] + "".join(gap + word for gap, word in zip(gaps, said[1:], strict=True))
-    start = draw(st.integers(0, len(said) - 1))
-    end = draw(st.integers(start + 1, min(len(said), start + 19)))
-    return text, said[start:end]
+    rng = random.Random(20261023)
+    letters = string.ascii_letters
+    samples = []
+    for _ in range(count):
+        said = [
+            "".join(rng.choices(letters, k=rng.randint(1, 8))) for _ in range(rng.randint(2, 25))
+        ]
+        text = said[0] + "".join(rng.choice(_SEPARATORS) + word for word in said[1:])
+        start = rng.randrange(len(said))
+        end = rng.randint(start + 1, min(len(said), start + 19))
+        samples.append((text, said[start:end]))
+    return samples
 
 
-@given(_utterance_with_fragment(), st.booleans())
-def test_note_fragment_is_always_a_verbatim_slice_of_the_utterance(
-    sample: tuple[str, list[str]], shout: bool
-) -> None:
-    """C6 (свойство): как бы модель ни процитировала, в заметку идёт кусок реплики КАК ЕСТЬ."""
-    text, fragment = sample
-    quoted = " ".join(word.upper() if shout else word.lower() for word in fragment)
-    candidate = Candidate(NoteKind.ERROR, quoted, "xylophonezz " + quoted, "")
-    note = decide(candidate, text, seen=[], passes_contract=lambda _: True)
-    assert not isinstance(note, Rejection)
-    assert note["said"] in text
-    assert words(note["said"]) == words(quoted)
+def test_note_fragment_is_always_a_verbatim_slice_of_the_utterance() -> None:
+    """C6 (инвариант): как бы модель ни процитировала, в заметку идёт кусок реплики КАК ЕСТЬ."""
+    for index, (text, fragment) in enumerate(_samples()):
+        quoted = " ".join(w.upper() if index % 2 else w.lower() for w in fragment)
+        candidate = Candidate(NoteKind.ERROR, quoted, "xylophonezz " + quoted, "")
+        note = decide(candidate, text, seen=[], passes_contract=lambda _: True)
+        assert not isinstance(note, Rejection), (text, quoted)
+        assert note["said"] in text
+        assert words(note["said"]) == words(quoted)
 
 
-@given(_utterance_with_fragment())
-def test_words_that_were_never_said_are_never_noted(sample: tuple[str, list[str]]) -> None:
-    """C6 (свойство): фрагмент со словом, которого в реплике нет, — всегда отказ."""
-    text, fragment = sample
-    quoted = " ".join([*fragment, "xylophonezz"])  # слово длиннее любого в реплике
-    candidate = Candidate(NoteKind.ERROR, quoted, "something better", "")
-    assert decide(candidate, text, seen=[], passes_contract=lambda _: True) is Rejection.NOT_SAID
+def test_words_that_were_never_said_are_never_noted() -> None:
+    """C6 (инвариант): фрагмент со словом, которого в реплике нет, — всегда отказ."""
+    for text, fragment in _samples():
+        quoted = " ".join([*fragment, "xylophonezz"])  # слово длиннее любого в реплике
+        candidate = Candidate(NoteKind.ERROR, quoted, "something better", "")
+        assert (
+            decide(candidate, text, seen=[], passes_contract=lambda _: True) is Rejection.NOT_SAID
+        )

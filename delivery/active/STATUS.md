@@ -23,7 +23,7 @@
 - **hooks:** claude (scripts/hooks/)
 - **blockers:** none
 - **waivers:** none
-- **new_dependency:** hypothesis (dev) reason=реляционные оракулы класса M (§6.5): свойства решения кода о заметке — «фрагмент всегда дословный кусок реплики», «несказанное не отмечается»; инструмент из списка dev-инструментов канона (Приложение B), в прод-зависимости не входит
+- **new_dependency:** none reason=проверка речи собирается из того, что есть: клиент Ollama, енфорсер, оркестратор; тест-зависимость для свойств не добавляется — решение человека 2026-08-12, инварианты идут детерминированным перебором
 - **runtime_paths:** none reason=ядро не входит в путь хода: проверку в WS подключает поставка talk-check-wiring
 - **irreversible_surfaces:** none reason=локальный инструмент без отправки наружу; разговор пишется только в локальный app.db
 - **model_surface:** data/prompts/**, data/knowledge/**, data/questions/**, data/contracts/**, data/talk/**, backend/app/config.py, backend/app/llm/**, backend/app/knowledge/prompts.py, backend/app/orchestrator/interview.py, backend/app/orchestrator/talk.py, backend/app/orchestrator/tips.py, backend/app/voice/turn_runner.py, backend/app/voice/talk_flow.py, backend/app/voice/language_check.py, backend/app/api/ws_voice.py, backend/app/summary/**
