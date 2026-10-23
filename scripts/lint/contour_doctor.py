@@ -44,8 +44,9 @@
     doctor_canaries.py   данные проб и объявления проекта
     doctor_probes.py     сами пробы исполнением
     doctor_deployment.py состав контура: что канон объявил против того, что лежит
+    doctor_sentinels.py  стражи исполнения: грузит ли их pytest, найдёт ли mutmut
 
-Развёртывание копирует ВСЕ десять файлов: без любого из них доктор не стартует —
+Развёртывание копирует ВСЕ одиннадцать файлов: без любого из них доктор не стартует —
 и это лучше, чем стартовать без части проверок (§5.0 инвентарь). Число здесь
 сверяется механикой (`test_ts_stack_coverage`): до `cqg@2.02` стояло «шесть» при
 восьми — счётчик разъехался на `cqg@1.98` и пережил две правки, потому что
@@ -77,10 +78,11 @@ from doctor_hooks import HookReaders
 from doctor_layout import LayoutChecks
 from doctor_versions import VersionChecks
 from doctor_probes import ProbeChecks
+from doctor_sentinels import SentinelChecks
 
 
 class Doctor(VersionChecks, LayoutChecks, HookReaders, AreaChecks, AreaVerdicts,
-             CanaryData, ProbeChecks, DeploymentScreen):
+             CanaryData, ProbeChecks, DeploymentScreen, SentinelChecks):
     def __init__(self, root: Path) -> None:
         self.root = root
         self.rows: list[tuple[str, str, str]] = []
@@ -174,6 +176,7 @@ def main() -> int:
     doc.check_canaries()
     doc.check_gates_see_code()
     doc.check_divergence_from_canon()
+    doc.check_run_sentinels()
     return doc.report(args.json)
 
 

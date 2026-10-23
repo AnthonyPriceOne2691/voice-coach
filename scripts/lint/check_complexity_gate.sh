@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Ратчет по сложности ФУНКЦИЙ: цикломатика, ветвления, операторы, аргументы, return'ы.
+# Ратчет по сложности ФУНКЦИЙ: цикломатика, ветвления, вложенность, операторы,
+# аргументы, return'ы.
 #
 # Зачем отдельным гейтом, если правила уже есть в ruff. Обычный ruff-хук даёт
 # бинарное «да/нет» на весь пакет. На легаси это означает сотни срабатываний в
@@ -31,9 +32,12 @@
 #
 # Чего TS-половина НЕ покрывает, и это замер, а не догадка: у PLR0911 (число
 # return'ов) аналога в ESLint нет вовсе — правила `max-returns` не существует,
-# `--rule` с ним даёт exit 2. Остальные четыре легли один в один:
-# C901→complexity, PLR0912→max-depth (ветвление через глубину), PLR0913→max-params,
-# PLR0915→max-statements.
+# `--rule` с ним даёт exit 2. У PLR0912 (число ветвлений) точного двойника тоже
+# нет — его часть держит `complexity`. Легли так: C901→complexity,
+# PLR1702→max-depth (вложенность; блоки вложенной функции ruff считает внутрь
+# внешней, eslint — с нуля), PLR0913→max-params, PLR0915→max-statements.
+# До `cqg@2.71` у python-половины вложенности не было вовсе, а `max-depth`
+# числился двойником ветвлений — строка §2.1 держалась на бэке словом «ревью».
 #
 # Настройка (env): LINT_PY_SRC, LINT_TS_SRC, LINT_FE_DIR, LINT_VENV, STRICT=0 — soft.
 #
@@ -53,9 +57,16 @@ VENV=${LINT_VENV:-backend/.venv}
 # тоже принимается: одно написание не могло удовлетворить обе трактовки, и
 # документированное `.venv` глушило этот гейт мягким пропуском (lab-9 №7).
 [[ -d "$VENV" || ! -d "backend/$VENV" ]] || VENV="backend/$VENV"
-RULES=${LINT_COMPLEXITY_RULES:-C901,PLR0911,PLR0912,PLR0913,PLR0915}
+RULES=${LINT_COMPLEXITY_RULES:-C901,PLR0911,PLR0912,PLR0913,PLR0915,PLR1702}
+# PLR1702 (вложенность) в ruff 0.6.9–0.16 — preview, поэтому оба вызова ruff с
+# этим списком несут `--preview`. Без флага ruff печатает предупреждение, выходит
+# НУЛЁМ и правило не судит: глубина 5 давала пустой снимок (замер `cqg@2.71`) —
+# класс находки 8, только на этот раз молчание законное с точки зрения ruff.
+# Стабильные правила флаг не трогает: на local-web-agent те же 10 находок и тот же
+# снимок; меняется лишь слово в concise-строке (код → имя), а его снимок не читает.
 # Пороги TS повторяют python-овские числом, чтобы обе половины держали одну
-# планку: complexity=C901, max-params=PLR0913, max-statements=PLR0915.
+# планку: complexity=C901, max-depth=PLR1702, max-params=PLR0913,
+# max-statements=PLR0915.
 TS_RULES=${LINT_TS_COMPLEXITY_RULES:-'{"complexity":["error",10],"max-depth":["error",4],"max-params":["error",8],"max-statements":["error",50]}'}
 MODE=${1:-check}
 
@@ -173,7 +184,7 @@ fi
 if [[ "$MODE" == "--report" ]]; then
   if (( py_live )); then
     printf 'Нарушения сложности по файлам, python (правила %s):\n' "$RULES"
-    "$RUFF" check --no-cache --quiet --output-format=concise \
+    "$RUFF" check --no-cache --quiet --output-format=concise --preview \
       --select "$RULES" --config 'lint.ignore=[]' -- "$PY_SRC" 2>/dev/null
   fi
   if (( ts_live )); then
