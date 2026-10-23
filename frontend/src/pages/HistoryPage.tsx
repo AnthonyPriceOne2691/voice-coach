@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ListState } from "../components/ListState";
+import { SessionWhen } from "../components/SessionWhen";
 import { SummaryCard } from "../components/SummaryCard";
+import { TalkDetailPanel, TalkList } from "../components/TalkHistory";
 import { TranscriptView } from "../components/TranscriptView";
 import { api } from "../lib/api";
 import { formatSessionSpan } from "../lib/format";
-import type { InterviewDetail, InterviewListItem, ReviewDetail } from "../types/api";
+import type { InterviewDetail, InterviewListItem, ReviewDetail, TalkDetail } from "../types/api";
 
 interface Props {
   onStartReview: (interviewId: string) => void;
+}
+
+interface ListsProps extends Props {
+  onOpenTalk: (talk: TalkDetail) => void;
 }
 
 type DetailTab = "summary" | "interview" | "review";
@@ -154,20 +160,14 @@ function HistoryRow({
   const reviewed = item.has_review;
   return (
     <div className="glass row">
-      <div>
-        <div className="row-when">
-          {formatSessionSpan(item.started_at, item.ended_at, item.duration_sec)}
-        </div>
-        <div className="row-sub">
-          <span>{item.status === "completed" ? "Completed" : "Interrupted"}</span>
-          {reviewed && <span className="pill">Reviewed</span>}
-          {item.summary_kind === "full" && <span className="pill">Full summary</span>}
-          {item.summary_kind === "minimal" && (
-            <span className="pill pill-quiet">Minimal summary</span>
-          )}
-          {!reviewed && !item.summary_kind && <span className="pill pill-warn">Not reviewed</span>}
-        </div>
-      </div>
+      <SessionWhen item={item}>
+        {reviewed && <span className="pill">Reviewed</span>}
+        {item.summary_kind === "full" && <span className="pill">Full summary</span>}
+        {item.summary_kind === "minimal" && (
+          <span className="pill pill-quiet">Minimal summary</span>
+        )}
+        {!reviewed && !item.summary_kind && <span className="pill pill-warn">Not reviewed</span>}
+      </SessionWhen>
       <div className="row-actions">
         <button className="btn" onClick={onOpen}>
           Open
@@ -188,7 +188,7 @@ function HistoryRow({
   );
 }
 
-export function HistoryPage({ onStartReview }: Props) {
+function HistoryLists({ onStartReview, onOpenTalk }: ListsProps) {
   const [items, setItems] = useState<InterviewListItem[] | null>(null);
   const [selected, setSelected] = useState<InterviewDetail | null>(null);
   const [review, setReview] = useState<ReviewDetail | null>(null);
@@ -252,7 +252,7 @@ export function HistoryPage({ onStartReview }: Props) {
 
   return (
     <div>
-      <h2 className="section-title">Recent sessions</h2>
+      <h2 className="section-title">Interviews</h2>
       <ListState
         items={items}
         error={error}
@@ -270,6 +270,15 @@ export function HistoryPage({ onStartReview }: Props) {
           ))
         }
       </ListState>
+      <TalkList onOpen={onOpenTalk} />
     </div>
   );
+}
+
+export function HistoryPage({ onStartReview }: Props) {
+  // Открытый разговор (D3a.2): своя деталь — заметки и транскрипт, без разбора и
+  // удаления. Списки при возврате читаются заново, как и после закрытия интервью.
+  const [talk, setTalk] = useState<TalkDetail | null>(null);
+  if (talk) return <TalkDetailPanel talk={talk} onBack={() => setTalk(null)} />;
+  return <HistoryLists onStartReview={onStartReview} onOpenTalk={setTalk} />;
 }
