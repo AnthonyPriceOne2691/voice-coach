@@ -32,6 +32,6 @@
 - **canon_drift_waiver:** knowledge/engineering/model-split.md, knowledge/engineering/sentence-streaming.md reason=в backend/app/config.py изменено только то, как находится корень репозитория (по данным, а не по глубине пути) — модели, температуры, бюджеты токенов и num_ctx те же, D-8 не тронут; в backend/app/contracts/enforcer.py TurnEnforcer из dataclass стал обычным классом с тем же __init__ — проверки, их порядок и per-sentence семантика прежние, тесты контрактов те же. Правка концептов была бы ложным «обновлено» by=agent:claude-code (подпись human:anthony — на мерже вместе с примерами)
 - **baseline_growth_waiver:** no
 - **observability:** 1
-- **observe_signal:** M13 — на пяти следующих PR в main с python-диффом шаг «Mutation testing (changed files, budgeted)» печатает «убито N из M» и решает по порогу 60%; ни одного «не просудил» по причине среды (корень, сбор, покрытие); время шага в логе — в пределах бюджета 300 s
+- **observe_signal:** M13 — на пяти следующих PR в main с python-диффом шаг «Mutation testing (changed files, budgeted)» печатает «убито N из M» и решает по порогу 60%; ни одного «не просудил» по причине среды (корень, сбор, покрытие); время шага в логе — в пределах бюджета (300 s; для PR с api/ws_voice.py — по решению человека о бюджете, замер 1,854 s / 847 s)
 - **observe_until:** 2026-11-23
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4

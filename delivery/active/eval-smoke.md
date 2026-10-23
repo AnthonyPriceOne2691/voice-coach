@@ -109,7 +109,15 @@ mutation: OK
 29 s при load 9. На push в `main` шаг не запускается (`if: … github.event_name ==
 'pull_request'`).
 
-## Цена `api/ws_voice.py` в CI
+## Цена `api/ws_voice.py` в CI (замер, не пример спеки)
 
-Заполняется замером draft-PR #45 (дифф — только docstring `ws_voice.py`, бюджет поднят
-до 2400 s ради полной цены) — см. verify-report.
+Два временных draft-PR: база — `feat/mutation-gate`, в диффе только docstring
+`ws_voice.py`, бюджет поднят до 2400 s ради полной цены. Оба PR закрыты, ветки удалены.
+
+| Прогон | `nproc` | `timeout_multiplier` | Шаг | Вердикт |
+|---|---|---|---|---|
+| [#45](https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40008557449) | 2 | 15 (умолчание) | 1,854 s | `убито 502 из 748 (67%), выжило 246` · OK |
+| [#47](https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40012508178) | 2 | 3 | 847 s | `убито 496 из 741 (66%), выжило 245` · OK |
+
+Ни один вариант не укладывается в канонные 300 s. Разбор и варианты с ценой — в
+verify-report.
