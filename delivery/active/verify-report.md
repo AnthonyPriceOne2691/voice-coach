@@ -3,8 +3,8 @@
 **Date:** 2026-10-23
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (все утверждения ведут к одобренным примерам)
-**CI run:** https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40007693515
-**Commit:** 72dd6e2
+**CI run:** https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40017143636
+**Commit:** e795a92
 
 Builder: agent:claude-code (worktree `.claude/worktrees/agent-ad938971a5a5f44a4`).
 Ветка перебазирована на `a4a0dce` (контур cqg@2.74 · delivery@2.07) и запушена
@@ -25,7 +25,7 @@ Builder: agent:claude-code (worktree `.claude/worktrees/agent-ad938971a5a5f44a4`
 | M8–M10 | `test_warmup.py` (6 тестов) | **PASS**; доля убитых `voice/warmup.py` 11% → 95% |
 | M11 | доли по девяти модулям (`eval-smoke.md`) | **PASS** — все ≥ 60%: от 66.7% (`ws_voice.py`) до 95.2% (`warmup.py`) |
 | M12 | `contracts/enforcer.py` | **PASS** — 21 → 171 мутант, убито 80.7% |
-| M13 | шаг в CI PR #44 | **PASS** — «убито 267 из 324 (82%) — OK» за 85 s при бюджете 300 |
+| M13 | шаг в CI PR #44 | **PASS** — «убито 267 из 324 (82%) — OK» за 85 s при бюджете 300; после слияния `main` и M15 — то же за 86 s (прогон 40017143636, `e795a92`) |
 | M14 | `test_storage.py::test_vocabulary_merge_keeps_going_and_list_filters` | **PASS**; доля `vocabulary.py` 61% → 84% |
 | M15 | `test_repo_root.py::test_tests_take_the_repo_root_from_app_config` | **PASS**; до правки красный — `['test_language_check.py:10', 'test_tips_policy.py:27']` (пришли из main с talk-check-core) |
 
@@ -102,12 +102,12 @@ CI судит PR слитым с `main`, а `main` за это время при
 | pre-push (smoke S1–S6, delivery-gate, baseline-ratchet, new-dependency) | **PASS** — на каждом push |
 | `contour_doctor.py` | **DEAD 0** — AUTO 47 · WEAK 17 · ABSENT 0 · TOOL 3 · SKIP 1; «стражи исполнения: mutmut его найдёт» — AUTO |
 | мутационный гейт на диффе PR, локально | **PASS** — «убито 267 из 324 (82%)»: 29 s при load 9, после слияния `384f8b2` — 21 s при load 6 |
-| CI PR #44: `backend`, `gates`, `delivery` | **PASS** — прогоны 40007693513 и 40007693515; первый прогон quality (40002688227) был красным в джобе delivery: `stack:` в STATUS отставал от снимка — main ушёл на контур 2.74, пока PR был открыт |
+| CI PR #44: `backend`, `gates`, `delivery` | **PASS** — последние прогоны 40017143667 и 40017143636 (`e795a92`), до них 40007693513 и 40007693515; первый прогон quality (40002688227) был красным в джобе delivery: `stack:` в STATUS отставал от снимка — main ушёл на контур 2.74, пока PR был открыт |
 | `delivery_check.py --diff-base origin/main` | 0 ошибок, 3 предупреждения (ниже); предохранитель — 23 файла кода, net +394 строки при лимитах 25 и 800 |
 
 ### Оставшиеся предупреждения
 
-- **`human_ok_spec: deferred`** — примеры M1–M14 человек подписывает на мерже.
+- **`human_ok_spec: deferred`** — примеры M1–M15 человек подписывает на мерже.
 - **Реляционный оракул (§6.5)** — решение человека 2026-08-12: зависимость для
   тестов-свойств не добавляется.
 - **§3.1d, порядок M15** — пример M15 и его сторож приехали одним коммитом (`c8cb25f`): класс
@@ -152,7 +152,7 @@ CI судит PR слитым с `main`, а `main` за это время при
 
 ## Verdict
 
-**READY FOR HANDOFF** — M1–M14 зелёные, шаг CI судит дифф PR (82% за 85 s), CI PR #44
+**READY FOR HANDOFF** — M1–M15 зелёные, шаг CI судит дифф PR (82% за 85 s), CI PR #44
 зелёный. Открыто и названо: цена `api/ws_voice.py` в CI (решение человека — ниже в
 open questions), подписи человека под примерами и под `canon_drift_waiver`.
 
@@ -169,7 +169,7 @@ open questions), подписи человека под примерами и п
      после разреза, надо мерить.
    - (г) ничего не делать: PR с `ws_voice.py` будет красным, пока решение не принято.
    Рекомендация агента — (а) сейчас и (в) при следующей правке `ws_voice.py`.
-2. **Подписи human:anthony:** примеры M1–M14 (`human_ok_spec`) и `canon_drift_waiver`
+2. **Подписи human:anthony:** примеры M1–M15 (`human_ok_spec`) и `canon_drift_waiver`
    (model-split, sentence-streaming) — сейчас в нём стоит `by=agent:claude-code`.
 3. **Неэквивалентные выжившие енфорсера** — граница G1-H2 (ровно 400 символов), Q-ссылки
    Mode 2, `states` у `question_or_ack`, поля события нарушения. Брать ли тесты на них
