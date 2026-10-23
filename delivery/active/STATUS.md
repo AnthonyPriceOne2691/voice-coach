@@ -16,7 +16,7 @@
 - **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred (reason=человек подписывает примеры на мерже — решение human:anthony 2026-10-23; at=2026-10-23)
+- **human_ok_spec:** yes (by=human:anthony, at=2026-10-23) reason=примеры W1–W7 подписаны на мерже, как решил человек; подпись передала исполнителю ведущая сессия, сам исполнитель её не видел
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
