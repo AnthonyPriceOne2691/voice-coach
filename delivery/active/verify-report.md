@@ -70,8 +70,8 @@
 - **Реляционный оракул (§6.5)** — решение человека 2026-08-12, зависимость для
   тестов-свойств не добавляется. Differential здесь — по артефакту: бандл до и после
   обновления побайтно одинаков.
-- **`human_ok_spec: deferred`** — примеры подписываются на мерже (решение human:anthony
-  2026-10-23).
+- ~~`human_ok_spec: deferred`~~ — снято: примеры V1–V8 подписаны human:anthony
+  2026-10-23 на мерже, как он и решил.
 
 ## Перед `merge_guard` (L49)
 
@@ -149,12 +149,13 @@ V3	assert steps, f"{hook_id}: {script} не зовёт ни один шаг CI �
 V3	assert any(_runs_always(step) for step in steps), (
 ```
 
-Каждое утверждение ведёт к примеру спеки (V2, V3). Примеры подписываются человеком на
-мерже (`human_ok_spec: deferred`) — подпись V2 и V3 покрывает и эти утверждения.
+Каждое утверждение ведёт к примеру спеки (V2, V3), а примеры V1–V8 подписаны
+human:anthony 2026-10-23 (`human_ok_spec: yes`) — подпись V2 и V3 покрывает и эти
+утверждения.
 
 asserts_without_example: 0
 
-asserts_reviewed_by: n/a (все 6 утверждений ведут к примерам V2 и V3; примеры подписываются человеком на мерже — human_ok_spec: deferred)
+asserts_reviewed_by: n/a (все 6 утверждений ведут к примерам V2 и V3, подписанным human:anthony 2026-10-23)
 
 ## Harness metrics (this shipment)
 
@@ -163,12 +164,12 @@ asserts_reviewed_by: n/a (все 6 утверждений ведут к прим
 | Metric | Value |
 |---|---|
 | files_touched / loc_diff | 8 code (+8 process docs) / +375/-1390 (net -1015) |
-| commits | 10 |
+| commits | 12 |
 | time_to_accepted_spec | spec drafted, not yet accepted |
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — .github/workflows/quality.yml, backend/tests/test_manual_gates_run_in_ci.py (новый оракул), scripts/lint/adapted.json, scripts/lint/deps_audit_baseline.txt |
-| implement_retries | 2 — `uv lock --upgrade-package` без пина дал anyio 4.15.1 и certifi от дня поставки, перелочено с пинами (D1, D2); `main` ушёл на накат 2.74/2.07 — ветка перебазирована до первого push, гейты перепрогнаны (V7: 272 → 275 базы + 3) |
-| verify_fails_before_green | 0 — CI PR #46 зелёный с первого прогона (`40008573567`, `40008573576`); красные прогоны верификации — только намеренные мутации MS1–MS5 |
-| est_token_or_cost | n/a |
+| implement_retries | MANUAL — fills from session log |
+| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
+| est_token_or_cost | MANUAL / n/a |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.

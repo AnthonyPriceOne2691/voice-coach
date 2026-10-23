@@ -18,10 +18,13 @@
        (dev-сервер на 5273). -->
 - **repro_test:** n/a reason=не багфикс; уязвимости живут в чужом коде, состояние «до» — красный прогон гейта на main 73342b3 (eval-smoke V1)
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred (reason=человек подписывает примеры на мерже — решение human:anthony 2026-10-23; at=2026-10-23)
+- **human_ok_spec:** yes (by=human:anthony, at=2026-10-23)
+  <!-- Примеры V1–V8 подписаны на мерже, как решил человек 2026-10-23: до подписи
+       поставка шла под `deferred` (§2.2b). -->
+
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
