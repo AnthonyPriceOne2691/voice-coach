@@ -1,4 +1,4 @@
-"""Общее для сьюта: сторож утечек соединений.
+"""Общее для сьюта: сторож утечек соединений и база в памяти с владельцем.
 
 Сторож заменяет канал `filterwarnings = ["error"]` для этого класса дефекта, а не
 дополняет его: тот сообщает об утечке, когда соединение найдёт сборщик мусора, то
@@ -7,11 +7,12 @@
 `tests/db_lifecycle.py`.
 """
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 
-from tests.db_lifecycle import ConnectionLedger
+from app.storage.db import Database
+from tests.db_lifecycle import ConnectionLedger, owned_database
 
 
 @pytest.fixture(autouse=True)
@@ -26,3 +27,11 @@ def _no_leaked_connections() -> Iterator[None]:
         yield
     problems = ledger.leaks()
     assert not problems, "; ".join(problems)  # W3, W4, W5, W7
+
+
+@pytest.fixture
+async def db() -> AsyncIterator[Database]:
+    """База в памяти со схемой — и с владельцем: `dispose()` в teardown."""
+    async with owned_database("sqlite+aiosqlite:///:memory:") as database:
+        await database.create_all()
+        yield database
