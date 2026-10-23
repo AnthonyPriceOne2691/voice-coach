@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     review_max_tokens: int = 300
     talk_temperature: float = 0.8  # разговор (D3a): живее интервью, та же модель (D-8)
     talk_max_tokens: int = 200  # 4 предложения ≤ 450 символов (G3-H1/H2) с запасом
+    # Проверка речи (D3a.2): кандидат строгим JSON — детерминированно и коротко.
+    # 120 токенов вмещают фрагмент и вариант по 20 слов; обрезанный JSON — отказ, не догадка.
+    talk_check_temperature: float = 0.0
+    talk_check_max_tokens: int = 120
     summary_temperature: float = 0.3
     summary_max_tokens: int = 4096  # R1: thinking included (doc 20)
     summary_num_ctx: int = 16384  # two full transcripts don't fit 8192 (doc 20)

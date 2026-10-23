@@ -11,6 +11,10 @@ data/prompts/
 ├── review_system.txt           # Mode 2 system                    ✅ exists
 ├── summary_system.txt          # Post-review JSON (incl. vocabulary) ✅ exists
 ├── minimal_summary_system.txt  # Skip-review fallback             ✅ exists
+├── translate_term_system.txt   # Починка перевода термина (S-H6) ✅ exists
+├── talk_system.txt             # Talk: друг-наставник (D3a)        ✅ exists
+├── language_check.txt          # Talk: просьба о проверке речи (D3a.2) — НЕ системный
+│                               #   промпт: дописывается в конец истории разговора
 └── templates/
     ├── interview_intro.txt                                        ✅ exists
     ├── interview_wrap_up.txt                                      ✅ exists
@@ -101,6 +105,9 @@ Original intent: {question_seed}
 | review_system | **qwen2.5:14b-instruct** (D-8 закрыт, doc 14) | 8192 | 300 | 0.6 |
 | summary_system | deepseek-r1:14b | **16384** | 4096 | 0.3 |
 | minimal_summary | **qwen2.5:14b-instruct** (уже загружен при Skip — без model swap) | 8192 | 800 | 0.3 |
+| talk_system | qwen2.5:14b-instruct | 8192 | 200 | 0.8 |
+| language_check (просьба в конце разговора, ответ — JSON-схема `CANDIDATE_SCHEMA`, D3a.2) | qwen2.5:14b-instruct — тот же префикс и `num_ctx`, что у ответа | 8192 | 120 | 0.0 |
+| translate_term_system | qwen2.5:14b-instruct (не R1 — он источник утечки, S-H6) | 8192 | — | 0.3 |
 
 ---
 
@@ -111,3 +118,4 @@ Original intent: {question_seed}
 | 2026-06-26 | Initial prompt library + data files |
 | 2026-07-02 | v0.2: канонизация params (были расхождения с doc 07); R1 max_tokens с учётом thinking; vocabulary merged в summary; убран несуществующий vocabulary_extract.txt из MVP layout |
 | 2026-07-02 | v0.3: minimal_summary → qwen2.5:14b-instruct (без swap при Skip) |
+| 2026-10-23 | Talk и починка перевода в раскладке и таблице моделей; `language_check.txt` — просьба о проверке речи в конце истории разговора (D3a.2) |
