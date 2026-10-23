@@ -1,7 +1,7 @@
 # Active delivery status
 
 - **slug:** mutation-gate
-- **stack:** delivery@2.06, cqg@2.69, okf@1.21
+- **stack:** delivery@2.07, cqg@2.74, okf@1.21
 - **class:** M
   <!-- Остаток обновления 2.69 из STACK-ACCEPTANCE: мутационный гейт объявлен
        ролью, а на этом проекте не судил ни разу. Чинится сам гейт на проекте
