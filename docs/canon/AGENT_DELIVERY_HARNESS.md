@@ -7,7 +7,7 @@
 > Не разворачивай CQG/OKF раньше этого файла, если человек явно не сказал иначе.
 > © 2026 — proprietary; правообладатель и условия — в [LICENSE](LICENSE).
 
-**Canon version:** `delivery@2.06` · 2026-10-18 (Changelog — в конце файла).
+**Canon version:** `delivery@2.07` · 2026-10-18 (Changelog — в конце файла).
 При развёртывании впиши версию в `delivery/CONSTITUTION.md` и `STATUS.md`
 (поле `stack:`) — иначе проект не знает, какую ревизию каркаса он получил.
 
@@ -4124,6 +4124,29 @@ SKIP_DIR_PARTS = (
     "build", "dist", ".git",
 )
 
+#: Тест-файл — по ПРИНЦИПУ имени, а не по зашитым корням (`delivery@2.07`). Поле Smart
+#: Friend Ally 18.10: корпус §3.1d и порядок «пример раньше теста» брали тесты только из
+#: `tests`, `backend/tests`, `src/tests` и по маске `*test*` (регистр важен), а тесты
+#: SwiftPM лежат в `Packages/<Пакет>/Tests/<Цель>Tests/*.swift`. Итог — ложная тревога
+#: «примеры без ссылки» при метках `// K<n>` в тестах и МОЛЧАЩИЙ порядок: судить было
+#: нечего. Каталог `tests/` сам признаком не служит — в корпус уехала бы проза вроде
+#: `tests/README.md`; исключение — `__tests__/`, где имена не помечены. Шире, чем у
+#: дайджеста утверждений CQG (`cqg@2.68`), и это осознанно: там лишний файл стоит
+#: `unknown` и подписи, тут — лишнего текста для поиска id.
+TEST_FILE_RE = re.compile(
+    r"(^|/)__tests__/[^/]+$"
+    r"|(^|/)(tests?\.[^/]*|tests?_[^/]*|[^/]*[_.-](tests?|spec)\.[^/]*|[^/]*(Tests?|Spec)\.[^/]*)$")
+
+
+def test_files(root: Path = ROOT) -> list[str]:
+    """Тест-файлы проекта: в git (и новые неигнорируемые), по признаку имени, текстом."""
+    listed = git("-C", str(root), "ls-files", "-z", "--cached", "--others",
+                 "--exclude-standard").split("\0")
+    return sorted({p for p in listed
+                   if p and TEST_FILE_RE.search(p) and Path(p).suffix in TEST_TEXT_SUFFIXES
+                   and not any(part in SKIP_DIR_PARTS for part in Path(p).parts)})
+
+
 # Что считается ССЫЛКОЙ теста на пример §3.1d — одно понятие на две проверки:
 # «есть ли ссылка» (`delivery_evidence`) и «когда она появилась»
 # (`delivery_history`). Реализаций было две, и они разошлись: история с lab-12
@@ -6583,7 +6606,7 @@ import re
 
 from delivery_base import (ROOT, ActiveCtx, field, is_placeholder,
                            read)
-from delivery_base import SKIP_DIR_PARTS, TEST_TEXT_SUFFIXES, example_ref_pattern
+from delivery_base import example_ref_pattern, test_files
 from delivery_decisions import signature_verdict
 from delivery_history import debt_is_not_frozen, expectation_predates_tests
 
@@ -6773,20 +6796,9 @@ def check_expectation_and_oracle(status: str, ctx: ActiveCtx, klass: str,
         # описывал как «в тестах ИЛИ eval-smoke» (см. ветку ниже) — значит проза
         # попала в корпус мимо собственной формулировки: `tasks.md` обещает,
         # `verify-report.md` отчитывается, а вопрос был про проверку.
-        tests_text = ""
-        for root_dir in ("tests", "backend/tests", "src/tests"):
-            d = ROOT / root_dir
-            if not d.is_dir():
-                continue
-            for f in d.rglob("*test*"):
-                # Только текстовые исходники и не служебные каталоги:
-                # маска ловила .pyc и роняла гейт (F9).
-                if (
-                    f.is_file()
-                    and f.suffix in TEST_TEXT_SUFFIXES
-                    and not any(p in SKIP_DIR_PARTS for p in f.parts)
-                ):
-                    tests_text += read(f)
+        # Только текстовые исходники и не служебные каталоги (маска ловила .pyc
+        # и роняла гейт, F9); где лежат — решает признак имени, а не корень.
+        tests_text = "".join(read(ROOT / rel) for rel in test_files())
 
         check_examples_and_ids(spec_text, ex_ids,
                                tests_text + read(eval_smoke), ctx,
@@ -6885,8 +6897,7 @@ def check_examples_and_ids(spec_text: str, ex_ids: list[str], refs_text: str,
         # тестов может просто не быть, и проверка ругалась бы на штатное
         # состояние фазы implement.
         if phase in {"verify", "converge", "handoff"}:
-            test_dirs = [d for d in ("tests", "backend/tests", "src/tests")
-                         if (ROOT / d).is_dir()]
+            test_dirs = test_files()
             # База — та же, что у breakers: порядок судится в окне ветки, иначе
             # переиспользованный id датируется чужой поставкой (`delivery@1.97`).
             # Спека архивной поставки жила в `active/` и в `archive/<slug>/`.
@@ -7968,6 +7979,7 @@ python scripts/delivery_metrics.py --base origin/main --write   # на handoff
 
 | Дата | Изменение |
 |---|---|
+| 2026-10-18 | **v2.07**: **Тест-файлы §3.1d — по признаку имени, а не по трём зашитым корням.** Поле Smart Friend Ally 18.10 (поставка turn-contract, их инцидент `2026-10-18-test-roots-outside-tests`): корпус ссылок на примеры и порядок «пример раньше теста» брали тесты из `tests`, `backend/tests`, `src/tests` по маске `*test*` (регистр важен), а тесты SwiftPM лежат в `Packages/<Пакет>/Tests/<Цель>Tests/*.swift`. Две стороны одной дыры: ложная тревога «примеры без ссылки: K1…K14» при 16 метках `// K<n>` в `ContractTests.swift` (её гасил `eval-smoke.md` с перечнем id), и МОЛЧАЩИЙ порядок — `test_dirs` пуст, судить нечего, зелёное без предмета на любой раскладке вне трёх корней. Тот же класс, что дайджест утверждений `cqg@2.68`. **Что встало:** `delivery_base.test_files()` — отслеживаемые и новые неигнорируемые файлы git по признаку имени (`test_*`, `tests.py`, `*_test.*`, `*_tests.*`, `*.spec.*`, `*Tests.*`, `*Spec.*`) или каталогу `__tests__/`; оба места берут тесты оттуда. Каталог `tests/` сам признаком не служит: в корпус уехала бы проза вроде `tests/README.md`, а канон запрещает корпусу содержать описание. Признак шире, чем у дайджеста CQG, и это осознанно — там лишний файл стоит `unknown` и подписи, тут лишнего текста для поиска id. **Четыре прогона** (`test_test_files_by_name.py`). **Обратный прогон:** на `2.06` красны оба полевых симптома, зелены стражи — проза в `tests/` и прежняя раскладка `tests/test_*.py`. **вес: +11 строк, за что** — признак тест-файла и `test_files()` в `delivery_base` (+23) вместо двух обходов корней (−12); в сумме записи `cqg@2.70`. **объём: +1 строк, за что** — эта запись (в сумме записи `cqg@2.70`). **класс:** gate-mask-misses-the-population @ AGENT_DELIVERY_HARNESS.md scripts/delivery_evidence.py::check_expectation_and_oracle |
 | 2026-10-18 | **v2.06**: **`asserts_without_example: unknown` — отказ со своим диагнозом.** Встречная половина `cqg@2.68`: дайджест, встретивший тест-файл, которого не разбирает, пишет `unknown` вместо числа. `check_assert_review` отказывал `n/a` и раньше — регулярка ждала цифры, — но веткой «дайджест не вставлен», хотя он вставлен: класс «пропуск с чужим диагнозом». Теперь `unknown` узнаётся и называется: число непривязанных неизвестно, нужна подпись человека либо маски `LINT_TEST_GLOB`. Проза §3.1d называет случай. **Прогон** в `test_assert_digest_sees_the_language.py`; **обратный:** на `2.05` — тот же отказ с чужим диагнозом. **вес: +10 строк, за что** — ветка `unknown` в `check_assert_review` (в сумме записи `cqg@2.68`). **объём: +2 строк, за что** — фраза в §3.1d и эта запись (в сумме записи `cqg@2.68`). **класс:** none reason=отказ был и прежде; правится текст диагноза, а не вердикт |
 | 2026-10-18 | **v2.05**: **Три списка, стоявшие вместо принципа: третье зеркало «механики контура», маркеры причины в §12.2a, пути без `-z`.** **① `BREAKER_EXCLUDE` — третье зеркало правила «механика контура — всё, что приносит накат»** (вслед за `cqg@2.67`). Тест принципа, выводящий население из манифеста payload'а, показал: мимо него шли два скрипта §3.4a (`scripts/check_irreversible_signature.sh`, `scripts/sign_irreversible.sh`), едущие файлы (в корне и в `scripts/`) и канонные конфиги гейтов. Накат, обновивший их, breaker'ы считали правкой кода. Это то самое место, где `delivery@1.76` впервые закрыл класс («ПРЕФИКСЫ, а не точные пути»), и реестр выводит рецидив. Конфиги (`.dependency-cruiser.cjs`, `eslint.config.*`) — по имени файла (`CONTOUR_CONFIGS`): путь у проектов разный. `test_contour_population.py` теперь держит все три зеркала. **② §12.2a узнаёт причину по форме, а не по трём словам.** Поле G connect 17.10: «— отклонён: <причина>» гейт счёл записью без причины. Класс L получил отказ, хотя причина была в каждой записи. `check_rejected_options` искал только «потому что|because|reason=», а ни проза, ни сообщение этих маркеров не называли. Теперь принимаются ещё «причина: …» и глагол отказа с двоеточием или тире. Пустое «отклонён:» причиной не стало. Сообщение и проза §12.2a формы называют. **③ Пути — как есть.** `diff_stats` читает `git diff --numstat -z`. Без `-z` кириллический путь приходил в кавычках, `delivery/заметка.md` не узнавался как `delivery/`, и документ поставки шёл в breaker'ы кодом (замер 17.10). Переименование при `-z` — отдельные поля, берётся новый путь. **④ `delivery_check.py` снова под планкой 300** (309 → 214): блок прав §4.5/§4.6 (`check_permissions` и два помощника, 95 строк) переехал к `permission_block` в `delivery_decisions` (168 → 264). Поведение то же; цикла нет — `delivery_decisions` импортирует только `delivery_base`. Это обещание записи `v2.04`. **Девять прогонов** (`test_reason_forms_and_paths.py` + третье зеркало в `test_contour_population.py`). **Обратный прогон:** на `2.04` красны шесть, зелены три стража — прежняя форма шаблона A.7, пустое «отклонён:», переименование. **вес: +50 строк, за что** — зеркало в `BREAKER_EXCLUDE` и `CONTOUR_CONFIGS`, `REASON_RE`, разбор `numstat -z`; перенос блока прав веса не меняет. **объём: +3 строк, за что** — фраза о формах причины в §12.2a. **класс:** list-without-its-principle @ AGENT_DELIVERY_HARNESS.md §3.4 BREAKER_EXCLUDE, AGENT_DELIVERY_HARNESS.md scripts/delivery_journals.py::check_rejected_options |
 | 2026-10-17 | **v2.04**: **Поставка, уехавшая в архив тем же диффом, что и handoff, не судилась: idle прятал неподписанную спеку.** Поле Smart Friend Ally 17.10 (их инцидент `2026-10-17-archived-handoff-signature`, PR #23): handoff и перенос в `archive/` у них идут одним коммитом, и pre-push с CI видели пустой `active/` — «idle», 0 ошибок. Воспроизведение хозяина на чистом клоне `delivery@2.03`: в архивном STATUS `yes` → `deferred (reason=проба)`, `delivery_check --require-ci --diff-base` — 0 error(s), 1 warning (idle). Контроль — те же файлы в `active/` → «class M at handoff: human_ok_spec всё ещё deferred (§2.2b)». У Ally тот же класс уже стоил урока L10: handoff с непройденным маячком §12.5 уходил в архив и push. Корень — допущение «архив бывает только после мержа»; `okf@1.20` чинил его со стороны waiver'а, а здесь его не досмотрели. **Что встало:** `archived_in_diff` в `delivery_diff` — STATUS, ДОБАВЛЕННЫЕ в `archive/<slug>/` в окне `merge_base..HEAD` (`--no-renames`, `-z`): модуль и так отвечает, «на что вообще смотреть». `delivery_check` судит каждую такую поставку теми же четырьмя разделами, что активную (`judge_delivery`): на её СОБСТВЕННОЙ фазе и с её путём в каждой строке. Каталог поставки едет в `ActiveCtx.home`, и все чтения файлов поставки берут его, а не `ACTIVE`: `diagnosis`, `escalation`, `decisions`, подпись §3.4a, история спеки §3.1d. `ACTIVE.parent.parent` в роли корня заменён на `ROOT`: у архивной поставки он указывал бы в `delivery/`. `check_examples_and_ids` получил `ctx` вместо `klass` и `phase`, потому что девятый аргумент пробил бы `max-args=8` CQG. Вторую реализацию подписи (`check_irreversible_signature.sh`, для проектов без payload) не трогал: она судит только `active/` и архивных поставок не видит — предел назван. **Девять прогонов** (`test_archived_handoff_is_judged.py`): случай поля — красный, с путём; та же поставка с подписью — код 0 (судится и проходит); маячок §12.5 по коду той же ветки — красный; запаркованная на implement — предупреждение, не ошибка; архив отдельным PR после мержа — код 0; правка давнего архива и прогон без базы — не судятся; подпись на настоящем ключе читается из архива, а по умолчанию — из `active/`. **Обратный прогон:** на `delivery@2.03` случай поля и маячок дают код 0 и одно «idle». **вес: +66 строк, за что** — `archived_in_diff`, `judge_delivery`, каталог поставки в `ActiveCtx` и его протяжка до подписи и истории спеки. ⚠ `delivery_check.py` перешёл планку 300 (291 → 309): оркестратор разделов не вынести без цикла импортов (`delivery_status` импортирует `delivery_diff`), а режется файл блоком прав §4.5/§4.6 в `delivery_decisions` — отдельной правкой, записано в BACKLOG. **объём: +13 строк, за что** — абзац §2.3a и эта запись. **класс:** green-without-the-thing @ scripts/delivery_check.py::check_preconditions |

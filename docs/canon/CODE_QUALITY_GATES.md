@@ -9,7 +9,7 @@
 > ([AGENT_STACK.md](AGENT_STACK.md) §2.A), потом этот канон.
 > © 2026 — proprietary; правообладатель и условия — в [LICENSE](LICENSE).
 
-**Canon version:** `cqg@2.69` · 2026-10-18 (Changelog — в конце файла). Версию впиши в
+**Canon version:** `cqg@2.74` · 2026-10-21 (Changelog — в конце файла). Версию впиши в
 `delivery/CONSTITUTION.md` / `STATUS.md` (`stack:`) при развёртывании.
 
 **Самодостаточный документ.** Всё, что нужно для этой системы качества, — здесь: правила с порогами,
@@ -193,11 +193,19 @@ Ally 03.10 показала, что первый закоммиченный `.sw
 | **Функция — длина** | soft **50** / hard **80** строк | **Гейт** ruff / ESLint | `# noqa: <CODE> -- <причина>` |
 | **Функция — сложность** | цикломатическая soft 8 / **hard 10** (ruff `C901`, mccabe) | **Гейт** ruff / ESLint | `# noqa: C901 -- <причина>` |
 | **Функция — аргументы** | soft 5 / **hard 8** (web-фреймворк DI — исключение) | **Гейт** ruff / ESLint `max-params 5` | — |
-| **Функция — вложенность** | soft 3 / hard 4 | ESLint `max-depth 4`; ревью на бэке | — |
+| **Функция — вложенность** | soft 3 / hard 4 (ruff `PLR1702`, `max-nested-blocks=4`) | **Гейт** ruff / ESLint `max-depth 4` | `# noqa: PLR1702 -- <причина>` на строке, которую назвал ruff: внешний блок, а не `def` |
 | **Функция — returns** | soft 6 (ruff `max-returns=6`) | **Гейт** ruff | `# noqa: PLR0911 -- <причина>` |
 
 Ruff pylint-лимиты: `max-args=8`, `max-positional-args=5`, `max-branches=12`, `max-returns=6`,
-`max-statements=50`, mccabe `max-complexity=10`.
+`max-statements=50`, `max-nested-blocks=4`, mccabe `max-complexity=10`.
+
+⚠ **`PLR1702` в ruff 0.6.9–0.16 — preview, и это две ловушки, обе замерены.** Без
+`--preview` ruff печатает предупреждение в stderr, выходит **нулём** и правило не судит:
+снимок пуст при глубине 5 — поэтому гейт сложности зовёт ruff с флагом, и обратный
+прогон краснеет на его снятии. Основной хук идёт без preview и считает правило
+невключённым: `RUF100` объявил бы поштучный escape лишним, а `--fix` вырезал бы его.
+Против этого во фрагменте стоит `external = ["PLR1702"]`. Названное различие с ESLint:
+блоки вложенной функции ruff считает внутрь внешней, а `max-depth` начинает её с нуля.
 
 **Protocol вместо импорта наверх** (структурная типизация ради направления слоёв).
 Когда нижнему слою нужен тип из верхнего — например функции в `contracts/` нужен
@@ -273,7 +281,8 @@ def build_action_context(robots: RobotsLike, url: str) -> ActionContext:
 | **Сервис не знает про web** | Сервисный слой (`services/`, `service.py`) не импортирует web-фреймворк; auth в эндпоинте, сервис принимает id-параметры | **Гейт** `service-no-web` |
 | **DI, не importlib-магия** | Явные зависимости через параметры/`Protocol`; запрет `pkg\|session\|ctx: Any`, `import_module("...")` в новом коде | **Гейт** `di-indirection` + mypy |
 | **Нет grab-bag модулей** | Запрещены `utils/misc/common/helpers.py` без темы (`_helpers.py` с подчёркиванием — ок) | **Гейт** `no-grab-bag-module` |
-| **SOLID / design-doc freshness** | SRP-флаги (>30 импортов, файл по 2+ темам, функция «5 дел»); OCP/LSP/ISP; PR, меняющий инварианты гейт-цепочки, обновляет связанный design-doc в том же PR | **Ревью** — механизировать нечем: «файл про две темы» и «функция делает 5 дел» это суждение о СМЫСЛЕ, а порог по числу импортов ловил бы форму и краснел на честном фасаде |
+| **SOLID** | SRP-флаги (>30 импортов, файл по 2+ темам, функция «5 дел»); OCP/LSP/ISP | **Ревью** — механизировать нечем: «файл про две темы» и «функция делает 5 дел» это суждение о СМЫСЛЕ, а порог по числу импортов ловил бы форму и краснел на честном фасаде |
+| **Свежесть design-doc** | PR, меняющий инварианты гейт-цепочки, обновляет связанный design-doc в том же PR | **Гейт** `okf_sync_gate.py` (OKF Приложение C, в CI): тронул путь из `implementation:` — тронь concept. Где concept'ов с `implementation:` нет (замер 21.10: у 2 из 6 проектов флота с OKF), свежесть не держит никто |
 
 ### 2.4. Ошибки, данные, конфиг, промпты
 
@@ -343,10 +352,10 @@ logger.warning("feed skipped", extra={"url": url, "reason": "robots", "req_id": 
 | **Нет секретов в git** | API keys, tokens, private keys, `.env` с прод-значениями не в коммите | **Гейт** `detect-secrets` или `gitleaks` (pre-commit) + `.gitignore` для `.env` | baseline/allowlist инструмента; никогда «просто отключить» |
 | **Нет хардкода секретов в коде** | Строки вида `sk-…`, `-----BEGIN … PRIVATE KEY-----`, `password = "…"` в prod-путях | **Гейт** ruff `S105`/`S106` (с cqg@1.51 не в `ignore`) + ревью; желательно тот же secrets-scanner на staged diff | поштучный `# noqa: S105 -- <причина>`; в `tests/**` всё семейство `S` уже погашено `per-file-ignores`. **Префикс `fake-`/`test-` в значении ruff НЕ спасает** — он судит ИМЯ переменной: `FAKE_PASSWORD` со значением `fake-password` краснит (замерено). Тот allowlist — из строки выше, он про secrets-scanner |
 | **Небезопасные примитивы: крипто, десериализация, подпроцесс** | `md5`/`sha1` там, где нужен `sha256`; `pickle.loads` на недоверенном входе; `random` вместо `secrets` для токена/пароля/соли; команда, собранная из непроверенного значения | **Гейт** ruff `S324`/`S301`/`S311`/`S603` (с cqg@1.51 не в `ignore`) | у S324 — `hashlib.md5(data, usedforsecurity=False)`: намерение «не крипто» стоит в коде, а не в конфиге. У остальных — поштучный `# noqa: <CODE> -- <причина>` |
-| **Секреты только из env/secret store** | Чтение через typed config / vault; не логировать значения | **Ревью** + CQG config-access (доступ к env вне `config/` уже режется) | — |
+| **Секреты только из env/secret store** | Чтение через typed config / vault; не логировать значения | **Гейт** `config-access` (чтение мимо `config/`) + стражи исполнения (значение в логе — у переменных из тестового окружения, §2.7c) | — |
 | **Промпты/skills** | Длинные промпты → файлы; индекс в `skills/README.md` (см. Delivery §11) | **Гейт** `inline-prompt` | — |
-| **Пользовательский текст не утекает в логи** | Поисковый запрос, реплика, содержимое документа — в query-string, `logger.*` и трейсах. Идентификатор логировать можно, содержимое — нет | **Ревью** + `unstructured-log` (ловит ФОРМУ, не содержание) + `--no-access-log` у сервера | поле, которое обязано быть в логе по требованию (аудит) — с явной строкой в `decisions.md` |
-| **Соединения возвращаются в пул** | Сессия/транзакция, взятая мимо контекст-менеджера: под нагрузкой пул исчерпывается и приложение встаёт | **Тест-фикстура `checkedout() == 0`** (ниже). `filterwarnings=["error"]` этот класс НЕ ловит — замерено | пул, который по устройству держит одно соединение (`StaticPool` у `:memory:`) — у него нет `checkedout()` |
+| **Пользовательский текст не утекает в логи** | Поисковый запрос, реплика, содержимое документа — в query-string, `logger.*` и трейсах. Идентификатор логировать можно, содержимое — нет | **Тест-плагин** `run_sentinels`: СОДЕРЖАНИЕ — на путях, которые гоняют тесты (§2.7c). Форму записи судит unstructured-log, query-string — `--no-access-log` у сервера | поле, которое обязано быть в логе по требованию (аудит) — с явной строкой в `decisions.md` |
+| **Соединения возвращаются в пул** | Сессия/транзакция, взятая мимо контекст-менеджера: под нагрузкой пул исчерпывается и приложение встаёт | **Тест-плагин** `run_sentinels`: соединение, взятое кодом под тестом, обязано вернуться к концу теста (§2.7c). `filterwarnings=["error"]` этот класс НЕ ловит — замерено | соединение, взятое фикстурой при подготовке, не судится: страж считает взятое в фазе самого теста |
 
 ⚠ **Правило для того, кто правит канон: примеры в этом разделе пишутся так, чтобы не
 совпадать с детекторами.** PEM-шапка — с многоточием внутри; `X` **со значением** `y`
@@ -356,28 +365,12 @@ logger.warning("feed skipped", extra={"url": url, "reason": "robots", "req_id": 
 Держит это `tests/test_payload_clean_for_scanners.py` — настоящий detect-secrets по
 четырём `*.md` и всему извлечённому payload'у, порог ноль.
 
-**Детерминированная фикстура на утечку соединений** — десять строк, слот бюджета не
-тратит (это тест, не гейт). Ставится в `conftest.py` рядом с teardown'ом БД:
-
-```python
-@pytest.fixture(autouse=True)
-def _no_leaked_connections(request):
-    """Каждый тест обязан вернуть в пул всё, что взял.
-
-    Замена SAWarning-каналу, а не дополнение к нему: то предупреждение бросает
-    сборщик мусора, и на утёкшем объекте GC чаще срабатывает уже ПОСЛЕ конца
-    сессии — pytest к тому моменту перехват снял. Здесь проверка синхронна с
-    тестом и от тайминга не зависит: 1 против 0 при той же самой течи.
-    """
-    yield
-    for db in getattr(request.session, "_dbs", ()):      # см. teardown БД рядом
-        pool = db._engine.pool
-        leaked = getattr(pool, "checkedout", lambda: 0)()  # StaticPool его не имеет
-        assert leaked == 0, (
-            f"{leaked} соединени(й) не вернулось в пул: сессия взята мимо "
-            "`async with db.session()`. Под нагрузкой это исчерпание пула."
-        )
-```
+**Утечку соединений судит плагин `run_sentinels` (§2.7c), а не фикстура в `conftest.py`.**
+До `cqg@2.72` здесь стоял рецепт на десять строк, и §2.9 числил его «инструментом в
+CI», а поставили его 0 из 4 python-проектов флота — при том что voice и Ahrefs на
+SQLAlchemy. Принцип прежний: проверка синхронна с тестом. SAWarning-канал бросает
+сборщик мусора, и на утёкшем объекте он чаще срабатывает уже после конца сессии —
+pytest к тому моменту перехват снял (1 против 0 при той же течи).
 
 ⚠ **Про последнюю строку — она добыта замером, а не осторожностью.** lab-12: обе
 арки сделали поиск `GET /api/sessions/search?q=<текст>`, и **дословный запрос
@@ -654,6 +647,53 @@ async def test_work_sees_the_run_id():
     assert seen == ["47"]
 ```
 
+### 2.7c. Стражи исполнения — pytest-плагин, слот НЕ тратит
+
+**Зачем.** Три строки §2 держались словом «ревью» или рецептом, которого никто не
+ставил: текст пользователя в логах (`unstructured-log` судит ФОРМУ записи, а
+содержание — вопрос смысла), значения секретов в логах, возврат соединений в пул. В
+процессе, где код не читает человек (разбор 21.10), это значило «не держит никто».
+Плагин `scripts/lint/run_sentinels.py` судит их ИСПОЛНЕНИЕМ — внутри сьюта проекта,
+без второго прогона.
+
+**Как судит.** Метки: свободный текст, который тест отправил в приложение (запрос
+`httpx` к приложению в процессе — ASGI, WSGI, TestClient — и кадр WebSocket
+тест-клиента starlette; есть пробел, от 12 знаков, ищется начало в 24 знака), значение
+секретной переменной окружения (имя по признаку: SECRET, TOKEN, PASSWORD, …_KEY,
+CREDENTIALS; от 12 знаков) и фикстура `canary_text` — для пути, куда текст приходит не
+из запроса (распознавание речи, очередь). Сток: каждый вызов метода логгера ДО
+проверки уровня — текст, аргументы, `extra`, исключение; у секретов ещё вывод теста.
+В тестах корень стоит на WARNING, в проде — на INFO: перехват после уровня не увидел
+на стенде ни одной из трёх утечек на INFO. Пул: соединение, взятое в фазе теста
+(события пула SQLAlchemy), обязано вернуться к его концу. Находка — провал теста с
+логгером и источником; значение секрета в отчёте замаскировано, отчёт уходит в лог CI.
+
+**Чего не видит — названо.** Пути, которые тесты не гоняют. Access-log uvicorn:
+TestClient идёт мимо сервера, поэтому `--no-access-log` остаётся. Логгеры мимо
+`logging` (loguru, print) — только у секретов, по выводу. Секреты, которых нет в
+тестовом окружении. Кадры WebSocket — с первого теста после того, как проект сам
+загрузил тест-клиент starlette: страж его не импортирует, свежий starlette будит на
+этом импорте DeprecationWarning (`cqg@2.74`). Итог прогона печатает, что судилось, и
+вслух — какая половина НЕ судилась: «утечек 0» без меток — непросмотренное, а не
+чистота.
+
+**Подключение** — фрагмент `[tool.pytest.ini_options]` (Приложение B): `-p
+run_sentinels` в `addopts` и `scripts/lint` в `pythonpath` двумя путями, второй — для
+`mutants/`. Под mutmut стражи молчат: их находка убила бы мутанта вместо теста.
+Escape — `@pytest.mark.contour_allow_text("<причина>")`, текст в логе по требованию
+(аудит, строка в `decisions.md`); у секретов escape нет. Подключение проверяет доктор
+(`doctor_sentinels.py`): плагин в дереве, а pytest его не грузит или mutmut не найдёт —
+`WEAK`.
+
+**Замер 21.10 на двух проектах флота (клоны, только чтение).** voice: 272 теста,
+ложных 0, пул судился на 508 соединениях, текст пользователя НЕ судился — он
+рождается в распознавании речи, нужен `canary_text`. local-web-agent: 451 тест,
+ложных 0, два текста под меткой. **Обратные прогоны на настоящем коде:** у
+local-web-agent утечка через подстановку, `extra`, f-строку с обрезкой до 24 знаков и
+`debug` ниже уровня корня — красные, лог одной длины — зелёный; у voice сессия мимо
+контекст-менеджера и соединение, удерживаемое объектом, — красные на девяти тестах,
+честный контекст-менеджер — зелёный. Ahrefs не замерен: его сьюту нужен Postgres.
+
 ---
 
 ## 2.9. Что прибито, а что advisory
@@ -666,23 +706,38 @@ enforcement'а, а это неправда.
 
 | Чем прибито | Правил §2 | Что значит |
 |---|---|---|
-| **Гейтом контура** | 16 | скрипт `scripts/lint/*` вписан в `.pre-commit-config.yaml` или в workflow |
-| **Правилом инструмента** | 1 | код ruff/ESLint включён в поставляемом конфиге (семейством или поимённо) |
-| **Ревью — advisory** | 6 | механики нет; правило держится дисциплиной и живёт, пока его читают |
+| **Гейтом контура** | 19 | скрипт `scripts/lint/*` вписан в `.pre-commit-config.yaml` или в workflow |
+| **Правилом инструмента** | 2 | код ruff/ESLint включён в поставляемом конфиге (семейством или поимённо) |
+| **Ревью — advisory** | 3 | механики нет; правило держится дисциплиной и живёт, пока его читают |
 
 **Где именно стоит и чем кончается нарушение** — вторая половина ответа, и она
 вычисляется из стадий хуков и шагов workflow'ов, а не пишется прозой:
 
 | Где | Правил | Что будет при нарушении |
 |---|---|---|
-| **коммит** | 16 | коммит не проходит |
-| **CI** | 1 | прогон красный, мерж закрыт `merge_guard` (§8.5) |
-| **текст** | 6 | ничего: держится ревью |
+| **коммит** | 18 | коммит не проходит |
+| **CI** | 3 | прогон красный, мерж закрыт `merge_guard` (§8.5) |
+| **текст** | 3 | ничего: держится ревью |
 
 Числа обеих таблиц сверяются с конфигами тем же оракулом: объявить «стоит на
 коммите» и не стоять там больше нельзя. `pre-push` и `вручную` в §2 сейчас не
 представлены — там живут `deps-audit` и `detect-secrets` (§3), их правила описаны
 не строками §2.
+
+**«Держится ревью» правдиво, только если код читает человек.** Строка «текст» —
+не механика, а дисциплина читателя. В процессе, где код ревьюят одни автоматы
+(разбор 21.10), такие строки не держит никто, и это надо говорить прямо, а не словом
+«ревью». Остаток после `cqg@2.71`–`2.73` — три строки:
+
+- **тонкие роутеры** механизируемы, и класс живой: замер флота 21.10 — у
+  local-web-agent 2 обработчика длиннее 30 строк и 2 DTO в модулях роутеров, у Ahrefs
+  14 из 47 и 17. Форма — правило AST-гейта (слот §9.1a; бюджет исчерпан, вход —
+  решение владельца с записью) или контракт слоёв плюс порог операторов для слоя
+  `api`. Без этого решения не взято. Длина в строках — плохая мера: у voice
+  обработчик в 31 строку несёт 3 оператора, остальное — сигнатура;
+- **SOLID** и **докстринг = контракт** — суждение о смысле. Кандидат — чтец-модель
+  в полном контуре, который спрашивает, а не судит (§14.2a); до него — замеры
+  (BACKLOG, разбор 21.10).
 
 **Колонка `Enforced` сверяется механикой** (`tests/test_enforced_vs_advisory.py`):
 строка, обещающая гейт, обязана называть живой и **прибитый** гейт — иначе правило
@@ -812,7 +867,7 @@ soft-режим (печатает предупреждение, `exit 0`) — а
 | jscpd-DRY | `check_jscpd_gate.sh` | рост числа clone-пар (копипаст); **python** — `-f python`, **ts** — `-f typescript` + `LINT_JSCPD_TS_EXTS` под свои расширения (`.astro`, `.vue`, …) | global count; min-tokens 50 | `jscpd_baseline.txt` (обе половины в одном) | `--generate` |
 | eslint-warnings | `check_eslint_warnings.sh` | рост суммы ESLint-warnings фронта | global count | `eslint_warnings_baseline.txt` | `--generate` |
 | layers | `check_layers_gate.sh` | направление зависимостей между слоями; **python** — `lint-imports`, **ts** — `depcruise` | контракты + frozen ignore | `.importlinter` / `.dependency-cruiser.cjs` | (правка конфига) |
-| **complexity** | `check_complexity_gate.sh` | сложность **функции**: цикломатика, ветвления, операторы, аргументы, return'ы; **python** — ruff, **ts** — eslint | пороги из `pyproject` (C901≤10, PLR0912≤12, PLR0915≤50, PLR0913≤8, PLR0911≤6); TS — `LINT_TS_COMPLEXITY_RULES` | per-path `complexity_baseline.txt` (обе половины в одном) | `--generate` |
+| **complexity** | `check_complexity_gate.sh` | сложность **функции**: цикломатика, ветвления, вложенность, операторы, аргументы, return'ы; **python** — ruff, **ts** — eslint | пороги из `pyproject` (C901≤10, PLR0912≤12, PLR1702≤4, PLR0915≤50, PLR0913≤8, PLR0911≤6); TS — `LINT_TS_COMPLEXITY_RULES` | per-path `complexity_baseline.txt` (обе половины в одном) | `--generate` |
 | **deps-audit** | `check_deps_audit.sh` | уязвимые зависимости (`pip-audit`, `npm audit`) | рост числа уязвимостей; новые critical/high — **всегда** | `deps_audit_baseline.txt`, строка ПАР `ключ=число` (четыре счётчика) | `--generate` |
 | **blind-error** | `check_grep_gate.sh --rule blind-error` | сообщение об ошибке без контекста: `raise Exception(...)`, `raise XError("короткая константа")` | 0 в новом коде | `blind_error_baseline.txt` | `--generate` |
 | **unstructured-log** | `check_grep_gate.sh --rule unstructured-log` | **лог, который не ищется по полю**: значение вплавлено в f-строку/`.format` вместо `extra={…}` (§2.4a правило 2; нижняя ступень наблюдаемости — Delivery §13.3) | per-file ратчет | `unstructured_log_baseline.txt` | `--rule unstructured-log --generate` |
@@ -1418,13 +1473,13 @@ python, `MUTATION_SHARD` — отказ: иначе N долей N раз гна
 | `.github/workflows/main-guard.yml` (issue на красное в main) | §8.5.1 ④ |
 
 **Правило:** сверяйся с этой таблицей, а не с оглавлением приложений. Если
-скриптовый обход даёт меньше 37 файлов в `scripts/**` — обход неполон, и
+скриптовый обход даёт меньше 40 файлов в `scripts/**` — обход неполон, и
 `check_gate_coverage.sh` это подтвердит.
 
 ⚠ **Скрипт может быть КОМПЛЕКТОМ, а не файлом** (`cqg@1.82`–`1.83`, планка 300
-строк §9.1a п.5). Доктор — десять файлов, `check_ast_gate.py` — три,
+строк §9.1a п.5). Доктор — одиннадцать файлов, `check_ast_gate.py` — три,
 `check_new_dependency.py` — два, мутационный и мета-гейт — по четыре и три,
-гейт сложности — два. Копировать надо все: без своей части вход не
+гейт сложности и стражи исполнения — по два. Копировать надо все: без своей части вход не
 стартует вовсе, и это выбрано сознательно — стартовать с частью проверок значило
 бы печатать таблицу, в которой чего-то молча нет, а именно этот класс контур и
 ловит. Признак простой: гейт называется `check_*`, его части — нет.
@@ -1442,7 +1497,7 @@ python, `MUTATION_SHARD` — отказ: иначе N долей N раз гна
 нужен ровно в момент развёртывания.
 
 ```bash
-python3 extract_payload.py                     # всё ли извлекается (80 из 80)
+python3 extract_payload.py                     # всё ли извлекается (83 из 83)
 python3 extract_payload.py --manifest          # пути payload'а, по одному на строку
 python3 extract_payload.py --extract КАТАЛОГ   # разложить
 # ⚠ Плейсхолдер БЕЗ угловых скобок: блоки канона проверяются `bash -n` (§7), а
@@ -5754,8 +5809,9 @@ exit 0
     doctor_canaries.py   данные проб и объявления проекта
     doctor_probes.py     сами пробы исполнением
     doctor_deployment.py состав контура: что канон объявил против того, что лежит
+    doctor_sentinels.py  стражи исполнения: грузит ли их pytest, найдёт ли mutmut
 
-Развёртывание копирует ВСЕ десять файлов: без любого из них доктор не стартует —
+Развёртывание копирует ВСЕ одиннадцать файлов: без любого из них доктор не стартует —
 и это лучше, чем стартовать без части проверок (§5.0 инвентарь). Число здесь
 сверяется механикой (`test_ts_stack_coverage`): до `cqg@2.02` стояло «шесть» при
 восьми — счётчик разъехался на `cqg@1.98` и пережил две правки, потому что
@@ -5787,10 +5843,11 @@ from doctor_hooks import HookReaders
 from doctor_layout import LayoutChecks
 from doctor_versions import VersionChecks
 from doctor_probes import ProbeChecks
+from doctor_sentinels import SentinelChecks
 
 
 class Doctor(VersionChecks, LayoutChecks, HookReaders, AreaChecks, AreaVerdicts,
-             CanaryData, ProbeChecks, DeploymentScreen):
+             CanaryData, ProbeChecks, DeploymentScreen, SentinelChecks):
     def __init__(self, root: Path) -> None:
         self.root = root
         self.rows: list[tuple[str, str, str]] = []
@@ -5884,6 +5941,7 @@ def main() -> int:
     doc.check_canaries()
     doc.check_gates_see_code()
     doc.check_divergence_from_canon()
+    doc.check_run_sentinels()
     return doc.report(args.json)
 
 
@@ -6029,6 +6087,18 @@ TOOLS = {
 # Канарейка = «файл с нарушением ровно этого класса». Ключ — имя правила из
 # `--list-rules`, чтобы список правил брался у СКРИПТА, а не дублировался здесь:
 
+
+
+def _stale_declaration(spec) -> bool:
+    """Запись в `adapted.json` при канонном теле устарела — кроме сигнала наверх.
+
+    `kind: upstream-candidate` — договор обхода флота (волна 1): так проект сообщает о
+    дефекте канона, не трогая канонный файл, и канонное тело у такой записи законно
+    (`cqg@2.70`, поле Ally 18.10: все три кандидата шли как «объявление устарело»).
+    `upstream-absorbed` при канонном теле устарел честно: канон починку впитал.
+    """
+    return bool(spec) and not (isinstance(spec, dict)
+                               and spec.get("kind") == "upstream-candidate")
 
 class LayoutChecks:
     # --- B. места принуждения ------------------------------------------------
@@ -6278,7 +6348,7 @@ class LayoutChecks:
         spec = declared.get(rel) or declared.get(name)
         point = f"расхождение с каноном {name}"
         if body.strip() == live.read_text(encoding="utf-8", errors="replace").strip():
-            if spec:
+            if _stale_declaration(spec):
                 self.add(WEAK, point, "объявлен адаптированным, а тело СОВПАДАЕТ "
                                       "с каноном — объявление устарело и мешает "
                                       "обновлению")
@@ -8187,6 +8257,93 @@ class CanaryData:
             return []
         return [l.strip() for l in out.splitlines() if l.strip() and " " not in l.strip()]
 
+```
+
+### `scripts/lint/doctor_sentinels.py`
+
+```python
+#!/usr/bin/env python3
+"""Стражи исполнения подключены ли: pytest грузит плагин, и mutmut его найдёт.
+
+Часть доктора (`cqg@2.72`, вход — `contour_doctor.py`). Плагин `run_sentinels.py`
+держит три строки §2 только там, где pytest его ГРУЗИТ: файл без строки в конфиге —
+рецепт, а не механика. Так фикстура пула и прожила до `cqg@2.72`: §2.9 числил её
+«инструментом в CI», а поставили её 0 из 4 python-проектов флота (замер 21.10).
+
+Три вопроса, все про НАСТРОЙКУ: есть ли конфиг pytest; грузит ли он плагин; находит
+ли его `pythonpath` — и из `mutants/` тоже, если проект гоняет mutmut: копия конфига
+лежит на уровень глубже, и без второго пути mutmut падает импортом (замер 21.10,
+mutmut 3.7: «No module named 'run_sentinels'» — мутационный гейт ломался целиком).
+"""
+
+from __future__ import annotations
+
+import os
+import re
+
+from doctor_core import AUTO, SKIP, WEAK
+
+PLUGIN = "run_sentinels"
+#: Конфиг pytest: раскладка канона (`backend/`) и плоская.
+PYPROJECTS = ("backend/pyproject.toml", "pyproject.toml")
+
+
+class SentinelChecks:
+    def _pytest_options(self) -> tuple[str, dict, bool] | None:
+        """(путь конфига, `[tool.pytest.ini_options]`, гоняет ли mutmut) — или None."""
+        try:
+            import tomllib
+        except ImportError:  # silent-ok: python<3.11 — вызывающий скажет SKIP
+            return None
+        for rel in PYPROJECTS:
+            path = self.root / rel
+            if not path.is_file():
+                continue
+            try:
+                tool = tomllib.loads(path.read_text(encoding="utf-8")).get("tool", {})
+            except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+                continue
+            if "ini_options" in tool.get("pytest", {}):
+                return rel, tool["pytest"]["ini_options"], "mutmut" in tool
+        return None
+
+    def check_run_sentinels(self) -> None:
+        point = "стражи исполнения"
+        if not (self.root / "scripts/lint" / f"{PLUGIN}.py").is_file():
+            self.add(SKIP, point, "плагина нет в дереве — развёрнут ли он, скажет состав")
+            return
+        found = self._pytest_options()
+        if found is None:
+            self.add(SKIP, point, "конфиг pytest не найден или не прочитан (python<3.11) — "
+                                  "грузит ли pytest плагин, не проверено")
+            return
+        rel, opts, mutmut = found
+        addopts = opts.get("addopts", [])
+        line = " ".join(addopts) if isinstance(addopts, list) else str(addopts)
+        if not re.search(rf"-p\s*{PLUGIN}\b", line):
+            self.add(WEAK, point, f"{rel}: pytest плагин не грузит (нет `-p {PLUGIN}` в "
+                                  "addopts) — текст в логах, секреты и пул не держит никто, §2.7c")
+            return
+        self._judge_plugin_path(point, rel, opts.get("pythonpath", []), mutmut)
+
+    def _judge_plugin_path(self, point: str, rel: str, paths, mutmut: bool) -> None:
+        """Плагин обязан находиться из каталога конфига — и из `mutants/`, если mutmut."""
+        paths = [paths] if isinstance(paths, str) else list(paths)
+        base = os.path.dirname(rel)
+
+        def finds(start: str) -> bool:
+            return any((self.root / os.path.normpath(os.path.join(start, p, f"{PLUGIN}.py"))
+                        ).is_file() for p in paths)
+
+        if not finds(base):
+            self.add(WEAK, point, f"{rel}: `-p {PLUGIN}` есть, а `pythonpath` его не находит "
+                                  "— pytest упадёт импортом")
+        elif mutmut and not finds(os.path.join(base, "mutants")):
+            self.add(WEAK, point, f"{rel}: из `mutants/` плагин не найти — mutmut упадёт "
+                                  "импортом; добавь в pythonpath путь на уровень глубже (§2.7c)")
+        else:
+            self.add(AUTO, point, f"{rel}: pytest грузит плагин"
+                                  + (", mutmut его найдёт" if mutmut else ""))
 ```
 
 ### `scripts/lint/doctor_probes.py`
@@ -10367,7 +10524,8 @@ def unreadable_manifests(paths) -> list[str]:
 
 ```bash
 #!/usr/bin/env bash
-# Ратчет по сложности ФУНКЦИЙ: цикломатика, ветвления, операторы, аргументы, return'ы.
+# Ратчет по сложности ФУНКЦИЙ: цикломатика, ветвления, вложенность, операторы,
+# аргументы, return'ы.
 #
 # Зачем отдельным гейтом, если правила уже есть в ruff. Обычный ruff-хук даёт
 # бинарное «да/нет» на весь пакет. На легаси это означает сотни срабатываний в
@@ -10399,9 +10557,12 @@ def unreadable_manifests(paths) -> list[str]:
 #
 # Чего TS-половина НЕ покрывает, и это замер, а не догадка: у PLR0911 (число
 # return'ов) аналога в ESLint нет вовсе — правила `max-returns` не существует,
-# `--rule` с ним даёт exit 2. Остальные четыре легли один в один:
-# C901→complexity, PLR0912→max-depth (ветвление через глубину), PLR0913→max-params,
-# PLR0915→max-statements.
+# `--rule` с ним даёт exit 2. У PLR0912 (число ветвлений) точного двойника тоже
+# нет — его часть держит `complexity`. Легли так: C901→complexity,
+# PLR1702→max-depth (вложенность; блоки вложенной функции ruff считает внутрь
+# внешней, eslint — с нуля), PLR0913→max-params, PLR0915→max-statements.
+# До `cqg@2.71` у python-половины вложенности не было вовсе, а `max-depth`
+# числился двойником ветвлений — строка §2.1 держалась на бэке словом «ревью».
 #
 # Настройка (env): LINT_PY_SRC, LINT_TS_SRC, LINT_FE_DIR, LINT_VENV, STRICT=0 — soft.
 #
@@ -10421,9 +10582,16 @@ VENV=${LINT_VENV:-backend/.venv}
 # тоже принимается: одно написание не могло удовлетворить обе трактовки, и
 # документированное `.venv` глушило этот гейт мягким пропуском (lab-9 №7).
 [[ -d "$VENV" || ! -d "backend/$VENV" ]] || VENV="backend/$VENV"
-RULES=${LINT_COMPLEXITY_RULES:-C901,PLR0911,PLR0912,PLR0913,PLR0915}
+RULES=${LINT_COMPLEXITY_RULES:-C901,PLR0911,PLR0912,PLR0913,PLR0915,PLR1702}
+# PLR1702 (вложенность) в ruff 0.6.9–0.16 — preview, поэтому оба вызова ruff с
+# этим списком несут `--preview`. Без флага ruff печатает предупреждение, выходит
+# НУЛЁМ и правило не судит: глубина 5 давала пустой снимок (замер `cqg@2.71`) —
+# класс находки 8, только на этот раз молчание законное с точки зрения ruff.
+# Стабильные правила флаг не трогает: на local-web-agent те же 10 находок и тот же
+# снимок; меняется лишь слово в concise-строке (код → имя), а его снимок не читает.
 # Пороги TS повторяют python-овские числом, чтобы обе половины держали одну
-# планку: complexity=C901, max-params=PLR0913, max-statements=PLR0915.
+# планку: complexity=C901, max-depth=PLR1702, max-params=PLR0913,
+# max-statements=PLR0915.
 TS_RULES=${LINT_TS_COMPLEXITY_RULES:-'{"complexity":["error",10],"max-depth":["error",4],"max-params":["error",8],"max-statements":["error",50]}'}
 MODE=${1:-check}
 
@@ -10541,7 +10709,7 @@ fi
 if [[ "$MODE" == "--report" ]]; then
   if (( py_live )); then
     printf 'Нарушения сложности по файлам, python (правила %s):\n' "$RULES"
-    "$RUFF" check --no-cache --quiet --output-format=concise \
+    "$RUFF" check --no-cache --quiet --output-format=concise --preview \
       --select "$RULES" --config 'lint.ignore=[]' -- "$PY_SRC" 2>/dev/null
   fi
   if (( ts_live )); then
@@ -10646,7 +10814,7 @@ count_seen() {
 
 py_counts() {
   local out rc
-  out=$("$RUFF" check --no-cache --quiet --output-format=concise \
+  out=$("$RUFF" check --no-cache --quiet --output-format=concise --preview \
           --select "$RULES" --config 'lint.ignore=[]' -- "$PY_SRC" 2>"$errf")
   rc=$?
   if (( rc > 1 )); then
@@ -11907,6 +12075,372 @@ exit 1
 ```
 
 
+### `scripts/lint/run_sentinels.py`
+
+> pytest-плагин, а не гейт: судит ИСПОЛНЕНИЕ внутри сьюта проекта и слота §9.1a не
+> занимает — как фикстура пула, которую он заменил. Что держит, чего не видит и как
+> подключается — §2.7c. Перехватчики — в части `sentinels_taps.py`.
+
+```python
+"""Стражи исполнения: что тест прогнал через код, судится по факту (CQG §2.7c).
+
+pytest-плагин контура, держит три строки §2: текст пользователя не уходит в лог
+(судится СОДЕРЖАНИЕ, форму судит `unstructured-log`), значения секретов не уходят в
+лог и в вывод, соединение, взятое кодом под тестом, возвращается в пул к концу теста.
+Подключение — фрагмент `[tool.pytest.ini_options]` (Приложение B). Под mutmut стражи
+молчат: их находка убивала бы мутанта вместо теста (§3.7). Перехватчики — в части
+`sentinels_taps.py`.
+"""
+
+from __future__ import annotations
+
+import os
+import secrets
+
+import pytest
+
+from sentinels_taps import (
+    MIN_SECRET,
+    WATCH,
+    watch_pool,
+    watch_secrets,
+    wrap_httpx,
+    wrap_logging,
+    wrap_websocket,
+)
+
+TOKEN = "cnry" + secrets.token_hex(5)
+
+
+def record_text(entry) -> str:
+    """Всё, что вызов способен вынести наружу: текст, аргументы, extra, исключение."""
+    _who, _method, args, extra, exc = entry
+    parts = [str(a) for a in args]
+    if isinstance(extra, dict):
+        parts += [str(v) for v in extra.values()]
+    if exc is not None:
+        parts.append(str(exc))
+    return "\n".join(parts)
+
+
+def excerpt(entry) -> str:
+    """Строка записи для отчёта — с ЗАМАСКИРОВАННЫМИ секретами: отчёт уходит в лог CI,
+    и показать в нём значение значило бы совершить ту самую утечку."""
+    _who, method, args, _extra, _exc = entry
+    msg, rest = (args[1], args[2:]) if method == "log" and len(args) > 1 else (args[0], args[1:])
+    try:
+        text = str(msg) % rest if rest else str(msg)
+    except (TypeError, ValueError):
+        text = str(msg)
+    return mask(text)[:120]
+
+
+def mask(text: str) -> str:
+    """Значения секретов → `‹секрет ИМЯ›`. Отчёт уходит в лог CI, а у упавшего теста
+    pytest печатает ещё и свой «Captured log» — сырым (замер на полигоне)."""
+    for value, src in WATCH.marks.items():
+        if src.startswith("секрет"):
+            text = text.replace(value, f"‹{src}›")
+    return text
+
+
+def pytest_configure(config) -> None:
+    # Метка регистрируется ВСЕГДА: под mutmut незнакомая метка — предупреждение, а
+    # с `filterwarnings = ["error"]` из фрагмента — упавший сбор (замер на стенде).
+    config.addinivalue_line("markers", "contour_allow_text(reason): текст в логе по "
+                            "требованию (аудит) — причина обязательна, §2.7")
+    if "MUTANT_UNDER_TEST" in os.environ:
+        return                  # mutmut: находка стража убила бы мутанта вместо теста
+    wrap_logging()
+    wrap_httpx()
+    watch_pool()
+    config.pluginmanager.register(Sentinels(), "contour-sentinels")
+
+
+class Sentinels:
+    """Хуки на фазы теста: кто сейчас исполняется и что он оставил."""
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_protocol(self, item):
+        WATCH.nodeid = item.nodeid
+        wrap_websocket()            # тест-клиент к этому моменту загружен проектом
+        yield
+        WATCH.nodeid = ""
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_call(self, item):
+        WATCH.phase = "call"
+        yield
+        WATCH.phase = ""
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_makereport(self, item, call):
+        outcome = yield
+        rep = outcome.get_result()
+        found = self.leaks(item, call.when, rep)
+        rep.sections = [(title, mask(text)) for title, text in rep.sections]
+        if found:
+            WATCH.leaks += found
+            rep.outcome = "failed"
+            rep.longrepr = "стражи исполнения (§2.7, §2 пул):\n  " + "\n  ".join(found)
+
+    def leaks(self, item, when: str, rep) -> list[str]:
+        """Что фаза оставила: текст и секреты в логе и выводе, соединения вне пула."""
+        watch_secrets()             # фикстура и monkeypatch ставят секрет уже ВНУТРИ теста
+        records, WATCH.records = WATCH.records, []
+        WATCH.seen += len(records)
+        allow = item.get_closest_marker("contour_allow_text") is not None
+        out = [f"лог {entry[0]}.{entry[1]} несёт {src}: {excerpt(entry)!r}"
+               for entry in records for src in self.sources(entry, allow)]
+        out += [f"вывод теста несёт {src}" for stream in (rep.capstdout, rep.capstderr)
+                for src in WATCH.found(stream) if src.startswith("секрет")]
+        return out + (self.lost_connections(item) if when == "teardown" else [])
+
+    @staticmethod
+    def sources(entry, allow: bool) -> list[str]:
+        """Метки в записи. Строка клиента теста о СВОЁМ запросе — не утечка приложения."""
+        if entry[0] == "httpx" and any(str(a) in WATCH.local_urls for a in entry[2]):
+            return []
+        return [src for src in WATCH.found(record_text(entry))
+                if not allow or src.startswith("секрет")]
+
+    @staticmethod
+    def lost_connections(item) -> list[str]:
+        lost = [k for k, v in WATCH.taken.items() if v == item.nodeid]
+        for k in lost:
+            del WATCH.taken[k]
+        WATCH.lost += len(lost)
+        return [f"{len(lost)} соединени(й) не вернулось в пул: взято кодом под тестом "
+                "мимо контекст-менеджера"] if lost else []
+
+    def pytest_terminal_summary(self, terminalreporter) -> None:
+        names = sorted(s.split()[1] for s in WATCH.marks.values() if s.startswith("секрет"))
+        texts = sum(1 for s in WATCH.marks.values() if not s.startswith("секрет"))
+        tr = terminalreporter
+        tr.write_line(
+            f"стражи исполнения: записей прочитано {WATCH.seen} · секретов под меткой "
+            f"{len(names)} ({', '.join(names) or '—'}) · текстов под меткой {texts} "
+            f"(canary_text в {WATCH.text_tests} тест(ах)) · пул: взято {WATCH.pool}, "
+            f"не вернулось {WATCH.lost} · утечек {len(WATCH.leaks)}")
+        # «Ноль утечек» без меток — не чистота, а непросмотренное: печатается вслух.
+        if not texts:
+            tr.write_line("⚠ текст пользователя НЕ судился: ни один тест не отправил "
+                          "свободный текст и не взял canary_text (§2.7)", yellow=True)
+        if not names:
+            tr.write_line("⚠ значения секретов НЕ судились: ни одной секретной "
+                          f"переменной длиной от {MIN_SECRET} знаков (§2.7)", yellow=True)
+
+
+@pytest.fixture
+def canary_text() -> str:
+    """Свободный текст с меткой: прогони его через свою точку входа."""
+    WATCH.text_tests += 1
+    value = f"{TOKEN} свободный текст пользователя"
+    WATCH.mark(TOKEN, "canary_text")
+    return value
+```
+
+### `scripts/lint/sentinels_taps.py`
+
+```python
+"""Стражи исполнения, часть: перехватчики и состояние прогона (CQG §2.7c).
+
+Часть `run_sentinels.py` — разрезан по планке 300 строк (Delivery §9.1a п.5). Здесь
+вопрос «что тест отправил в код и что код записал»: метки, перехват логгера, запросов
+теста, кадров WebSocket и пула. Вердикты и итог остались во входном модуле.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+
+#: Секретное имя переменной — по ЧАСТИ имени, а не списком имён.
+SECRET_NAME = re.compile(r"(?:^|_)(?:SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|"
+                         r"API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)(?:_|$)", re.I)
+#: Короче — значение совпадает случайно: «password» есть в честном логе.
+MIN_SECRET = 12
+#: Свободный текст запроса: есть пробел и не короче этого. Идентификатор и слаг
+#: пробела не несут — их логировать законно (§2.7), их страж не трогает.
+MIN_TEXT = 12
+#: Ищется НАЧАЛО текста: лог с `text[:50]` — та же утечка, а полного значения в нём
+#: нет. 24 знака свободного текста с пробелом в честном логе случайно не встречаются.
+PREFIX = 24
+
+
+class Watch:
+    """Метки сессии и перехваченное. Один экземпляр на прогон."""
+
+    def __init__(self) -> None:
+        self.marks: dict[str, str] = {}     # значение → откуда метка
+        self.records: list[tuple] = []      # (логгер, метод, args, extra, исключение)
+        self.taken: dict[int, str] = {}     # id записи пула → тест, взявший её
+        self.local_urls: set[str] = set()   # запросы теста к приложению
+        self.leaks: list[str] = []
+        self.seen = self.text_tests = self.pool = self.lost = 0
+        self.phase = self.nodeid = ""
+        self._re: re.Pattern | None = None
+
+    def mark(self, value: str, source: str) -> None:
+        if value and value not in self.marks:
+            self.marks[value] = source
+            self._re = None
+
+    def found(self, text: str) -> list[str]:
+        if not self.marks:
+            return []
+        if self._re is None:
+            self._re = re.compile("|".join(map(re.escape, sorted(self.marks, key=len,
+                                                                 reverse=True))))
+        return sorted({self.marks[m] for m in self._re.findall(text)})
+
+
+WATCH = Watch()
+
+
+def watch_secrets() -> None:
+    """Значения секретных переменных — метки. Перечитывается перед каждым вердиктом:
+    conftest, фикстура и `monkeypatch.setenv` ставят их позже, чем грузится плагин,
+    а секрет, поставленный внутри теста, к фазе отчёта ещё не снят."""
+    for name, value in os.environ.items():
+        if SECRET_NAME.search(name) and len(value) >= MIN_SECRET:
+            WATCH.mark(value, f"секрет {name}")
+
+
+def strings(value) -> list[str]:
+    """Строковые листья JSON-тела или параметров запроса."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in strings(v)]
+    if isinstance(value, (list, tuple)):
+        return [s for v in value for s in strings(v)]
+    return []
+
+
+def mark_text(values: list[str], body) -> None:
+    """Свободный текст, который тест отправил в приложение, — метка."""
+    import json
+    try:
+        values = values + strings(json.loads(body or b"null"))
+    except (ValueError, UnicodeDecodeError):  # silent-ok: не JSON — судим остальное
+        values += [body] if isinstance(body, str) else []
+    for v in values:
+        if len(v) >= MIN_TEXT and re.search(r"\s", v.strip()):
+            WATCH.mark(v[:PREFIX], "текст из запроса теста")
+
+
+def wrap_httpx() -> None:
+    """Запрос ТЕСТА к приложению: транспорт внутри процесса (ASGI/WSGI/TestClient).
+    Исходящие запросы самого приложения к внешним API сюда не попадают."""
+    try:
+        import httpx
+    except ImportError:  # silent-ok: нет httpx — оборачивать нечего
+        return
+    local = ("ASGITransport", "WSGITransport", "_TestClientTransport")
+    sync_send, async_send = httpx.Client.send, httpx.AsyncClient.send
+
+    def mark(client, request) -> None:
+        if type(getattr(client, "_transport", None)).__name__ in local:
+            WATCH.local_urls.add(str(request.url))
+            mark_text([v for _, v in request.url.params.multi_items()], request.content)
+
+    def send(self, request, **kw):
+        mark(self, request)
+        return sync_send(self, request, **kw)
+
+    async def asend(self, request, **kw):
+        mark(self, request)
+        return await async_send(self, request, **kw)
+
+    httpx.Client.send, httpx.AsyncClient.send = send, asend
+
+
+def wrap_websocket() -> None:
+    """Кадр WebSocket, отправленный ТЕСТОМ (`send_text`/`send_json` идут через `send`).
+
+    Модуль тест-клиента страж НЕ импортирует сам: starlette 1.9 на этом импорте
+    бросает DeprecationWarning («install httpx2»), и плагин шумел бы в каждом проекте,
+    а при `-W error` ронял бы прогон (замер в CI канона, `cqg@2.74`). Оборачивается то,
+    что загрузил сам проект, — зовётся на старте каждого теста, патчит один раз."""
+    import sys
+    module = sys.modules.get("starlette.testclient")
+    session = getattr(module, "WebSocketTestSession", None)
+    if session is None or getattr(session.send, "contour_tap", False):
+        return
+    orig = session.send
+
+    def send(self, message):
+        if isinstance(message, dict):
+            mark_text([], message.get("text"))
+        return orig(self, message)
+
+    send.contour_tap = True
+    session.send = send
+
+
+#: Методы, которыми код пишет в лог. Перехват — ДО проверки уровня: в тестах корень
+#: стоит на WARNING, и `info` с текстом пользователя до хендлеров не доходит, а в
+#: проде доходит (замер на стенде: из трёх утечек на INFO не увидена ни одна).
+LOG_METHODS = ("debug", "info", "warning", "warn", "error", "exception", "critical",
+               "fatal", "log")
+
+
+#: Обёртка компилируется С ИМЕНЕМ ФАЙЛА `logging`: `findCaller` пропускает такие
+#: кадры как внутренние, и «файл:строка» записи остаётся строкой приложения. Иначе
+#: каждая запись в тестах указывала бы на этот плагин (замер на стенде).
+_WRAPPER = """
+def method(self, *args, **kwargs):
+    if getattr(depth, "n", 0) == 0:
+        exc = sys.exc_info()[1] if name == "exception" or kwargs.get("exc_info") else None
+        who = self.logger.name if isinstance(self, LoggerAdapter) else self.name
+        WATCH.records.append((who, name, args, kwargs.get("extra"), exc))
+    depth.n = getattr(depth, "n", 0) + 1
+    try:
+        return orig(self, *args, **kwargs)
+    finally:
+        depth.n -= 1
+"""
+
+
+def wrap_logging() -> None:
+    """Вызов метода логгера — запись для стража; поведение логгера не меняется.
+    Хендлеры приложение вправе снести (`basicConfig(force=True)`) — страж не на них.
+    Считается внешний вызов: `exception` зовёт `error`, адаптер — логгер."""
+    import sys
+    import threading
+    code = compile(_WRAPPER, logging.addLevelName.__code__.co_filename, "exec")
+    depth = threading.local()
+    for cls in (logging.Logger, logging.LoggerAdapter):
+        for name in LOG_METHODS:
+            if hasattr(cls, name):          # `fatal`/`warn` есть не у всех и не везде
+                ns = {"WATCH": WATCH, "depth": depth, "sys": sys, "name": name,
+                      "orig": getattr(cls, name), "LoggerAdapter": logging.LoggerAdapter}
+                exec(code, ns)  # noqa: S102 -- тело — константа выше, не внешний ввод
+                setattr(cls, name, ns["method"])
+
+
+def watch_pool() -> None:
+    try:
+        from sqlalchemy import event
+        from sqlalchemy.pool import Pool
+    except ImportError:  # silent-ok: нет SQLAlchemy — пула нет, итог это скажет
+        return
+
+    def checkout(_dbapi, rec, _proxy) -> None:
+        if WATCH.phase == "call":
+            WATCH.taken[id(rec)] = WATCH.nodeid
+            WATCH.pool += 1
+
+    def checkin(_dbapi, rec) -> None:
+        WATCH.taken.pop(id(rec), None)
+
+    event.listen(Pool, "checkout", checkout)
+    event.listen(Pool, "checkin", checkin)
+```
+
+
 # Приложение B — конфиги
 
 ### `backend/pyproject.toml (фрагмент)`
@@ -11921,7 +12455,7 @@ line-length = 100
 extend-exclude = ["migrations", ".venv", "venv", "__pycache__"]
 
 [tool.ruff.lint]
-# ⚠ Пять комплексити-правил (C901, PLR0911/0912/0913/0915) — СРАЗУ в ignore ниже,
+# ⚠ Шесть комплексити-правил (C901, PLR0911/0912/0913/0915, PLR1702) — СРАЗУ в ignore ниже,
 # потому что §5 разворачивает гейт сложности всегда: `check_complexity_gate.sh`
 # сам сбрасывает ignore (`lint.ignore=[]`) и сверяет находки со СНИМКОМ — ратчет:
 # новое нарушение красное, легаси из снимка живёт до чистки. Если отдать правила
@@ -11930,10 +12464,15 @@ extend-exclude = ["migrations", ".venv", "venv", "__pycache__"]
 # правилами в select ПРОТИВ этого же предупреждения — ratchet зелёный, ruff
 # красный на том же файле, и первый прогон читался как дефект проекта.
 # `C90`/`PL` из select НЕ убраны: там живут PLE/PLW/PLC, гейт их не заменяет.
-# НЕ разворачиваешь гейт сложности (нестандартно) — удали пять правил из ignore,
-# иначе сложность не судит никто. Список ниже обязан совпадать с дефолтом RULES
-# гейта — расхождение ловит тест (правка на класс = список в оракуле).
+# НЕ разворачиваешь гейт сложности (нестандартно) — удали правила из ignore,
+# иначе сложность не судит никто (PLR1702 без `preview` хук не судит и тогда).
+# Список ниже обязан совпадать с дефолтом RULES гейта — расхождение ловит тест
+# (правка на класс = список в оракуле).
 select = ["E","W","F","I","N","UP","B","C4","C90","SIM","RUF","ASYNC","S","PT","RET","PIE","PL","TRY400","DTZ"]
+# PLR1702 судит гейт с `--preview`; хук идёт без preview и считает правило
+# невключённым, поэтому `RUF100` объявил бы поштучный `noqa` на нём лишним, а
+# `--fix` вырезал бы его (замер на ruff 0.6.9 и 0.16.6). `external` это снимает.
+external = ["PLR1702"]
 ignore = [
     "E501",                 # длину разрулит форматтер
     "S101",                 # assert разрешён
@@ -11959,14 +12498,14 @@ ignore = [
     # гасит в `tests/**` всё семейство `S` целиком.
     "S104",                 # bind 0.0.0.0 — в контейнере норма; иначе noqa на каждом entrypoint
     "S607",                 # частичный путь: `git`/`npm` по имени штатно, абсолютный ХУЖЕ (портируемость)
-    "C901","PLR0911","PLR0912","PLR0913","PLR0915",  # сложность судит ГЕЙТ со снимком (§3), не хук
+    "C901","PLR0911","PLR0912","PLR0913","PLR0915","PLR1702",  # сложность судит ГЕЙТ со снимком (§3), не хук
     "PLR2004",              # magic-value — шумно
     "B008",                 # DI-объект как default аргумента (напр. FastAPI Depends())
     "RUF001","RUF002","RUF003",  # ambiguous unicode — не-ASCII в строках/логах
     "PLC0415",              # import-outside-top-level — осознанный lazy-import паттерн
 ]
 # tests-код имеет свои послабления:
-per-file-ignores = { "tests/**/*.py" = ["S","PLR2004","PLR0915","PLR0912","C901","PLC0415","B017","PT011","PT012","PT018","N806","N803","N802","E402","SIM117","PT006","E741","PLW0108","DTZ"] }
+per-file-ignores = { "tests/**/*.py" = ["S","PLR2004","PLR0915","PLR0912","PLR1702","C901","PLC0415","B017","PT011","PT012","PT018","N806","N803","N802","E402","SIM117","PT006","E741","PLW0108","DTZ"] }
 
 # Пороги на УРОВНЕ ФУНКЦИИ. Плохой код живёт в функциях, а не в файлах: функция
 # на 400 строк внутри файла на 480 проходит file-length свободно.
@@ -11980,6 +12519,7 @@ max-args = 8               # PLR0913 — больше 8 параметров = �
 max-branches = 12          # PLR0912
 max-returns = 6            # PLR0911
 max-statements = 50        # PLR0915 — длина функции в операторах
+max-nested-blocks = 4      # PLR1702 — вложенность блоков (preview: гейт зовёт ruff с --preview)
 
 [tool.ruff.format]
 quote-style = "double"
@@ -12003,7 +12543,13 @@ norecursedirs = ["mutants", ".venv", "node_modules", "build", "dist"]
 # `pythonpath` нужен мутационному гейту, а не удобству: pytest внутри `mutants/`
 # обязан импортировать МУТИРОВАННУЮ копию пакета, а она лежит рядом с этим файлом
 # (§3.7). Значение — «каталог этого конфига», то есть `backend/`.
-pythonpath = ["."]
+# Ещё два пути и `addopts` — стражи исполнения (§2.7c): плагин лежит в `scripts/lint/`,
+# а из `mutants/` (копия этого файла на уровень глубже) до него на один `..` дальше.
+# Второй путь не опечатка: без него mutmut падает импортом плагина, и мутационный
+# гейт не судит ничего (замер 21.10, mutmut 3.7). Под mutmut стражи молчат сами.
+# Плоская раскладка (конфиг в корне): `"scripts/lint", "../scripts/lint"`. Сам плагин
+# грузит `-p run_sentinels` в `addopts` ниже.
+pythonpath = [".", "../scripts/lint", "../../scripts/lint"]
 # Каждое предупреждение = падение теста. Исключения добавляй ПОШТУЧНО и с причиной
 # (это тот же ратчет: список только сокращается).
 filterwarnings = [
@@ -12052,7 +12598,7 @@ filterwarnings = [
     #
     # Вывод, который стоит держать: `error` — сильный оракул на предупреждения,
     # возникающие ВО ВРЕМЯ теста, и не оракул на то, что всплывает при GC.
-    # Детерминированная замена — фикстура ниже, она стоит десять строк.
+    # Детерминированная замена — стражи исполнения (`-p run_sentinels` ниже, §2.7c).
 ]
 # -X dev: включает ResourceWarning, отладочные проверки CPython, asyncio debug.
 # Задаётся через env, чтобы работало и в CI, и локально одинаково.
@@ -12065,7 +12611,7 @@ filterwarnings = [
 # не работает без необъявленного плагина. Альтернатива без плагина —
 # `PYTHONDEVMODE=1` в env CI-джобы и в pre-push, а не в pyproject.
 asyncio_mode = "auto"      # если используется pytest-asyncio
-addopts = "-q --strict-markers --strict-config"
+addopts = "-q --strict-markers --strict-config -p run_sentinels"   # стражи — §2.7c
 xfail_strict = true        # xfail, который вдруг прошёл, = сигнал, а не тишина
 
 # --- mypy (чистый strict; НЕ копируй сюда легаси [[overrides]] чужого проекта) -
@@ -12780,6 +13326,11 @@ import-linter>=2.0
 
 | Дата | Версия | Изменение |
 |---|---|---|
+| 2026-10-21 | **2.74** | **Стражи исполнения в CI канона: 15 красных только там — и два дефекта, которые локальный прогон не мог показать.** CI на `7a9ac7f` упал там, где оба локальных режима были зелёными: у правившего стоял pytest-asyncio, а в CI нет. ① Полигон кладёт НАСТОЯЩИЙ фрагмент, а в нём `asyncio_mode` при `--strict-config` — без плагина pytest не стартует вовсе («Unknown config option: asyncio_mode»). CI канона теперь ставит pytest-asyncio; сам капкан фрагмента — близнец описанного рядом капкана с `env` — записан в BACKLOG отдельным решением. ② Страж сам импортировал `starlette.testclient`, а starlette 1.9 на этом импорте бросает DeprecationWarning («install httpx2»): плагин шумел бы в каждом проекте со свежим starlette, а при `-W error` ронял бы прогон. Теперь оборачивается то, что загрузил сам проект: перехват ставится на старте каждого теста, один раз. ③ Перехват кадров WebSocket до этой ревизии не исполнял ни один тест — механизм без оракула: на voice текста под меткой не было, полигон ходил одним httpx. Добавлен тест на `TestClient.websocket_connect`, и первый же обратный прогон показал, что он спутан: кадр нёс тот же текст, что HTTP-запросы соседних тестов, метки живут всю сессию, и утечку ловила чужая метка — снятие перехвата оставалось зелёным. У кадра теперь свой текст. **Воспроизведено до правки** в venv с набором CI (starlette 1.9.0, без pytest-asyncio): те же 15 красных; после правки — 13 зелёных и там, и локально. **Обратный прогон** (файлом): страж снова импортирует тест-клиент — красное; перехват не ставится на старте теста — красное; на `2.73` новые тесты красные. **вес: +7 строк, за что** — ленивый перехват WebSocket: модуль берётся из уже загруженных, метка «обёрнуто» против двойного патча, вызов на старте теста. **объём: +4 строк, за что** — предел WebSocket в §2.7c и эта запись. **класс:** canon-misses-its-own-layout @ CODE_QUALITY_GATES.md scripts/lint/sentinels_taps.py::wrap_websocket |
+| 2026-10-21 | **2.73** | **§2.9 честен в обе стороны: первая таблица сверяется, design-doc засчитан, а «ревью» названо тем, что оно есть.** ① Канон писал «числа обеих таблиц сверяются с конфигами», а сверялась только вторая: регэксп `test_the_place_and_cost_…` не пускает пробел в ярлык, и «Гейтом контура», «Ревью — advisory» не читал никто. Обратный прогон до правки: порча «16 → 99» и «6 → 42» прошла зелёной. Теперь их сверяет `test_the_split_is_printed_not_only_judged`, с проверкой, что таблица вообще найдена. ② Строка «SOLID / design-doc freshness» звала ревью и то, что держит гейт: свежесть design-doc прибита `okf_sync_gate.py` в CI (OKF §5: «тронул путь — тронь concept»). Строка разделена: SOLID — ревью, свежесть design-doc — гейт там, где у concept'ов есть `implementation:` (замер 21.10: у 4 из 6 проектов с OKF, у Fake office и portfolio таких нет). Сверка §2.9 узнаёт `okf_sync_gate.py` как гейт CI. ③ Абзац §2.9 «“Держится ревью” правдиво, только если код читает человек» — с остатком поимённо: тонкие роутеры (механизируемы, класс живой: local-web-agent 2+2, Ahrefs 14+17 — ждут решения о слоте), SOLID и «докстринг = контракт» (кандидат — чтец-модель, после замеров). Попутно: проба «устаревшее число на странице ловится» подменяла буквальное «23» и с новым числом перестала подменять — сама и заметила; теперь подменяется текущее число. Итог §2.9: 24 правила, гейтом 19, инструментом 2, ревью 3. **Обратный прогон** (файлом): три порчи первой таблицы — все красные. **вес: +445 строк, за что** — вся партия 2.71–2.73: стражи исполнения `cqg@2.72` (+434) и вложенность `cqg@2.71` (+11); 2.73 веса не добавила. **объём: +87 строк, за что** — партия: `cqg@2.71` (+15), `cqg@2.72` (+55), 2.73 (+17: разделённая строка, абзац о ревью, эта запись). **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md §2.9 |
+| 2026-10-21 | **2.72** | **Стражи исполнения: текст пользователя и секреты в логах, возврат в пул — судит pytest-плагин, а не «ревью».** Разбор 21.10: в процессе без читателя кода три строки §2 не держал никто. «Пользовательский текст не утекает в логи» и значения секретов стояли словом «ревью» — `unstructured-log` судит ФОРМУ записи. «Соединения возвращаются в пул» §2.9 числил «инструментом в CI», а рецепт фикстуры поставили 0 из 4 python-проектов флота, хотя voice и Ahrefs на SQLAlchemy: рецепт засчитывался исполнением. **Что встало:** плагин `scripts/lint/run_sentinels.py` (часть `sentinels_taps.py`). Метки — свободный текст из запросов теста к приложению в процессе (httpx: ASGI, WSGI, TestClient; кадры WebSocket starlette), значения секретных переменных окружения, фикстура `canary_text`; сток — каждый вызов метода логгера ДО проверки уровня; пул — события SQLAlchemy в фазе теста. Подключение — фрагмент pytest: `-p run_sentinels` в `addopts`, `scripts/lint` в `pythonpath` двумя путями; подключение судит доктор (`doctor_sentinels.py`). Слот §9.1a не занят: это тест, не гейт. **Шесть ловушек, все найдены замером, а не чтением:** ① перехват после уровня не видел ни одной из трёх утечек на INFO — в тестах корень на WARNING; ② обёртка логгера сдвигала «файл:строку» записей на плагин — она компилируется с именем файла `logging`; ③ свой лог httpx о запросе теста шёл ложной тревогой; ④ отчёт об утечке печатал значение секрета, а у упавшего теста pytest ещё и свой «Captured log» — маскируются все разделы отчёта; ⑤ секрет, поставленный `monkeypatch` внутри теста, в метки не попадал — окружение перечитывается перед каждым вердиктом; ⑥ mutmut гоняет pytest из `mutants/` и без второго пути падает импортом плагина — мутационный гейт не судил бы ничего (mutmut 3.7: `No module named 'run_sentinels'`); под mutmut стражи молчат, а метку регистрируют всегда, иначе `--strict-markers` ронял бы сбор. Попутно: фрагмент получил бы второй ключ `addopts` и перестал бы читаться как TOML — поймано полигоном. **Замер флота (клоны, только чтение):** voice — 272 теста, local-web-agent — 451, ложных 0; у voice текст пользователя НЕ судился (он рождается в распознавании речи), и итог прогона говорит это вслух; Ahrefs не замерен — его сьюту нужен Postgres. **Обратные прогоны на настоящем коде:** у local-web-agent четыре формы утечки красные, лог одной длины зелёный; у voice две формы утечки пула красные на девяти тестах, честный контекст-менеджер зелёный. **Восемнадцать прогонов** (`test_run_sentinels.py`, `test_doctor_sentinels.py`). **Обратный прогон** (файлом): двенадцать мутаций — все красные; на `2.71` новые тесты красные. Числа §2.9 стали 18 / 2 / 3. **вес: +445 строк, за что** — плагин и его часть (+344), часть доктора и её подключение (+85), извлекатель (+5) и вложенность `cqg@2.71` (+11). **объём: +70 строк, за что** — §2.7c, указатель вместо рецепта пула, пути стражей во фрагменте pytest, эта запись и `cqg@2.71` (+15). **класс:** rule-without-an-executor @ CODE_QUALITY_GATES.md §2.7c |
+| 2026-10-21 | **2.71** | **Вложенность на бэке судит гейт сложности, а не слово «ревью».** Разбор 21.10 (portfolio-site-a5 по просьбе Anthony): код в его процессе не читает ни один человек, поэтому правила §2 с пометкой «ревью» на деле не держит никто. Первое закрывается без модели: строка «Функция — вложенность» держалась ESLint `max-depth 4` на фронте и ревью на бэке, а у ruff есть то же правило — `PLR1702`. **Что встало:** `PLR1702` в `RULES` гейта сложности (тот же снимок и порог из pyproject — слот §9.1a не нужен), `max-nested-blocks = 4` во фрагменте. **Две ловушки preview, обе замерены до правки** на ruff 0.6.9 (минимум канона) и 0.16.6: ① без `--preview` ruff печатает предупреждение, выходит нулём и правило не судит — глубина 5 давала пустой снимок; поэтому оба вызова ruff со списком гейта несут флаг; ② основной хук идёт без preview, `RUF100` звал поштучный escape на этом правиле лишним, а `--fix` вырезал бы его — во фрагменте `external = ["PLR1702"]`. Стабильные правила флаг не трогает: на local-web-agent те же 10 находок и тот же снимок. **Цена для флота замерена (только чтение):** voice 0, Ahrefs 0, local-web-agent 1 — в тестовом файле, который его `per-file-ignores` освободит, как освобождают от `C901`. Названное различие с ESLint: блоки вложенной функции ruff считает внутрь внешней, `max-depth` — с нуля. **Три прогона** (`test_nesting_is_judged.py`). **Обратный прогон** (файлом): пять мутаций — снято правило, снят флаг в счёте, снят флаг в отчёте, снят порог, снят `external` — все красные; на `2.70` красны два из трёх. **вес: +11 строк, за что** — правило и флаг в гейте с причиной, порог и `external` во фрагменте. **объём: +15 строк, за что** — абзац §2.1 о двух ловушках (+8), пояснение и `external` во фрагменте (+6), эта запись. **класс:** rule-without-an-executor @ CODE_QUALITY_GATES.md §2.1 вложенность |
+| 2026-10-18 | **2.70** | **Сигнал наверх — не адаптация: доктор не зовёт его устаревшим объявлением.** Договор обхода флота (волна 1, 01.10): `kind: "upstream-candidate"` в `adapted.json` — выход, которым проект сообщает о дефекте канона, а `collect.upstream_candidates` собирает такие записи со всего флота. Канонный файл при этом часто не тронут: проект кладёт свою починку рядом. Доктор (`doctor_layout._judge_divergence`) читал любую запись как адаптацию и при совпавшем теле выносил WEAK «объявлен адаптированным, а тело СОВПАДАЕТ с каноном — объявление устарело». Поле Smart Friend Ally 18.10: так шли все три их кандидата. Два механизма канона толковали одну запись по-разному. **Что встало:** запись `upstream-candidate` с канонным телом — законный сигнал, вердикта нет. `upstream-absorbed` с канонным телом — устаревшая запись честно (канон впитал), WEAK остаётся, как и у обычной адаптации. **Три прогона** (`test_upstream_signal_is_not_an_adaptation.py`). **Обратный прогон:** на `2.69` красен сигнал, зелены оба стража. **вес: +23 строк, за что** — различение сигнала и адаптации у доктора (+12: помощник `_stale_declaration` — иначе `_judge_divergence` вышла бы за cx 10) и встречные строки `delivery@2.07` (+11). **объём: +2 строк, за что** — эта запись и запись `delivery@2.07`. **класс:** one-notion-one-place @ CODE_QUALITY_GATES.md doctor_layout.py::_judge_divergence |
 | 2026-10-18 | **2.69** | **Инструменты флота: провенанс снимка чист для сканеров секретов, план видит отставание адаптаций.** **① `VENDORED.json` наполнял базу секретов.** Накат (`apply_update.revendor`) и ручной рецепт §5 шаг 11 писали голый hex коммита и sha256, а `detect-secrets` читает его «Hex High Entropy String». Замер флота 17.10: у voice 9 из 9 записей базы — этот файл, у fake-office 8 из 8, у Ally 8 из 8. Каждый накат менял базу, а с `delivery@2.04` ещё и требовал ревью «безопасность» (PR #24 Ally). CQG §2.7a сам называет такие записи находкой канона, а рецепт предписывал «переснимать базу на каждом накате» — лекарство, ставшее ценой. `test_payload_clean_for_scanners.py` файла не видел: его пишет накат, а не канон. **Что встало:** значения с префиксами `git:` и `sha256:` в обоих писателях. Замер `detect-secrets 1.5.0`: ноль находок против двух на тех же значениях без префикса. Читатели — доктор (`_provenance`) и `preflight.provenance` (за ним `collect`) — принимают обе формы: у флота старые записи живут до наката. Прежние записи базы снимаются одним пересъёмом. **② План видит, насколько адаптация разошлась с каноном СТАРОГО пина.** BACKLOG «адаптация прячет отставание», четыре случая: local-web-agent (`delivery_base.py`), portfolio (`quality.yml` без шага selftest `cqg@2.43`), outreach, voice (`complexity_halves.sh` без свойства `cqg@2.04`). `plan_update` сравнивал канон старого пина с новым, и отставание, случившееся раньше пина, находило только чтение. Теперь `adaptation_drift` печатает по каждому адаптированному файлу размер расхождения с каноном старого пина и объявленную причину рядом. Судит человек, план перестаёт молчать. Замер на voice (только чтение): семь адаптаций, от `+1/−1` у `.prettierrc` до `+146/−142` у `pyproject.toml`, каждая со своей причиной. **③ Попутно** (поле G connect 17.10): накат печатал «нет docs/canon — вариант B», хотя проект объявил D. Теперь печатает то, что видит: «снимка docs/canon в клоне нет». `VENDORED.md` у voice держал версии руками — проект сам заменил их ссылкой на `VENDORED.json`, а канон этот файл не предписывает: правки не нужно. **Двенадцать прогонов** (`test_provenance_is_scanner_clean.py`, `test_plan_shows_adaptation_drift.py`). **Обратный прогон:** на `2.68` красны десять, включая настоящий скан `detect-secrets` по записи наката; зелены стражи старой формы у доктора и `preflight`. **вес: +2 строк, за что** — снятие префикса у доктора и префиксы в рецепте. **field: +58 строк, за что** — префиксы наката, чтение обеих форм в `preflight`, `adaptation_drift` и `report_drift`. **объём: +2 строк, за что** — абзац о префиксах вместо «переснимай базу на каждом накате» и эта запись. **класс:** gate-mask-misses-the-population @ field/fleet/apply_update.py::revendor |
 | 2026-10-18 | **2.68** | **Дайджест утверждений: «не видел» — не «утверждений нет».** Поле Smart Friend Ally 18.10 (их инцидент `2026-10-18-assert-digest-swift`): в диффе поставки 12 `XCTAssert`, а `assert_digest.sh` писал «Новых утверждений нет» и `asserts_without_example: 0`. `delivery_check` разрешает `asserts_reviewed_by: n/a` ровно при нуле (§3.1d ур. 3) — n/a проходил на пустоте. Сверено с кодом: маска знала только `*test*.py|ts|tsx` и `*_test.go`; ручку `LINT_TEST_GLOB` шапка обещала с первой редакции, а код её не читал ни разу; разбор не брал `XCTAssert…` и не открывал блок `func test…`/`@Test`. `#expect(` шаблон брал — вопреки описанию инцидента, дыра была в населении, а не в шаблоне. **Что встало:** маски — из `LINT_TEST_GLOB` (дефолт прежний плюс `*Tests.swift`, `*Test.swift`). Тест-файл опознаётся ПРИНЦИПОМ — именем (`test_*`, `*_test.*`, `*_spec.*`, `*.test.*`, `*Tests.*`, `*Spec.*`) или каталогом `__tests__/` — на исходнике любого языка. Тот, что мимо масок, разобран не был: маркер `unknown`, список таких файлов печатается, совета «пиши n/a» нет. Разбор знает `XCTAssert…`, `XCTFail`, блоки `func test…` и `@Test`. **Замер на настоящем диффе Ally** (`dcc77c6`): было «утверждений нет», 0; стало 12 утверждений, все привязаны к примерам C2–C5, маркер 0 — n/a заслужен честно. Первая редакция признака брала любой исходник в `Tests/` и на том же поле дала `unknown` генератору фикстур `Tests/…/Fixtures/make_fixtures.py`, а следом ещё и противоречила себе («✅ пиши n/a» над «n/a недоступно»): признак сужен до имён, совет при `unknown` снят. Встречная половина — `delivery@2.06`: `unknown` отказывался и раньше (регулярка ждала число), но с чужим диагнозом «дайджест не вставлен». **Семь прогонов** (`test_assert_digest_sees_the_language.py`). **Обратный прогон:** красны пять, зелены стражи — генератор фикстур и прежний python. **вес: +47 строк, за что** — маски из `LINT_TEST_GLOB`, опознание тест-файла принципом, маркер `unknown`, разбор XCTest; в сумме и строки `delivery@2.06`. **объём: +3 строк, за что** — эта запись и встречные строки `delivery@2.06` (фраза §3.1d и её запись). **класс:** green-without-the-thing @ CODE_QUALITY_GATES.md scripts/lint/assert_digest.sh |
 | 2026-10-18 | **2.67** | **Механика контура — всё, что приносит накат: оба зеркала правила перечисляли случаи.** Поле Smart Friend Ally 18.10 (их инцидент `2026-10-18-exclude-contour-delivery-modules`): с маской длины `*.swift` доктор звал модули Delivery DEAD — «их не видит ни один гейт». Механику из населения продуктовых гейтов исключают два зеркала одного правила: `exclude_contour` у гейта длины и `CONTOUR_RE` у доктора (его же с `2.59` берёт AST-гейт). Оба перечисляли `scripts/delivery_(check|metrics).py`, а разрез `delivery@1.53` дал тринадцать модулей — одиннадцать мимо. `BREAKER_EXCLUDE` этот рецидив закрыл префиксом ещё тогда («ПРЕФИКСЫ, а не точные пути»), а здесь его не досмотрели. Тест принципа, выводящий население из манифеста, нашёл ещё двоих: `scripts/check_irreversible_signature.sh` и `scripts/sign_irreversible.sh` (Delivery §3.4a). Сегодня их не берёт ни маска длины, ни знаменатель доктора, но маска с `*.sh` дала бы ложный красный. **Едущие файлы — тоже механика.** `stack_selftest.py`, `selftest_sizes.py`, `extract_payload.py` ложатся в проект тем же накатом, в корень или в `scripts/`, и AST-гейт проекта судил копию `stack_selftest.py`: у хендлера на строке 175 нет пометки `# silent-ok:`. Хендлер ошибку не глушит — возвращает её вызывающему как провал блока; пометка поставлена. Сам канон этого не видел: самопроверка `test_payload_passes_own_gates.py` судила только блоки канонов, без едущих файлов. Теперь судит и их — списком накатчика `TRAVELLING`, второго не заводя. **Что встало:** префикс `scripts/delivery_[a-z_]+\.py`, два скрипта §3.4a и едущие файлы (`(scripts/)?…\.py`) в обоих зеркалах. `test_contour_population.py` выводит население из манифеста payload'а и `TRAVELLING` и требует, чтобы оба зеркала покрыли его целиком, а продуктовые пути не тронули. Новый скрипт вне правила краснит сьют, а не поле. ⚠ **Третье зеркало — `BREAKER_EXCLUDE` Delivery — выравнивается своей ревизией** (`delivery@2.05`): два скрипта §3.4a и едущие файлы в него тоже не входят. **Шесть прогонов** плюс расширенная самопроверка. **Обратный прогон:** на `2.66` красны оба зеркала и самопроверка (сам `silent-except`), зелены стражи продукта и непустого населения. **вес: +11 строк, за что** — префикс и едущие файлы в двух зеркалах, пометка в `stack_selftest.py`, разбор принципа у `exclude_contour`. **объём: CQG +0 строк** — прозы CQG правка не добавила; запись карты `stack-map@1.54` несёт свои. **класс:** list-without-its-principle @ CODE_QUALITY_GATES.md check_file_length.sh::exclude_contour, CODE_QUALITY_GATES.md doctor_hooks.py::HookReaders.CONTOUR_RE |
