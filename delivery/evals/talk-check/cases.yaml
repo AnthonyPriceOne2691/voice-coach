@@ -1,0 +1,55 @@
+# Eval проверки речи (D3a.2, пример C9): 37 случаев в шести классах.
+# Каждый случай — вопрос Генри, реплика Антона в виде распознанного текста и ожидание.
+# Пороги спеки: естественная + разговорная без заметки >= 90%; ошибка — заметка с
+# дословным фрагментом и нужной правкой >= 80%; бедная — заметка на плоский фрагмент
+# >= 70%; смешанная — заметка об ошибке >= 75%; невнятная — без заметки >= 75%.
+# Живой прогон — только по «запускай» человека (run.py).
+
+natural:
+  - {id: N1, ask: "How was your morning?", said: "I went to the gym this morning and it was packed."}
+  - {id: N2, ask: "What's new at work?", said: "We finally shipped the new version of the agent on Friday."}
+  - {id: N3, ask: "Any plans for next week?", said: "My client asked for a demo next week, so I'm preparing the slides."}
+  - {id: N4, ask: "How is your English going?", said: "I've been learning English for a long time, but speaking is still hard for me."}
+  - {id: N5, ask: "What did you do on Sunday?", said: "The weather was great, so we walked along the river for two hours."}
+  - {id: N6, ask: "What was the hardest part?", said: "I think the hardest part was explaining the architecture to the sales team."}
+
+casual:
+  - {id: K1, ask: "Have you been to that place?", said: "Yeah, went there yesterday, was fun."}
+  - {id: K2, ask: "Did you sleep well?", said: "Nah, not really. Kinda tired today."}
+  - {id: K3, ask: "What's next for you today?", said: "Gonna grab a coffee and get back to work."}
+  - {id: K4, ask: "How are you doing?", said: "Pretty good, thanks. Busy week though."}
+  - {id: K5, ask: "Mondays are hard, right?", said: "Oh yeah, totally. Same here."}
+  - {id: K6, ask: "Shall we talk about your trip?", said: "Sure, why not. Let's do it."}
+
+error:
+  - {id: E1, ask: "What did you do yesterday?", said: "Yesterday I go to the office and meet my client.", better_has_any: ["went"]}
+  - {id: E2, ask: "What do you think about remote work?", said: "I am agree with you, it is a good idea.", better_has_any: ["i agree"]}
+  - {id: E3, ask: "How does your agent work?", said: "Can you explain me how it works?", better_has_any: ["explain to me", "explain how"]}
+  - {id: E4, ask: "How long have you been there?", said: "I work in this company since three years.", better_has_any: ["for three years"]}
+  - {id: E5, ask: "What did you talk about?", said: "We discussed about the new pricing yesterday.", better_has_any: ["discussed the"]}
+  - {id: E6, ask: "How is your team?", said: "My colleague don't like meetings in the morning.", better_has_any: ["doesn't", "does not"]}
+  - {id: E7, ask: "Is it busy today?", said: "There is many people in the office today.", better_has_any: ["are many", "are a lot"]}
+  - {id: E8, ask: "When did you finish?", said: "I have finished the project last month.", better_has_any: ["i finished"]}
+
+poor:
+  - {id: P1, ask: "How was the trip?", said: "The trip was good. The hotel was good and the food was very good.", plain: "very good"}
+  - {id: P2, ask: "How was the concert?", said: "It was nice. Very nice.", plain: "nice"}
+  - {id: P3, ask: "What did you discuss with the client?", said: "We talked about the thing with the thing for the client.", plain: "thing"}
+  - {id: P4, ask: "How was your weekend?", said: "Good.", plain: "good"}
+  - {id: P5, ask: "How was the meeting?", said: "The meeting was very very long and very boring.", plain: "very"}
+  - {id: P6, ask: "What did you do today?", said: "I did some stuff with the server and stuff.", plain: "stuff"}
+
+mixed:
+  - {id: M1, ask: "Where did you have dinner?", said: "Yesterday I go to a very good restaurant.", better_has_any: ["went"]}
+  - {id: M2, ask: "Did you like the movie?", said: "The movie was good, I watch it two times.", better_has_any: ["watched"]}
+  - {id: M3, ask: "What did your boss think?", said: "My boss say the report was nice.", better_has_any: ["says", "said"]}
+  - {id: M4, ask: "How did the release go?", said: "We was very happy with the good results.", better_has_any: ["were"]}
+  - {id: M5, ask: "Did you buy anything?", said: "I buyed a new laptop, it is very good.", better_has_any: ["bought"]}
+
+garbled:
+  - {id: G1, ask: "What happened then?", said: "So, um, the, the thing is, uh, I mean..."}
+  - {id: G2, ask: "Where were we?", said: "Hmm, okay, so... where was I."}
+  - {id: G3, ask: "And then?", said: "and then the and then the"}
+  - {id: G4, ask: "Anything else?", said: "Thank you for watching!"}
+  - {id: G5, ask: "Go on.", said: "...you know, like, the, um..."}
+  - {id: G6, ask: "Sorry?", said: "I mean the, the one with the, yeah."}

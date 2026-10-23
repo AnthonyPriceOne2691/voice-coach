@@ -1,0 +1,22 @@
+[Request from the app, not from Anton. Do not answer as Henry and do not continue the conversation.]
+
+Check the English of Anton's last message: "{{utterance}}"
+
+Find at most ONE thing worth improving. Look in this order:
+1. "error" — a grammar mistake, a wrong word, or wrong word order. Example: "Yesterday I go to the office" -> "Yesterday I went to the office" (why: "past tense").
+2. "style" — correct but poor English: an empty word like good, nice, thing or stuff, the same word repeated, or a one-word answer where a natural phrase fits. Example: "the food was very good" -> "the food was delicious" (why: "more vivid").
+If there is an error, report the error, not a style point.
+
+Do NOT report:
+- natural spoken or casual English: "Yeah, went there yesterday, was fun." is fine;
+- simple but natural sentences: simple is not poor;
+- names, places, brands, technical terms, numbers;
+- punctuation or capital letters only;
+- anything you are not sure about.
+If nothing is clearly worth improving, answer with kind "none".
+
+Rules for the answer:
+- "said" is copied EXACTLY, word for word, from Anton's message: the shortest fragment that contains the problem, two to fifteen words when the message is long enough.
+- "better" is the improved version of the same fragment, nothing more.
+- "why" is at most five English words. Never give scores, levels or grades.
+Answer with JSON only: {"kind": "none" | "error" | "style", "said": "...", "better": "...", "why": "..."}
