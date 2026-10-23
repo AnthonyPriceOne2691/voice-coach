@@ -1,4 +1,4 @@
-"""Корень репозитория узнаётся по данным, а не по глубине пути (M1–M4).
+"""Корень репозитория узнаётся по данным, а не по глубине пути (M1–M4, M15).
 
 Мутационный гейт копирует пакет в `backend/mutants/app/` и гоняет сьют оттуда.
 Счёт `parents[2]` давал там `backend/`: сьют не находил `data/contracts`, и гейт
@@ -7,6 +7,7 @@
 """
 
 import importlib.util
+import re
 import shutil
 from pathlib import Path
 from types import ModuleType
@@ -81,3 +82,30 @@ def test_missing_data_is_a_named_error(tmp_path: Path, markers: tuple[str, ...])
     message = str(caught.value)
     assert str(config) in message
     assert "data/prompts и data/contracts" in message
+
+
+TESTS = REPO_ROOT / "backend" / "tests"
+#: Корень, посчитанный глубиной пути от файла теста. `parents[1]` законен — это
+#: каталог `backend/` (или `backend/mutants/`) рядом с тестами в обеих раскладках.
+DEPTH = re.compile(r"Path\(__file__\)\.resolve\(\)\.parents\[(\d+)\]")
+
+
+def test_tests_take_the_repo_root_from_app_config() -> None:
+    """M15: тест не считает корень глубиной пути — под копией mutmut это `backend/`.
+
+    `backend/mutants/tests/x.py` на `parents[2]` указывает в `backend/`, а не в корень.
+    Так пришли `test_tips_policy.py` и `test_language_check.py` из talk-check-core
+    (2026-10-23), и шаг мутаций в CI PR #44 «не просудил НИЧЕГО» на
+    `FileNotFoundError: …/backend/data/contracts/talk.contract.yaml`.
+    """
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(TESTS.glob("*.py"))
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        for match in DEPTH.finditer(line)
+        if int(match.group(1)) >= 2
+    ]
+    assert offenders == [], (
+        "корень репозитория в тестах — `from app.config import REPO_ROOT`: под копией "
+        f"mutmut parents[N] от файла теста указывает в backend/ — {offenders}"
+    )

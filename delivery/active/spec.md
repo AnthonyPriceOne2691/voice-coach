@@ -76,6 +76,7 @@
 | M12 | `contracts/enforcer.py` под гейтом | у `TurnEnforcer` (feed, finish, проверки) есть мутанты: было 21 мутант на файл — только `ContractEnforcer`; стало 171 |
 | M13 | PR в main | в джобе `gates` шаг «Mutation testing (changed files, budgeted)» исполняется, печатает «убито N из M» по диффу PR и укладывается в 300 s; на push в main шага нет |
 | M14 | банк слов: пачка `[неполная (пустой пример), повтор существующего термина, новый с type/category/context, ещё новый]`; затем `list(category="architecture")` и `list(sort="alpha")` | добавлено 2; неполная отброшена (S-H4), у повтора `times_seen` 2, оба новых сохранены — пачка не обрывается ни на отброшенной, ни на повторе; у нового — те же `type`, `category`, `context_note_en` и `session_id`; фильтр отдаёт только свою категорию, `alpha` — по алфавиту `term_en` (doc 10, doc 15) |
+| M15 | тест считает корень сам — `Path(__file__).resolve().parents[2]` (и глубже) — в `backend/tests/` | сторож-тест красный и называет `файл:строку`; корень в тестах — `from app.config import REPO_ROOT`. `parents[1]` законен: это `backend/` рядом с тестами в обеих раскладках |
 
 ## Non-functional
 
@@ -85,7 +86,7 @@
 
 ## Оракулы
 
-- **M1–M5, M8–M10** — тесты (`test_repo_root.py`, `test_mutation_copy.py`, `test_warmup.py`).
+- **M1–M5, M8–M10, M14, M15** — тесты (`test_repo_root.py`, `test_mutation_copy.py`, `test_warmup.py`, `test_storage.py`).
 - **M6, M7, M11, M12** — прогоны гейта и mutmut, записаны в `eval-smoke.md` с числами.
 - **M13** — лог шага в CI этого PR.
 
