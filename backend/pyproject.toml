@@ -51,7 +51,12 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+# Ещё два пути — стражи исполнения (CQG §2.7c, порт cqg@2.74): плагин лежит в
+# `scripts/lint/`, а из `mutants/` (копия этого файла на уровень глубже) до него на
+# один `..` дальше. Второй путь не опечатка: без него mutmut падает импортом плагина
+# («No module named 'run_sentinels'»), и мутационный гейт не судит ничего. Под mutmut
+# стражи молчат сами. Сам плагин грузит `-p run_sentinels` в `addopts` ниже.
+pythonpath = [".", "../scripts/lint", "../../scripts/lint"]
 # `mutants/` — условие работоспособности сьюта, а не косметика: мутационный гейт
 # оставляет каталог с КОПИЕЙ tests/, и следующий pytest не СОБИРАЕТСЯ
 # («import file mismatch»). Удалять каталог нельзя — `mutmut show` его читает.
@@ -71,6 +76,11 @@ addopts = [
   # на тест — это только про «повис», а не про «медленно».
   "--timeout=60",
   "--timeout-method=thread",
+  # Стражи исполнения (CQG §2.7c): текст пользователя и значения секретов в логах,
+  # соединения, не вернувшиеся в пул, — судятся исполнением сьюта. Текст
+  # пользователя у нас рождается в распознавании речи, поэтому его метку несёт
+  # фикстура `canary_text` через WS-вход (tests/test_ws_sentinels.py).
+  "-p", "run_sentinels",
 ]
 markers = [
   "integration: hits multiple layers (still mocked external AI)",
@@ -113,6 +123,11 @@ extend-exclude = ["migrations", ".venv", "venv", "__pycache__"]
 
 [tool.ruff.lint]
 select = ["E","W","F","I","N","UP","B","C4","C90","SIM","RUF","ASYNC","S","PT","RET","PIE","PL","TRY400","DTZ"]
+# PLR1702 судит гейт сложности с `--preview`; хук идёт без preview и считает правило
+# невключённым, поэтому `RUF100` объявил бы поштучный `noqa` на нём лишним, а
+# `--fix` вырезал бы его (канон cqg@2.71, замер на ruff 0.6.9 и 0.16.6).
+# `external` это снимает.
+external = ["PLR1702"]
 ignore = [
     "E501",                 # длину разрулит форматтер
     "S101",                 # assert разрешён
@@ -126,11 +141,12 @@ ignore = [
     # в коде: `hashlib.md5(data, usedforsecurity=False)`.
     "S104",   # bind 0.0.0.0 — в контейнере норма, иначе noqa на каждом entrypoint
     "S607",   # частичный путь: `git`/`npm` по имени штатно, абсолютный ХУЖЕ
-    # Пять комплексити-правил В IGNORE, потому что §5 разворачивает гейт
+    # Шесть комплексити-правил В IGNORE, потому что §5 разворачивает гейт
     # сложности: `check_complexity_gate.sh` сам сбрасывает ignore и сверяет
     # находки со СНИМКОМ (ратчет). Отдать их основному хуку — значит сделать
     # pre-commit красным НАВСЕГДА на любом легаси с одной сложной функцией.
-    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+    # PLR1702 (вложенность) — с cqg@2.71; список обязан совпадать с RULES гейта.
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR1702",
     "PLR2004",              # magic-value — шумно
     "B008",                 # DI-объект как default аргумента (напр. FastAPI Depends())
     "RUF001","RUF002","RUF003",  # ambiguous unicode — не-ASCII в строках/логах
@@ -139,7 +155,7 @@ ignore = [
 # tests-код имеет свои послабления:
 # ASYNC добавлен к каноническому списку: тестовые фейки синхронно пишут файлы
 # в async-методах, имитируя контракт реального декодера — это не блокирующий I/O в проде.
-per-file-ignores = { "tests/**/*.py" = ["S","PLR2004","PLR0915","PLR0912","C901","PLC0415","B017","PT011","PT012","PT018","N806","N803","N802","E402","SIM117","PT006","E741","PLW0108","DTZ","ASYNC"] }
+per-file-ignores = { "tests/**/*.py" = ["S","PLR2004","PLR0915","PLR0912","PLR1702","C901","PLC0415","B017","PT011","PT012","PT018","N806","N803","N802","E402","SIM117","PT006","E741","PLW0108","DTZ","ASYNC"] }
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -149,6 +165,7 @@ max-args = 8
 max-branches = 12
 max-returns = 6
 max-statements = 50
+max-nested-blocks = 4      # PLR1702 — вложенность блоков (preview: гейт зовёт ruff с --preview)
 
 [tool.ruff.format]
 quote-style = "double"

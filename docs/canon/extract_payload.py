@@ -98,6 +98,10 @@ SCRIPTS = {
     "scripts/lint/doctor_canaries.py": ("cqg", "### `scripts/lint/doctor_canaries.py`", "python"),
     "scripts/lint/doctor_probes.py": ("cqg", "### `scripts/lint/doctor_probes.py`", "python"),
     "scripts/lint/doctor_deployment.py": ("cqg", "### `scripts/lint/doctor_deployment.py`", "python"),
+    "scripts/lint/doctor_sentinels.py": ("cqg", "### `scripts/lint/doctor_sentinels.py`", "python"),
+    # Стражи исполнения (`cqg@2.72`): pytest-плагин, не гейт — грузится сьютом проекта.
+    "scripts/lint/run_sentinels.py": ("cqg", "### `scripts/lint/run_sentinels.py`", "python"),
+    "scripts/lint/sentinels_taps.py": ("cqg", "### `scripts/lint/sentinels_taps.py`", "python"),
     "scripts/lint/assert_digest.sh": ("cqg", "### `scripts/lint/assert_digest.sh`", "bash"),
     "scripts/lint/check_ci_status.sh": ("cqg", "### `scripts/lint/check_ci_status.sh`", "bash"),
     "scripts/lint/check_gate_value.sh": ("cqg", "### `scripts/lint/check_gate_value.sh`", "bash"),
@@ -141,11 +145,12 @@ PARTS = {
         "scripts/lint/doctor_area_verdicts.py",
         "scripts/lint/doctor_canaries.py",
         "scripts/lint/doctor_probes.py",
-        "scripts/lint/doctor_deployment.py"),
+        "scripts/lint/doctor_deployment.py", "scripts/lint/doctor_sentinels.py"),
     "scripts/lint/check_ast_gate.py": (
         "scripts/lint/ast_rules.py", "scripts/lint/ast_web_rules.py",
         "scripts/lint/doctor_hooks.py"),
     "scripts/lint/check_new_dependency.py": ("scripts/lint/dependency_manifests.py",),
+    "scripts/lint/run_sentinels.py": ("scripts/lint/sentinels_taps.py",),
     "scripts/lint/check_complexity_gate.sh": ("scripts/lint/complexity_halves.sh",),
     "scripts/lint/check_mutation_gate.sh": (
         "scripts/lint/mutation_ts.sh", "scripts/lint/mutation_shard.sh",

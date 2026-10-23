@@ -242,7 +242,8 @@ class _SessionHandler:
         try:
             await self._run_turn(flow, audio)
         except SttEmptyError as exc:
-            logger.info("STT_EMPTY, raw transcript: %r", exc.raw_transcript)
+            # Речь человека — ему («heard: …»), в лог только размер (CQG §2.7c).
+            logger.info("STT_EMPTY: raw transcript of %d char(s)", len(exc.raw_transcript))
             heard = f" (heard: “{exc.raw_transcript}”)" if exc.raw_transcript.strip() else ""
             await self._error(
                 "STT_EMPTY",
@@ -270,7 +271,9 @@ class _SessionHandler:
         text = await transcribe_utterance(
             self._c.decoder, self._c.stt, audio, min_words=self._c.settings.min_transcript_words
         )
-        logger.info("user said: %r", text)
+        # Реплика живёт в транскрипте, в логе — только размер: страж судит вызов,
+        # а не уровень (CQG §2.7c; tests/test_ws_sentinels.py).
+        logger.info("user turn: %d word(s)", len(text.split()))
 
         # Просьба о темпе перехватывается ДО оркестратора. Иначе она уходит в
         # `on_user_answer` как ответ, тратит follow-up или целый вопрос из шести

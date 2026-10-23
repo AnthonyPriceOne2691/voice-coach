@@ -35,7 +35,7 @@ count_seen() {
 
 py_counts() {
   local out rc
-  out=$("$RUFF" check --no-cache --quiet --output-format=concise \
+  out=$("$RUFF" check --no-cache --quiet --output-format=concise --preview \
           --select "$RULES" --config 'lint.ignore=[]' -- "$PY_SRC" 2>"$errf")
   rc=$?
   if (( rc > 1 )); then
