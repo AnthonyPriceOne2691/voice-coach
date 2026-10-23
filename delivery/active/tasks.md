@@ -14,8 +14,8 @@
 - [x] T7. Пути гашения приложения проверены сторожем (H5): две скрытые утечки
       воспроизведены 5 из 5, правка проверена временным патчем и откатана —
       передано следующей поставке
-- [ ] T8. `filterwarnings = ["error"]` в `pyproject.toml`; записи `adapted.json` и
+- [x] T8. `filterwarnings = ["error"]` в `pyproject.toml`; записи `adapted.json` и
       «Остатки обновления 2.69»
-- [ ] T9. 10 прогонов подряд на macOS и в linux-контейнере; гейты, доктор,
-      `eval-smoke.md`, `verify-report.md`, метрики
+- [x] T9. 10 прогонов подряд на macOS и в linux-контейнере (10 из 10 на каждой);
+      гейты, доктор (DEAD 0), smoke, `eval-smoke.md`, `verify-report.md`, метрики
 - [ ] T10. PR, зелёные `quality` и `CI` (лог, а не галочки); остановка на verify

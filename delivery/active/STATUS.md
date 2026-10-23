@@ -13,7 +13,7 @@
        17 тестами того же класса; после — зелёный. Без сторожа тот же дефект
        ронял не его, а случайный чужой тест, в том числе test_tts_piper.py. -->
 - **diagnosis:** active/diagnosis.md
-- **phase:** implement
+- **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** deferred (reason=человек подписывает примеры на мерже — решение human:anthony 2026-10-23; at=2026-10-23)
