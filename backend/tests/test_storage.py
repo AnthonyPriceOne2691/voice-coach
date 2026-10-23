@@ -137,7 +137,7 @@ async def test_vocabulary_merge_keeps_going_and_list_filters(db: Database) -> No
         session_id="s1",
     )
     batch = [
-        {"term_en": "no-example", "translation_ru": "нет примера", "example_en": " "},  # S-H4
+        {"term_en": "no-example", "translation_ru": "нет примера", "example_en": " "},  # неполная
         {"term_en": "trade-off", "translation_ru": "компромисс", "example_en": "Again."},
         {
             "term_en": "blast radius",

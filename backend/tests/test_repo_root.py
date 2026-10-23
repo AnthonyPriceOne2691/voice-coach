@@ -41,8 +41,8 @@ def _import_copy(source: Path, copy: Path) -> ModuleType:
     copy.parent.mkdir(parents=True)
     shutil.copyfile(source, copy)
     spec = importlib.util.spec_from_file_location("config_copy", copy)
-    assert spec is not None
-    assert spec.loader is not None
+    if spec is None or spec.loader is None:
+        raise ImportError(f"копия не загружается как модуль: {copy}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
