@@ -210,6 +210,16 @@ jobs:
         if: always()
         run: bash scripts/lint/check_canon_vendor.sh
 
+      # Мутационный гейт — самый дорогой, поэтому только на PR и с бюджетом.
+      # Он отвечает на вопрос, который diff-coverage не задаёт: тесты вообще
+      # что-нибудь утверждают?
+      - name: Mutation testing (changed files, budgeted)
+        if: always() && github.event_name == 'pull_request'
+        env:
+          MIN_KILLED: "60"
+          BUDGET_SEC: "300"
+        run: bash scripts/lint/check_mutation_gate.sh
+
   delivery:
     runs-on: ubuntu-latest
     timeout-minutes: 20
