@@ -72,7 +72,7 @@ Behavioral contracts          Сильная модель
 |--------|---------|-----|
 | **Python** | 3.12 | Stable, fast, good async |
 | **Package manager** | **uv** | Fast installs, lockfile, replaces pip+poetry |
-| **Node** | 20 LTS | Vite/React |
+| **Node** | 22 LTS (≥ 22.12) | Vite/React; vitest 5 требует `^22.12.0` (с 2026-10-23), CI ставит `node-version: "22"` |
 | **Process** | 1× uvicorn + Ollama daemon | Solo local tool; split later if needed |
 
 ### Backend framework
@@ -305,7 +305,7 @@ Frontend:
   },
   "devDependencies": {
     "typescript": "^5.6",
-    "vite": "^6.0",
+    "vite": "^6.4",
     "@vitejs/plugin-react": "^4.3",
     "tailwindcss": "^3.4"
   }
