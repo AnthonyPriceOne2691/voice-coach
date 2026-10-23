@@ -1,7 +1,7 @@
 # Active delivery status
 
 - **slug:** talk-notes-rest
-- **stack:** delivery@2.06, cqg@2.69, okf@1.21
+- **stack:** delivery@2.07, cqg@2.74, okf@1.21
 - **class:** M
   <!-- D3a.2 — три поставки по одной спеке: talk-check (C1–C9, ведущая сессия),
        talk-notes (C10–C13), talk-tips (C14–C17). talk-notes собранной весила 1,044

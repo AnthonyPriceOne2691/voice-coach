@@ -37,7 +37,7 @@
 
 | Гейт | Результат |
 |---|---|
-| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — 283 passed (было 272), coverage 95.68% (гейт 85), mypy strict, ruff, модули ≤ 500 строк |
+| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — 286 passed на слитом с `main` (там 275, поставка +11), coverage 95.68% (гейт 85), mypy strict, ruff, модули ≤ 500 строк |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — все хуки, jscpd 0 клон-пар обеих половин, сложность 0, слои OK, unbounded-list и cpu-in-async OK |
 | `check_diff_coverage.sh` (`STRICT=1`) | **PASS** — `routes_talks.py` 100%, `talks.py` 94.4%, `vocabulary.py` 89.3% |
 | `npx vitest run`, `npm run build` | **PASS** — фронт в поставке не тронут: 57 тестов, сборка |
@@ -123,7 +123,7 @@
 задеты. Новые пути поставки — REST, его исполняют тесты:
 `uv run pytest tests/test_rest_talks.py` — 11 тестов на `TestClient` с настоящей
 SQLite, управляемой моделью и голосом-двойником, отдающим настоящий WAV; полный сьют —
-283 passed. Живой голос и модель — по «запускай». at=2026-10-23
+286 passed. Живой голос и модель — по «запускай». at=2026-10-23
 
 ## Решения для человека
 
@@ -163,7 +163,7 @@ SQLite, управляемой моделью и голосом-двойнико
 ## Verdict
 
 **READY FOR HANDOFF** — REST-часть C10–C13 зелёная, семь мутаций сторожей убиты,
-машинные гейты зелёные по правилам delivery@2.06 · cqg@2.69. Экранная половина —
+машинные гейты зелёные по правилам delivery@2.07 · cqg@2.74 (ветка догнала `main` после мержа контура #41). Экранная половина —
 поставка talk-notes-screen. Живое — перевод фраз на qwen и Listen голосом Piper — по
 «запускай».
 
