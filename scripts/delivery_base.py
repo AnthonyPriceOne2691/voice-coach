@@ -166,6 +166,29 @@ SKIP_DIR_PARTS = (
     "build", "dist", ".git",
 )
 
+#: Тест-файл — по ПРИНЦИПУ имени, а не по зашитым корням (`delivery@2.07`). Поле Smart
+#: Friend Ally 18.10: корпус §3.1d и порядок «пример раньше теста» брали тесты только из
+#: `tests`, `backend/tests`, `src/tests` и по маске `*test*` (регистр важен), а тесты
+#: SwiftPM лежат в `Packages/<Пакет>/Tests/<Цель>Tests/*.swift`. Итог — ложная тревога
+#: «примеры без ссылки» при метках `// K<n>` в тестах и МОЛЧАЩИЙ порядок: судить было
+#: нечего. Каталог `tests/` сам признаком не служит — в корпус уехала бы проза вроде
+#: `tests/README.md`; исключение — `__tests__/`, где имена не помечены. Шире, чем у
+#: дайджеста утверждений CQG (`cqg@2.68`), и это осознанно: там лишний файл стоит
+#: `unknown` и подписи, тут — лишнего текста для поиска id.
+TEST_FILE_RE = re.compile(
+    r"(^|/)__tests__/[^/]+$"
+    r"|(^|/)(tests?\.[^/]*|tests?_[^/]*|[^/]*[_.-](tests?|spec)\.[^/]*|[^/]*(Tests?|Spec)\.[^/]*)$")
+
+
+def test_files(root: Path = ROOT) -> list[str]:
+    """Тест-файлы проекта: в git (и новые неигнорируемые), по признаку имени, текстом."""
+    listed = git("-C", str(root), "ls-files", "-z", "--cached", "--others",
+                 "--exclude-standard").split("\0")
+    return sorted({p for p in listed
+                   if p and TEST_FILE_RE.search(p) and Path(p).suffix in TEST_TEXT_SUFFIXES
+                   and not any(part in SKIP_DIR_PARTS for part in Path(p).parts)})
+
+
 # Что считается ССЫЛКОЙ теста на пример §3.1d — одно понятие на две проверки:
 # «есть ли ссылка» (`delivery_evidence`) и «когда она появилась»
 # (`delivery_history`). Реализаций было две, и они разошлись: история с lab-12

@@ -47,6 +47,18 @@ TOOLS = {
 # `--list-rules`, чтобы список правил брался у СКРИПТА, а не дублировался здесь:
 
 
+
+def _stale_declaration(spec) -> bool:
+    """Запись в `adapted.json` при канонном теле устарела — кроме сигнала наверх.
+
+    `kind: upstream-candidate` — договор обхода флота (волна 1): так проект сообщает о
+    дефекте канона, не трогая канонный файл, и канонное тело у такой записи законно
+    (`cqg@2.70`, поле Ally 18.10: все три кандидата шли как «объявление устарело»).
+    `upstream-absorbed` при канонном теле устарел честно: канон починку впитал.
+    """
+    return bool(spec) and not (isinstance(spec, dict)
+                               and spec.get("kind") == "upstream-candidate")
+
 class LayoutChecks:
     # --- B. места принуждения ------------------------------------------------
     def check_enforcement(self) -> None:
@@ -295,7 +307,7 @@ class LayoutChecks:
         spec = declared.get(rel) or declared.get(name)
         point = f"расхождение с каноном {name}"
         if body.strip() == live.read_text(encoding="utf-8", errors="replace").strip():
-            if spec:
+            if _stale_declaration(spec):
                 self.add(WEAK, point, "объявлен адаптированным, а тело СОВПАДАЕТ "
                                       "с каноном — объявление устарело и мешает "
                                       "обновлению")

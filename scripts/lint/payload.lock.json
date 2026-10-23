@@ -1,8 +1,8 @@
 {
   "_": "Замок payload'а: что канон отдавал на этих версиях. Пишет обновление контура (§5.5), читает доктор; руками не править.",
   "versions": {
-    "cqg": "2.69",
-    "delivery": "2.06",
+    "cqg": "2.74",
+    "delivery": "2.07",
     "okf": "1.21",
     "stack-map": "1.54"
   },
@@ -17,7 +17,7 @@
     },
     "scripts/delivery_base.py": {
       "canon": "delivery",
-      "digest": "sha256:786914962654023665ae72391baa3425748a45c2d86e7395cd2cfd0bea5f41bb"
+      "digest": "sha256:78527cea615535283d04f740f2d1109b3682dce4f225046d3c39308c833857bd"
     },
     "scripts/delivery_check.py": {
       "canon": "delivery",
@@ -33,7 +33,7 @@
     },
     "scripts/delivery_evidence.py": {
       "canon": "delivery",
-      "digest": "sha256:625ffab8f78afa4cb2d30e7dd01b9229229344570fc1b7f44f6de2cd47bc21ca"
+      "digest": "sha256:00fd47429f5107ea016f7b31e23c0bb2aaab0442440cafa16f0959ef639be2f2"
     },
     "scripts/delivery_history.py": {
       "canon": "delivery",
@@ -89,7 +89,7 @@
     },
     "scripts/lint/check_complexity_gate.sh": {
       "canon": "cqg",
-      "digest": "sha256:c12218d9f14651af7ab801c679d404e4c7470dbd6b3b9e418fd7a8d330b21504"
+      "digest": "sha256:db59727f8ee22b3e40b3b21bbc2f619d8ce2b8609a0bb014c223e5a80b04cc30"
     },
     "scripts/lint/check_deps_audit.sh": {
       "canon": "cqg",
@@ -137,11 +137,11 @@
     },
     "scripts/lint/complexity_halves.sh": {
       "canon": "cqg",
-      "digest": "sha256:dd855c5e228e855ed28993fd49eccb692fa6026496a15f4abe3ed898aeb0d490"
+      "digest": "sha256:1d8c36e993f7a8d42f2342b7906a8639f48e79f7d44599ed38fc6e22db31c294"
     },
     "scripts/lint/contour_doctor.py": {
       "canon": "cqg",
-      "digest": "sha256:e1b8748ca63d3703d60743eb903dc3c7b58fe55d4a2da4fa338d85753328665f"
+      "digest": "sha256:90816b32abed2834f1267e6c241a38c6abcebb6ea23f84158547ad56e32f806b"
     },
     "scripts/lint/dependency_manifests.py": {
       "canon": "cqg",
@@ -173,11 +173,15 @@
     },
     "scripts/lint/doctor_layout.py": {
       "canon": "cqg",
-      "digest": "sha256:1084953654e31cfe93410a7bfe1c83c64cca36231bd44b199c518f4757d961b1"
+      "digest": "sha256:e3c28d2e69e9593dbfb3a87b95cb631258854c7214e0b0a51dfe27a78206e026"
     },
     "scripts/lint/doctor_probes.py": {
       "canon": "cqg",
       "digest": "sha256:2018624c73ade1406d174dd0022360fda05f1c84c78e90f47ea8d27fab10d78a"
+    },
+    "scripts/lint/doctor_sentinels.py": {
+      "canon": "cqg",
+      "digest": "sha256:b9c53aa0f70250d889ef1cc170995c24a9cb72268c082a9378283c327170d762"
     },
     "scripts/lint/doctor_versions.py": {
       "canon": "cqg",
@@ -206,6 +210,14 @@
     "scripts/lint/mutation_verdict.sh": {
       "canon": "cqg",
       "digest": "sha256:dfc2d8a77e5f3e984d72a6fcd6c032caa05355a29eb99bcd6410f4683a917759"
+    },
+    "scripts/lint/run_sentinels.py": {
+      "canon": "cqg",
+      "digest": "sha256:21915fbfddc1eb1d766dff7e6a04dbbeb2bcaae736220e38b7a521914be11cba"
+    },
+    "scripts/lint/sentinels_taps.py": {
+      "canon": "cqg",
+      "digest": "sha256:0b833fb89a7492d6aab797dcf73266145773c3148485b90564fb7addab8fcd52"
     },
     "scripts/merge_guard.sh": {
       "canon": "cqg",
