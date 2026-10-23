@@ -6,7 +6,7 @@ the turn runner appends a seed question instead of retracting speech.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from app.contracts.spec import ContractSpec, RuleSpec
@@ -31,14 +31,19 @@ class TurnContext:
     question_count: int = 0  # for quoted_question_in_transcript (Mode 2)
 
 
-@dataclass
 class TurnEnforcer:
-    """Tracks one agent turn; feed() sentences as they stream, finish() at stream end."""
+    """Tracks one agent turn; feed() sentences as they stream, finish() at stream end.
 
-    spec: ContractSpec
-    ctx: TurnContext
-    sentences: list[str] = field(default_factory=list)
-    _chars: int = 0
+    Обычный класс, а не `@dataclass`, — ради мутационного гейта: mutmut 3.7 не
+    мутирует ни одного метода в декорированном классе, и под `@dataclass` здесь
+    молчали все проверки контракта (70 из 88 строк функций модуля).
+    """
+
+    def __init__(self, spec: ContractSpec, ctx: TurnContext) -> None:
+        self.spec = spec
+        self.ctx = ctx
+        self.sentences: list[str] = []
+        self._chars = 0
 
     def feed(self, sentence: str) -> Violation | None:
         """Validate the next sentence BEFORE it reaches TTS. None = safe to speak."""
@@ -106,8 +111,7 @@ class TurnEnforcer:
     # создания класса. Неизвестный `check` — не ошибка: контракт может нести
     # правило, которого этот enforcer не знает, и тогда оно просто не проверяется
     # здесь (так же вело себя прежнее if/elif, падавшее в `return None`).
-    # ClassVar обязателен: TurnEnforcer — dataclass, и без него таблица
-    # станет полем с изменяемым значением по умолчанию (ValueError на импорте).
+    # ClassVar — таблица одна на класс, а не поле экземпляра.
     _CHECKS: ClassVar[dict[str, Any]] = {
         "no_cyrillic": _no_cyrillic,
         "forbid_patterns": _forbid_patterns,
