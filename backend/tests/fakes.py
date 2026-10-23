@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 from fastapi import WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -83,6 +84,8 @@ class FakeLlm:
         #: «просьба о темпе не дошла до модели ни разу», и разогрев в этот
         #: журнал тоже попадает — он безобиден и виден.
         self.calls: list[list[ChatMessage]] = []
+        #: Схема ответа каждого вызова (`None` — обычная реплика).
+        self.schemas: list[dict[str, Any] | None] = []
 
     async def stream_chat(
         self,
@@ -92,8 +95,10 @@ class FakeLlm:
         temperature: float,
         max_tokens: int,
         num_ctx: int | None = None,
+        json_schema: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         self.calls.append(messages)
+        self.schemas.append(json_schema)
         self.last_messages = messages
         self.last_model = model
         self.last_num_ctx = num_ctx
@@ -120,6 +125,7 @@ class ScriptedLlm:
         temperature: float,
         max_tokens: int,
         num_ctx: int | None = None,
+        json_schema: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         self.calls.append(list(messages))
         self.models.append(model)

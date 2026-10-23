@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Protocol
+from typing import Any, NotRequired, Protocol, TypedDict, Unpack
 
 ChatMessage = dict[str, str]  # {"role": "system|user|assistant", "content": "..."}
 
@@ -23,15 +23,23 @@ class TextToSpeech(Protocol):
         ...
 
 
+class ChatOptions(TypedDict):
+    """Параметры одного вызова модели — объявлены ОДИН раз для шва и реализации.
+
+    `json_schema` ограничивает ответ этой JSON-формой (Ollama `format`): побочный
+    структурный запрос вроде проверки речи (D3a.2), а не произносимая реплика.
+    """
+
+    model: str
+    temperature: float
+    max_tokens: int
+    num_ctx: NotRequired[int | None]
+    json_schema: NotRequired[dict[str, Any] | None]
+
+
 class LlmClient(Protocol):
     def stream_chat(
-        self,
-        messages: list[ChatMessage],
-        *,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        num_ctx: int | None = None,
+        self, messages: list[ChatMessage], **options: Unpack[ChatOptions]
     ) -> AsyncIterator[str]:
         """Yield response tokens as they arrive."""
         ...

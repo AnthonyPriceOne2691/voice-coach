@@ -50,6 +50,35 @@ async def test_stream_chat_sends_options() -> None:
     assert options["num_predict"] == 99
     assert options["temperature"] == 0.7
     assert seen["model"] == "m"
+    assert "format" not in seen  # обычная реплика: выборка ничем не ограничена
+
+
+async def test_json_schema_goes_to_format_and_num_ctx_stays() -> None:
+    """C8: проверка речи шлёт схему, но тот же num_ctx — иначе Ollama перезагрузит модель."""
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return _stream_response(['{"kind": "none"}'])
+
+    schema = {"type": "object", "properties": {"kind": {"type": "string"}}}
+    client = OllamaClient(
+        "http://ollama.test",
+        num_ctx=8192,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    async for _ in client.stream_chat(
+        [{"role": "user", "content": "hi"}],
+        model="m",
+        temperature=0.0,
+        max_tokens=80,
+        json_schema=schema,
+    ):
+        pass
+    assert seen["format"] == schema
+    options = seen["options"]
+    assert isinstance(options, dict)
+    assert options["num_ctx"] == 8192
 
 
 async def test_http_error_raises_ollama_error() -> None:
