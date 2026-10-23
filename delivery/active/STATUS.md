@@ -1,7 +1,7 @@
 # Active delivery status
 
 - **slug:** test-leaks
-- **stack:** delivery@2.06, cqg@2.69, okf@1.21
+- **stack:** delivery@2.07, cqg@2.74, okf@1.21
 - **class:** M
 - **kind:** bugfix
   <!-- Не `fix`: гейт поставки узнаёт `bugfix` и только с ним требует repro_test и
