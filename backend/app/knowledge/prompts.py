@@ -38,8 +38,17 @@ class PromptLibrary:
         return request.replace(UTTERANCE_PLACEHOLDER, utterance).strip()
 
     def system(self, name: str) -> str:
-        """Raw system prompt file (summary passes inject their own context)."""
-        return (self._prompts_dir / f"{name}.txt").read_text(encoding="utf-8")
+        """Файл промпта; профиль подставляется туда, где файл его просит.
+
+        До 2026-10-25 здесь стояло «summary passes inject their own context», а
+        подставлять профиль не стал никто: обе сводки объявляли его входом и
+        ставили балл `positioning` вслепую. Подстановка — в общем загрузчике, а не
+        в методе на каждый промпт: плейсхолдер в файле и есть объявление входа.
+        """
+        text = (self._prompts_dir / f"{name}.txt").read_text(encoding="utf-8")
+        if PROFILE_PLACEHOLDER in text:
+            text = text.replace(PROFILE_PLACEHOLDER, self._profile())
+        return text
 
     def template(self, name: str) -> str:
         path = self._prompts_dir / "templates" / f"{name}.txt"
