@@ -16,6 +16,7 @@ from app.orchestrator.review import QASegment, ReviewOrchestrator, render_segmen
 from app.orchestrator.talk import TalkOrchestrator
 from app.voice.interview_flow import InterviewFlow
 from app.voice.review_flow import ReviewFlow
+from app.voice.talk_checks import TalkChecks
 from app.voice.talk_flow import TalkFlow
 from app.voice.turn_runner import LlmParams
 
@@ -66,6 +67,19 @@ def build_review_flow(
 def build_talk_flow(container: Container) -> TalkFlow:
     talk = TalkOrchestrator(container.talk_script, rng=random.Random())  # noqa: S311 -- тема, не крипто
     return TalkFlow(str(uuid.uuid4()), talk, container.prompts.talk_system(), container.talks)
+
+
+def build_talk_checks(container: Container) -> TalkChecks:
+    """Проверка речи (D3a.2): та же модель, что голос (D-8), детерминированная выборка."""
+    s = container.settings
+    return TalkChecks(
+        container.llm,
+        container.prompts,
+        container.talk_enforcer,
+        model=s.ollama_model_interview,
+        temperature=s.talk_check_temperature,
+        max_tokens=s.talk_check_max_tokens,
+    )
 
 
 def mode_params(container: Container, kind: str) -> tuple[LlmParams, ContractEnforcer]:

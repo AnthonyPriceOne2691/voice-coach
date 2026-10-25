@@ -21,12 +21,13 @@ from app.orchestrator import meta_request, pace
 from app.orchestrator.review import build_segments
 from app.orchestrator.talk import TalkPlan
 from app.storage.turns import last_agent_text
-from app.voice.interview_flow import InterviewFlow
+from app.voice.interview_flow import InterviewFlow, question_progress
 from app.voice.prosody import lead_in
 from app.voice.review_flow import ReviewFlow
 from app.voice.session_factory import (
     build_interview_flow,
     build_review_flow,
+    build_talk_checks,
     build_talk_flow,
     mode_params,
 )
@@ -111,6 +112,7 @@ class _SessionHandler:
         #: нужно, оно нужно ПЕРЕД следующими. Сбрасывается на `final=True`.
         self._spoken_chunks = 0
         self._runner = TurnRunner(container.llm, self._tts)
+        self._checks = build_talk_checks(container)  # проверка речи в разговоре (D3a.2)
 
     # -- dispatch --------------------------------------------------------------
 
@@ -142,19 +144,20 @@ class _SessionHandler:
         снять ДО записи, она уйдёт в отменяемый цикл вместе с записью — тот же
         класс, из-за которого висел прогон (diagnosis.md, H1).
         """
-        await self._cancel_warmup()
+        await self._cancel_background()
         if self._flow is not None:
             await self._flow.finish(status="in_progress")  # checkpoint already on disk
             self._flow = None
 
-    async def _cancel_warmup(self) -> None:
-        """Задача-сирота становится задачей с владельцем.
+    async def _cancel_background(self) -> None:
+        """Задача-сирота становится задачей с владельцем: прогрев и проверка речи.
 
         `asyncio.create_task` без отмены — ровно то, о чём предупреждает
         документация asyncio: сборщик мусора может уничтожить задачу на середине,
         а закрытие цикла — ждать её. Здесь она отменяется и ДОЖИДАЕТСЯ: без
         await отмена только помечена, но не доведена.
         """
+        await self._checks.cancel()
         task, self._warmup_task = self._warmup_task, None
         if task is None or task.done():
             return
@@ -233,6 +236,7 @@ class _SessionHandler:
         if flow is None:
             await self._error("SESSION_NOT_FOUND", "no active session", recoverable=True)
             return
+        await self._checks.cancel()  # слот модели — ответу, а не вчерашней проверке
         try:
             audio = base64.b64decode(payload.get("audio_base64", ""), validate=True)
         except binascii.Error:
@@ -385,6 +389,8 @@ class _SessionHandler:
                 await flow.on_agent(
                     event.text, violations=event.violations, fallback_used=event.fallback_used
                 )
+                if isinstance(flow, TalkFlow):
+                    self._checks.start(flow)
                 await self._transcript("agent", event.text)
                 await self._send_audio(b"", final=True)
                 await self._state("listening")
@@ -392,7 +398,7 @@ class _SessionHandler:
     # -- session end ---------------------------------------------------------------
 
     async def _finish_naturally(self, flow: VoiceFlow) -> None:
-        await self._cancel_warmup()
+        await self._cancel_background()
         await flow.finish(status="completed")
         next_action = {"interview": "offer_review", "review": "generate_summary"}.get(
             self._kind, "none"
@@ -407,7 +413,7 @@ class _SessionHandler:
         if flow is None:
             return
         self._flow = None
-        await self._cancel_warmup()
+        await self._cancel_background()
         status = "completed" if reason == "user" else "failed"
         await flow.finish(status=status)
         await self._session_ended(flow, reason=reason, next_action="none")
@@ -449,24 +455,9 @@ class _SessionHandler:
                 "value": value,
                 "session_kind": self._kind if flow else None,
                 "session_id": flow.session_id if flow else None,
-                **self._question_progress(flow),
+                **question_progress(flow),
             },
         )
-
-    @staticmethod
-    def _question_progress(flow: VoiceFlow | None) -> dict[str, Any]:
-        """Где мы в интервью — клиенту, чтобы показать «вопрос N из M».
-
-        Знать, сколько осталось, снимает тревогу, а это и есть задача тренажёра.
-        У Mode 2 своего счётчика вопросов нет, поэтому там поля пустые.
-        """
-        if not isinstance(flow, InterviewFlow):
-            return {"question_index": None, "question_total": None, "question_kind": None}
-        return {
-            "question_index": flow.orchestrator.question_number,
-            "question_total": flow.orchestrator.question_count,
-            "question_kind": flow.current_plan.question_kind,
-        }
 
     async def _transcript(self, role: str, text: str) -> None:
         await self._send("transcript", {"role": role, "text": text, "final": True})
