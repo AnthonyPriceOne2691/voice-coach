@@ -79,8 +79,22 @@
 **основного клона**, где сейчас vitest 2.1.9 и anyio 4.14.1: smoke мержа прогонит старый
 тулчейн и будет зелёным не про эту поставку. В основном клоне до `merge_guard`:
 `cd frontend && npm install --no-save vitest@5.0.5 vite@6.4.5` и
-`cd backend && uv pip install anyio==4.14.2 urllib3==2.8.0 certifi==2026.10.19 virtualenv==21.14.13 packaging==26.3 python-discovery==1.6.4`;
+`cd backend && uv pip install anyio==4.14.2 urllib3==2.8.0 certifi==2026.10.19 virtualenv==21.14.13 packaging==26.3 python-discovery==1.6.4 filelock==4.2.4` (filelock — с 2026-10-25, см. «После handoff»);
 после мержа — `npm ci` и `uv sync --all-extras`.
+
+## После handoff (2026-10-25)
+
+Ветка сведена с `main` `c1e4952` (test-leaks; конфликты — две строки текста в
+`STACK-ACCEPTANCE.md` и `INDEX.md`). На слиянии `266c1b8`: `CI` — success
+(https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40215666106), а
+`quality` — красный шаг «Vulnerable dependencies»: `py_total: 3 (было 0)`
+(https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40215665993). Это
+гейт поставки за работой, а не регресс: за два дня после handoff вышли три
+advisory на `filelock` 3.32.0 (CVE-2026-112940, CVE-2026-112913, CVE-2026-112907;
+фикс — 4.2.1). `filelock` приходит через `virtualenv`, `python-discovery` и
+`cachecontrol`. Починка — `uv lock --upgrade-package filelock` → 4.2.4 (в lock
+меняется только он); `pip-audit` по `uv export --frozen --all-extras` — 0
+уязвимостей; `pytest` — 310 passed под `filterwarnings = ["error"]`.
 
 ## Ревью рисковых мест (§12.5)
 
