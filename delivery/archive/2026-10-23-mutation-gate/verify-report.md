@@ -3,8 +3,8 @@
 **Date:** 2026-10-23
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (все утверждения ведут к одобренным примерам)
-**CI run:** https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40017143636
-**Commit:** e795a92
+**CI run:** https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40017143636 (`quality`) и 40017143667 (`CI`) — последний зелёный до решений человека; прогоны на `3a69673` 23.10 не стартовали (биллинг Actions). 2026-10-25 ветка сведена с `main` `a97a621`, бюджет — вариант (а): локально 349 passed, доктор `DEAD 0`; прогоны CI на итоговом коммите — в PR #44
+**Commit:** e795a92 (код поставки), `bce0ee9` (решения человека), `f7a29fb` (сторож M15 на слиянии)
 
 Builder: agent:claude-code (worktree `.claude/worktrees/agent-ad938971a5a5f44a4`).
 Ветка перебазирована на `a4a0dce` (контур cqg@2.74 · delivery@2.07) и запушена
@@ -282,13 +282,13 @@ asserts_without_example: 0
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 25 code (+9 process docs) / +451/-47 (net +404) |
-| commits | 17 |
-| time_to_accepted_spec | spec drafted, not yet accepted |
-| rework_after_done | 0 (handoff not declared yet) |
+| files_touched / loc_diff | 27 code (+9 process docs) / +463/-53 (net +410) |
+| commits | 22 |
+| time_to_accepted_spec | 2.0d |
+| rework_after_done | 1 — счётчик видит 7 коммитов после первого `phase: handoff`; переделка среди них одна — `f7a29fb` (два теста из main под сторожем M15), остальное — слияния `origin/main` и записи решений человека |
 | harness_hardened | yes — .github/workflows/quality.yml, backend/tests/test_mutation_copy.py (новый оракул), backend/tests/test_repo_root.py (новый оракул), backend/tests/test_warmup.py (новый оракул) |
 | implement_retries | 3 — гейт пробивался через три стены по одной (копия vocabulary.py → корень → порог покрытия), каждая видна только после предыдущей; плюс тест M10 доправлен после выжившего `exc_info=False` |
-| verify_fails_before_green | 2 — (1) quality 40002688227 красный в джобе delivery: «STATUS says 2.06/2.69, snapshot has 2.07/2.74» — main ушёл на контур 2.74; после перебазирования и `stack:` — зелёный (40007693515); (2) quality 40015859050 красный в шаге мутаций: «не просудил» — новые тесты main считали корень `parents[2]`; закрыто сторожем M15 и правкой двух файлов |
+| verify_fails_before_green | 2 — (1) quality 40002688227 красный в джобе delivery: «STATUS says 2.06/2.69, snapshot has 2.07/2.74» — main ушёл на контур 2.74; после перебазирования и `stack:` — зелёный (40007693515); (2) quality 40015859050 красный в шаге мутаций: «не просудил» — новые тесты main считали корень `parents[2]`; закрыто сторожем M15 и правкой двух файлов. Красные прогоны на `3a69673` (23.10) — не старт из-за биллинга Actions, а не провал проверок |
 | est_token_or_cost | n/a; раннер CI на замеры ws_voice.py — около 50 мин (#45 и #47) |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
