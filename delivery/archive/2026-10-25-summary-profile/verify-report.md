@@ -160,7 +160,14 @@ INDEX `docs/20-*` заменён полным: сопоставление уро
 `f3bc4c4` — конфликт только в `delivery/archive/INDEX.md`, `service.py` поставка не меняет.
 Перепрогон: `run_checks.sh` — **413 passed**, 96.48%; `pre-commit run --all-files` — 28 из 28;
 `delivery_check.py --diff-base origin/main` — `0 error(s), 2 warning(s)`; `okf_sync_gate: OK`.
-Прогоны CI на итоговом коммите — в PR #51.
+CI на `3575c38`: `CI` 40224957138 — success (413 passed, 96.48%), `quality` 40224957136 — success
+(мутации 64 из 78, 82%).
+
+Затем `main` ушёл на `1149ecb` (talk-notes-screen: фронт, docs 11 и 17, концепт
+`echo-protection`); слияние `dd004c6` — конфликты только в `INDEX.md` и `knowledge/log.md`, обе
+записи сохранены. Перепрогон: `run_checks.sh` — 413 passed, 96.48%; `pre-commit run --all-files`
+— 28 из 28; `delivery_check` — 0 ошибок; `okf_sync_gate: OK`. Прогоны CI на итоговом коммите —
+в PR #51.
 
 ## Verdict
 
