@@ -88,8 +88,24 @@ History и суммаризация читают ту таблицу как ин
 | started_at / ended_at / created_at | ISO8601 | |
 | persona | TEXT | `friend_mentor` |
 | transcript_json | TEXT | turns; `state` — `INTRO` \| `CHAT` \| `TOPIC` \| `REQUEST` \| `GOODBYE` (чем оказалась реплика), `question_id` — `null` |
-| metadata_json | TEXT | `{phase, topics, hard_violations, soft_violations, fallback_count}` |
+| metadata_json | TEXT | `{phase, topics, hard_violations, soft_violations, fallback_count, language_notes, checks_run, checks_noted, checks_cancelled, checks_failed}` |
 | status | TEXT | `in_progress` \| `completed` \| `failed` |
+
+**Заметки к речи (D3a.2, 2026-10-23)** — `metadata_json.language_notes`, список в
+порядке разговора (ключа нет — значит `[]`):
+
+```json
+{"turn_index": 3, "kind": "error", "said": "I go to the office and meet my client",
+ "better": "I went to the office and met my client", "why": "past tense", "spoken": false}
+```
+
+`turn_index` — индекс реплики Антона в `transcript_json`; `kind` — `error` | `style`;
+`said` — фрагмент В НАПИСАНИИ РАСПОЗНАННОГО (код сверил его с репликой дословно);
+`why` — до пяти английских слов или `""`; `spoken` — прозвучала ли подсказка вслух
+(поставка talk-tips; до неё `false`). Счётчики `checks_*` — сколько проверок
+запущено, дало заметку, снято следующей репликой и упало. Заметку пишет в базу
+чекпойнт хода или `finish`, а не фоновая проверка (класс виса L5–L7): проверка,
+снятая концом сессии, своей заметки не оставляет.
 
 Общие колонки записи сессии (`started_at` … `created_at`) живут в миксине
 `SessionRecord` (`storage/models.py`).
@@ -153,4 +169,4 @@ On crash → resume or show partial in History.
 | 2026-07-02 | v0.2: turn format + `state`/`question_id` (grounding Mode 2, evidence в summary); колонки `summary_kind`, `status`; vocabulary soft delete; объявлен каноном схемы |
 | 2026-07-02 | v0.3: таблица `settings` (kv в app.db) |
 | 2026-10-17 | Таблица `talk_sessions` — разговор с Генри (D3a) |
-| 2026-10-23 | `talk_sessions.metadata_json.language_notes` — заметки «было → лучше» (D3a.2); `vocabulary_bank.session_id` — и разговор |
+| 2026-10-23 | `talk_sessions.metadata_json.language_notes` и счётчики `checks_*` — заметки к речи «было → лучше» (D3a.2); `vocabulary_bank.session_id` — и разговор |
