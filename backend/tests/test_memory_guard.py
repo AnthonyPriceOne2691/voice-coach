@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import ContractError, load_contract
 from app.memory.guard import (
@@ -29,7 +30,7 @@ from app.memory.guard import (
 from app.memory.rules import Category, load_never_store, load_rules
 from app.orchestrator.tips import contract_gate, words
 
-CONTRACTS = Path(__file__).resolve().parents[2] / "data" / "contracts"
+CONTRACTS = REPO_ROOT / "data" / "contracts"
 RULES = load_rules(CONTRACTS)
 PASSES = contract_gate(ContractEnforcer(load_contract(CONTRACTS / "talk.contract.yaml")))
 TOPIC = MemoryKind.TOPIC
