@@ -270,12 +270,12 @@ asserts_without_example: 0
 | Metric | Value |
 |---|---|
 | files_touched / loc_diff | 3 code (+8 process docs) / +202/-4 (net +198) |
-| commits | 13 |
-| time_to_accepted_spec | spec drafted, not yet accepted |
-| rework_after_done | 0 (handoff not declared yet) |
+| commits | 15 |
+| time_to_accepted_spec | 1.2h |
+| rework_after_done | 0 commit(s) after first phase: handoff |
 | harness_hardened | yes — backend/tests/test_shutdown_cancellation.py (новый оракул) |
 | implement_retries | 1 — мутационный гейт (#44, влит на verify) показал по два выживших мутанта строки лога в `aclose()` и `_drain`: утверждения E1/E2 усилены с подстроки до строки целиком (`1b34e16`), литерал перенесён в строку `assert` ради дайджеста (`83018f4`). Сама правка зелёная с первого прогона; медленная размотка (D5) добавлена в тест до правки, на красном repro. Не считаются: пять слияний `main` — перемер, а не переделка |
-| verify_fails_before_green | 0 — ни одного красного прогона verify: сьют 10 из 10 на каждом из пяти деревьев, мутационный гейт 61% уже до усиления; CI — четыре прогона на `c25439c` и `afeab82`, все зелёные |
+| verify_fails_before_green | 0 — ни одного красного прогона verify: сьют 10 из 10 на каждом из пяти деревьев, мутационный гейт 61% уже до усиления; CI — шесть прогонов на `c25439c`, `afeab82`, `8bd02ab`, все зелёные |
 | est_token_or_cost | n/a — не измерялось; локальные прогоны, внешних платных вызовов и модели нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
