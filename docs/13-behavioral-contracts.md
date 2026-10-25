@@ -239,6 +239,27 @@ Voice contract enforcer **не применяется** — schema validator ins
 
 ---
 
+## Память Генри (D3b, 2026-10-25)
+
+Не голосовой контракт `memory.contract.yaml`: что из предложенного моделью после
+разговора станет заметкой памяти. Решает код (`backend/app/memory/`), негодный кандидат
+отбрасывается целиком; числа и список «никогда» код читает из контракта.
+
+| ID | Rule | Исполнитель |
+|----|------|-------------|
+| M-H1 | `{"memories": [{kind, text, follow_up, evidence}]}`, kind — plan · update · topic; годных больше трёх — первые три в порядке модели | разбор: не-JSON — отказ всего ответа, кривой кандидат — только ему |
+| M-H2 | Текст, вопрос и цитата — латиница целиком | `tips.latin_only` |
+| M-H3 | Цитата ≥ 3 слов дословно в ОДНОЙ его реплике; текст делит с ней значимое слово | `tips.locate`; хранится цитата в написании распознанного |
+| M-H4 | Ни контактов, ни денег, ни суда, ни здоровья, ни семьи, ни Ally — и в реплике с цитатой | шаблоны `memory_never_store.txt`; перефраз мимо списка — advisory |
+| M-H5 | Текст «you …» (и «your»), 3–25 слов, одно предложение без «?»; вопрос с «?», ≤ 15 слов | код формы |
+| M-H6 | Общих значимых слов < 60% от МЕНЬШЕГО набора — с сохранёнными и с принятым соседом | код |
+| M-H7 | Текст и вопрос проходят `talk.contract.yaml` | `contract_gate` с енфорсером разговора |
+
+В лог об отказе идут причина, категория и число — никогда текст. Маркеры id в коде
+сторожит `test_contracts.py`, как у сводки.
+
+---
+
 ## Runtime pipeline (MVP — Contract Enforcer, sentence-gated)
 
 **Проблема, которую решает эта секция:** «enforcer валидирует реплику целиком перед TTS» (doc 02 v0.1) несовместим с sentence-streaming TTS (doc 03): нельзя проверить «max 3 предложения», когда первое уже надо озвучивать. Буферизация полного ответа добавляет ~1.2 s к perceived latency (LLM total 1.8 s против ~0.6 s до конца первого предложения) и выбивает нас за NFR-1.1.
@@ -339,6 +360,8 @@ voice-interview-coach/
         ├── summary.contract.yaml       # JSON-passes (schema validation)
         ├── talk.contract.yaml          # разговор (D3a)
         ├── talk_forbidden.txt          # оценки в разговоре (I3-H2)
+        ├── memory.contract.yaml        # память разговора (D3b), не голосовой
+        ├── memory_never_store.txt      # чего память не хранит никогда (M-H4)
         ├── interview_forbidden.txt     # coaching/debrief паттерны
         └── ack_whitelist.txt           # допустимые короткие acks
 ```
@@ -472,3 +495,4 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 | 2026-06-26 | Linked to two-model LLM split (doc 14) |
 | 2026-07-02 | v0.2 (сверка с полным paper): sentence-gated enforcement — конфликт со streaming TTS закрыт; таблица «что берём из full ABC»; I2-H5 (empty after strip_thinking); soft-rules помечены ✅/📝 по реализуемости; violation event schema (pre-recovery); drift-детекция дополнена recovery-success порогом; contract YAML файлы созданы в data/contracts/ |
 | 2026-10-17 | Talk (D3a): `talk.contract.yaml` — I3-H1..H3, G3-H1..H3; просьбы к Генри — по форме, до модели |
+| 2026-10-25 | Память (D3b, memory-guard): `memory.contract.yaml` — M-H1..M-H7 и список `memory_never_store.txt`; исполнитель — `backend/app/memory/` |
