@@ -9,9 +9,9 @@
 |---------------|-------|--------|
 | C = (P, I_hard, I_soft, G_hard, G_soft, R) | ✅ полностью | Ядро фреймворка, дешёвое в реализации |
 | Hard = никогда; soft = допустимо с recovery ≤ k шагов | ✅ k = 1 (regenerate) | Lemma 3.10 paper: без recovery комплаенс падает экспоненциально (q^T), с recovery — линейно (≥ 1 − T(1−q)(1−r)). Наша сессия T ≈ 15–20 turns: даже q=0.95 без recovery даёт ~0.36 на сессию — recovery обязателен |
-| Метрики считаются **до** recovery («transparency effect») | ✅ | Violation log фиксирует сырое поведение модели; иначе не видно, что промпт деградирует |
-| Drift score D(t) = compliance-gap + JSD | ⚠️ только compliance-компонента (счётчики violations на rolling window) | JSD по action distribution требует reference-калибровки — не окупается для соло-инструмента |
-| (p, δ, k)-satisfaction, SPRT-сертификация | ❌ неформально | Один пользователь; порогом служит «hard violations ≥ 3/session → tighten» |
+| Метрики считаются **до** recovery («transparency effect») | ⚠️ счётчики — да, журнал событий — нет | Счётчики нарушений в метаданных сессии считают сырое поведение модели; сами события после подсчёта не сохраняются (2026-10-25, ниже «Violation event schema») |
+| Drift score D(t) = compliance-gap + JSD | ❌ не исполняется: есть только счётчики нарушений за сессию, ни окна, ни порогов, ни реакций (2026-10-25, ниже «Drift detection») | JSD по action distribution требует reference-калибровки — не окупается для соло-инструмента |
+| (p, δ, k)-satisfaction, SPRT-сертификация | ❌ неформально | Один пользователь; порог «hard violations ≥ 3/session → tighten» объявлен в `drift` контрактов, но не исполняется |
 | ContractSpec DSL | ✅ упрощённый YAML (`data/contracts/`) | Декларативность нужна, полный DSL — нет |
 | Композиция контрактов (C1–C4) | ❌ | Один агент за раз; Mode 1 → Mode 2 handoff покрыт precondition P2-1 |
 | Overhead < 10 ms/action (Prop. 4.15) | ✅ ожидаемо | Наши проверки — regex + счётчики, O(k) |
@@ -307,7 +307,7 @@ LLM streams tokens ──▶ buffer до границы предложения (
 
 ### Violation event schema (logging)
 
-Каждое срабатывание проверки — событие в session metadata (structlog + `metadata_json` сессии). **Фиксируется до recovery** (принцип paper §7.1: compliance отражает сырое поведение модели; recovery-исход пишется отдельным полем):
+Каждое срабатывание проверки — событие такой формы; его собирает `voice/turn_runner.py` **до recovery** (принцип paper §7.1: compliance отражает сырое поведение модели; recovery-исход пишется отдельным полем). **Сохраняется не событие, а счёт** (сверено 2026-10-25): `voice/session_flow.py` прибавляет его к счётчикам в `metadata_json` сессии, а само событие выбрасывает; в structlog оно не пишется, поля `ts` у него нет:
 
 ```json
 {
@@ -323,7 +323,7 @@ LLM streams tokens ──▶ buffer до границы предложения (
 }
 ```
 
-Per-session агрегаты (аналог метрик paper, без Θ-композита): `hard_violations`, `soft_violations`, `recovery_success_rate`, `fallback_count`. Показываются в Settings → Diagnostics; используются drift-детекцией ниже.
+Per-session агрегаты (аналог метрик paper, без Θ-композита): `hard_violations`, `soft_violations`, `fallback_count` — пишутся в метаданные каждого чекпойнта всех трёх голосовых режимов. `recovery_success_rate` не считает никто, экрана Settings → Diagnostics нет, drift-детекции ниже нет — агрегаты ничем не читаются. Блок `logging` контрактов (`pre_recovery`, `sink`) описывает это поведение, но код его значений не читает.
 
 ### Recovery strategies
 
@@ -334,6 +334,12 @@ Per-session агрегаты (аналог метрик paper, без Θ-ком�
 | Too long | Truncate to 3 sentences; if no question, append orchestrator seed question |
 | No question in CORE/FOLLOW_UP | Append seed question from question bank |
 | Mode 2 too harsh only | Regenerate: «Start with one strength, then improvement.» |
+
+Исполняется не таблица, а одна лестница на все нарушения (`voice/turn_runner.py`, сверено
+2026-10-25): нарушение в первом предложении — одна перегенерация с общей подсказкой
+`STRICT_REGENERATE` (без правил режима, L73), затем `seed`; в следующих — обрезка; у
+G1-H4 — дописанный `seed`. Поле `recovery.regenerate_prompt` и `recovery` у правил
+контракта код не читает; повтор I2-H5 с удвоенным `num_predict` не делает никто.
 
 ### Template fallbacks (Mode 1)
 
@@ -366,7 +372,19 @@ voice-interview-coach/
         └── ack_whitelist.txt           # допустимые короткие acks
 ```
 
-Как и в ContractSpec из paper, YAML — декларативный и **не** Turing-complete: только именованные проверки, реализованные в `contracts/rules/`; enforcer отклоняет контракт с неизвестным `check` при загрузке (schema validation до runtime).
+Как и в ContractSpec из paper, YAML — декларативный и **не** Turing-complete: только именованные проверки, реализованные в `contracts/enforcer.py`; загрузчик (`contracts/spec.py`) отклоняет контракт с неизвестным `check` при загрузке (schema validation до runtime).
+
+**Что из YAML исполняется (сверено 2026-10-25).** Неизвестный КЛЮЧ, в отличие от
+неизвестной проверки, загрузку не роняет — поэтому связь «ключ ↔ исполнитель» держит
+сторож `backend/tests/test_contract_keys.py`: каждый ключ каждого контракта либо читает
+код (голосовые — загрузчик и енфорсер, память — `memory/rules.py`), либо стоит в его
+списке `NOT_EXECUTED` с причиной; в YAML такой ключ помечен комментарием. Не исполняются:
+`drift` и `logging` (кроме счётчиков в метаданных), `recovery.regenerate_prompt` и
+`recovery.fallback` (запасная реплика — `seed` оркестратора), предусловия из YAML (P2-1/P2-2
+исполняет `api/ws_voice.py`), `mode`, `version`, `enforcement`, `recovery` правил, `persona`,
+`template` и `scope` у I2-H3. `summary.contract.yaml` не загружает никто — его правила
+кодом в `app/summary/`. Файл `data/prompts/templates/contract_fallback.txt` не читает
+никто.
 
 ### `interview.contract.yaml` (excerpt)
 
@@ -444,6 +462,15 @@ Rationale из paper, который применим напрямую: LLM **д
 
 Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 
+**Статус (сверено 2026-10-25): не реализовано ничего из таблицы.** Phase 2 закрыта
+2026-08-15 без дрейф-детекции, и раздел до этой даты читался как сделанный. Что есть:
+счётчики `hard_violations`, `soft_violations`, `fallback_count` за сессию в
+`metadata_json` (`voice/session_flow.py`). Чего нет: окна, сравнения с порогами,
+смены температуры (она берётся из `Settings` один раз на сессию), напоминания модели,
+режима «только шаблоны» и предупреждения в UI. Блоки `drift` в контрактах интервью и
+разбора помечены «не исполняется» и сторожатся `test_contract_keys.py`. Строить ли
+детектор — **решение человека**; до него числа в `drift` — замысел, а не настройка.
+
 ---
 
 ## Requirements mapping
@@ -496,3 +523,4 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 | 2026-07-02 | v0.2 (сверка с полным paper): sentence-gated enforcement — конфликт со streaming TTS закрыт; таблица «что берём из full ABC»; I2-H5 (empty after strip_thinking); soft-rules помечены ✅/📝 по реализуемости; violation event schema (pre-recovery); drift-детекция дополнена recovery-success порогом; contract YAML файлы созданы в data/contracts/ |
 | 2026-10-17 | Talk (D3a): `talk.contract.yaml` — I3-H1..H3, G3-H1..H3; просьбы к Генри — по форме, до модели |
 | 2026-10-25 | Память (D3b, memory-guard): `memory.contract.yaml` — M-H1..M-H7 и список `memory_never_store.txt`; исполнитель — `backend/app/memory/` |
+| 2026-10-25 | contract-keys: что из YAML исполняется — сторож `test_contract_keys.py`; дрейф-детекция, журнал событий нарушений и `recovery_success_rate` названы нереализованными; таблица recovery — одной лестницей `turn_runner.py` |

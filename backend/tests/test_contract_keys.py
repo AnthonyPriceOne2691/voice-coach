@@ -55,7 +55,42 @@ VOICE = Family(
     modules=("contracts/spec.py", "contracts/enforcer.py"),
     config=ContractSpec,
     params_via_rulespec=True,
-    not_executed={},
+    # Шаблон пути ключа → почему не исполняется. Запись на раздел покрывает поддерево.
+    not_executed={
+        "version": "номер ревизии для человека (interview 2.0 — тренер вместо экзаменатора, "
+        "2026-08-12): загрузчик его не читает, в метаданные сессии он не пишется",
+        "mode": "загрузчик кладёт значение в `ContractSpec.mode`, а поле не читает никто: "
+        "какой контракт у сессии, решает `container.py` по имени файла",
+        "enforcement": "загрузчик кладёт значение в `ContractSpec.enforcement`, а поле не "
+        "читает никто: енфорсер судит каждое предложение всегда (`TurnEnforcer.feed`)",
+        "preconditions": "YAML не читается: P2-1 и P2-2 разбора исполняет `api/ws_voice.py` "
+        "(`_on_start_review`: нет интервью или отвеченных вопросов — ошибка), тип сессии "
+        "выбирает обработчик сообщения; `knowledge_profile_loaded` не исполняется — без "
+        "файла профиля в промпт идёт заглушка, а сессия начинается",
+        "recovery/regenerate_prompt": "подсказка перегенерации — константа `STRICT_REGENERATE` "
+        "в `voice/turn_runner.py`, одна на все режимы (L73); файла `strict_regenerate` в "
+        "`data/prompts/` нет",
+        "recovery/fallback": "запасная реплика — `seed` плана оркестратора "
+        "(`voice/turn_runner.py`); `templates/contract_fallback.txt`, на который указывал "
+        "комментарий интервью, не читает никто",
+        "drift": "детектора дрейфа нет (doc 13, «Drift detection»): пороги не считаются и ни "
+        "на что не влияют; строить ли его — решение человека",
+        "logging": "значения не читаются: счётчики `hard_violations`, `soft_violations`, "
+        "`fallback_count` пишет в метаданные сессии `voice/session_flow.py` — до "
+        "восстановления, как обещает `pre_recovery`; сами события нарушений не сохраняются",
+        "*/recovery": "значение не читается: восстановление после нарушения — одна лестница "
+        "на все правила в `voice/turn_runner.py` (перегенерация → обрезка → `seed`, у G1-H4 — "
+        "дописанный `seed`); у декларативных I1-S2 и I1-S3 нарушения не возникает вовсе, а "
+        "`regenerate_larger_budget` у I2-H5 (`num_predict` ×2) не исполняется — пустой поток "
+        "перегенерируется с прежним бюджетом",
+        "*/persona": "персона — в системном промпте режима; проверка `mode_persona` "
+        "декларативная (`DECLARATIVE_CHECKS`), статус — advisory в `delivery/rule_enforcers.md`",
+        "*/template": "I1-S3 декларативное: «Got it.» не дописывает никто, короткое "
+        "подтверждение пропускает G1-H4 по `ack_whitelist.txt`",
+        "invariants/hard/I2-H3_no_new_interview/scope": "сужения нет: енфорсер режет фразы "
+        "`interview_forbidden.txt` в любом предложении разбора, а не только в вопросе без "
+        "рамки разбора",
+    },
 )
 
 MEMORY = Family(
@@ -63,13 +98,29 @@ MEMORY = Family(
     modules=("memory/rules.py",),
     config=MemoryRules,
     params_via_rulespec=False,
-    not_executed={},
+    not_executed={
+        "mode": "метка для человека: загрузчик памяти берёт из контракта только числа правил "
+        "и список «никогда»",
+        "version": "номер ревизии для человека: загрузчик памяти его не читает",
+        "enforcement": "`per_candidate` — описание: каждого кандидата судит `memory/guard.py`, "
+        "значение не читается",
+        "logging": "значение не читается: «только причина и число» исполняет `_log` в "
+        "`memory/guard.py`",
+        "*/check": "имя проверки — документация: правила памяти — код `memory/guard.py`, маркер "
+        "каждого id держит `test_every_non_voice_invariant_leaves_a_mark_in_code`",
+    },
 )
 
 FAMILIES = (VOICE, MEMORY)
 
 #: Контракт, YAML которого не загружает никто: правила — код, связь держат другие сторожа.
-MIRRORED: dict[str, str] = {}
+MIRRORED: dict[str, str] = {
+    "summary.contract.yaml": "YAML не загружает никто: правила S-H1…S-H6 — код "
+    "`summary/validate.py` и `summary/service.py` (маркеры держит "
+    "`test_every_non_voice_invariant_leaves_a_mark_in_code`), повтор с ошибкой валидатора и "
+    "откат к минимальной сводке зашиты в `service.py`; `logging.sink: session_metadata` не "
+    "исполняется — ошибки сводки идут в лог приложения",
+}
 
 
 # --- обход YAML -----------------------------------------------------------------

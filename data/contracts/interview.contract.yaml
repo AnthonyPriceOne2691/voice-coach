@@ -1,9 +1,13 @@
 # Mode 1 — Mock Interview behavioral contract (ABC-lite)
-# Spec: docs/13-behavioral-contracts.md · checks map to modules in backend/app/contracts/rules/
-mode: interview
-version: "2.0"   # 2.0 — инверсия: тренер-помощник вместо экзаменатора
-enforcement: per_sentence   # sentence-gated streaming, see doc 13 "Runtime pipeline"
+# Spec: docs/13-behavioral-contracts.md · проверки — backend/app/contracts/enforcer.py
+# Какие ключи исполняет код, а какие только объявлены, держит сторож
+# backend/tests/test_contract_keys.py: ключ без исполнителя — с пометкой здесь и причиной там.
+mode: interview   # метка: ContractSpec.mode не читает никто, контракт сессии выбирает container.py по имени файла
+version: "2.0"   # 2.0 — инверсия: тренер-помощник вместо экзаменатора (для человека, код не читает)
+enforcement: per_sentence   # описание: енфорсер судит по предложениям всегда, значение не читается (doc 13 "Runtime pipeline")
 
+# Предусловия не читаются из YAML: тип сессии выбирает обработчик сообщения, а
+# profile_loaded не исполняется — без файла профиля промпт получает заглушку.
 preconditions:
   - id: session_type
     check: session_type_is
@@ -22,9 +26,10 @@ invariants:
       check: forbid_patterns
       patterns_file: interview_forbidden.txt   # только баллы, рубрики, итоговый разбор
     - id: I1-H5_interviewer_role
-      check: mode_persona
+      check: mode_persona     # декларативная: персона — в системном промпте, проверки нет
       persona: supportive_coach
   soft:
+    # I1-S2 и I1-S3 декларативные: проверки нет, recovery и template не исполняются.
     - id: I1-S2_no_preamble
       check: preamble_before_question
       recovery: truncate_preamble
@@ -50,14 +55,20 @@ governance:
       states: [CORE_QUEST, FOLLOW_UP]
       ack_max_words: 12
       ack_whitelist_file: ack_whitelist.txt
-      recovery: append_seed_question   # additive fix — nothing spoken is retracted
+      recovery: append_seed_question   # additive fix — дописывает seed turn_runner.py; значение не читается
     # G1-H3 (max 2 follow-ups) enforced by orchestrator counter, not by text checks
 
 recovery:
   max_retries: 1                 # Lemma 3.10: 1 retry + fallback linearizes compliance decay
-  regenerate_prompt: strict_regenerate   # data/prompts (regeneration prompt, doc 16)
-  fallback: orchestrator_template        # data/prompts/templates/contract_fallback.txt
+  # не исполняется: подсказка — константа STRICT_REGENERATE в voice/turn_runner.py (L73)
+  regenerate_prompt: strict_regenerate
+  # значение не читается: запасная реплика — seed плана оркестратора (turn_runner.py);
+  # data/prompts/templates/contract_fallback.txt не читает никто
+  fallback: orchestrator_template
 
+# НЕ ИСПОЛНЯЕТСЯ: детектора дрейфа нет — пороги не считаются и ни на что не влияют
+# (doc 13, «Drift detection»). Строить ли его — решение человека; до тех пор числа
+# ниже — замысел, а не настройка.
 drift:
   window: session
   thresholds:
@@ -65,6 +76,8 @@ drift:
     same_soft_violation_remind: 5    # -> system reminder in next call
     recovery_success_min: 0.5        # below -> fallback-only mode + UI warning
 
+# Значения не читаются: счётчики нарушений (hard/soft/fallback) пишет в метаданные сессии
+# voice/session_flow.py — до восстановления; сами события нарушений не сохраняются (doc 13).
 logging:
   pre_recovery: true    # violations recorded before recovery (transparency effect)
   sink: session_metadata
