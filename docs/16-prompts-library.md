@@ -18,7 +18,7 @@ data/prompts/
 └── templates/
     ├── interview_intro.txt                                        ✅ exists
     ├── interview_wrap_up.txt                                      ✅ exists
-    └── contract_fallback.txt                                      ✅ exists
+    └── contract_fallback.txt                                      ⚠ exists, не читается никем
 ```
 
 **Vocabulary extraction — не отдельный файл в MVP:** входит в `summary_system.txt` (поле `vocabulary[]` схемы из doc 08). Отдельный `vocabulary_extract.txt` — P1, только если общий pass извлекает словарь плохо.
@@ -88,16 +88,21 @@ When user skips Mode 2: shorter JSON — `scores` (rough), `strengths`, `improve
 
 ## Regeneration prompts (contract recovery)
 
-**Strict regenerate (Mode 1):**
+**Strict regenerate — одна подсказка на все режимы** (константа `STRICT_REGENERATE` в
+`backend/app/voice/turn_runner.py`, с 2026-10-17 без правил экзаменатора, L73):
 
 ```
-Your previous reply violated interview rules: {violation}.
-Rewrite in English only. Max 3 sentences. One question OR short ack (≤12 words).
-No coaching, praise, or scoring. Role: interviewer only.
-Original intent: {question_seed}
+Your previous reply broke a rule of this session: {violation}. Rewrite it in English only,
+keeping your role, the limits you were given and the original intent: {intent}
 ```
 
-**Template fallback:** `data/prompts/templates/contract_fallback.txt`
+Поле `recovery.regenerate_prompt: strict_regenerate` контрактов кодом не читается, файла
+с таким именем в `data/prompts/` нет — свой текст на режим остаётся долгом (сторож
+`test_contract_keys.py`, 2026-10-25).
+
+**Template fallback:** запасная реплика — `seed` плана оркестратора (вопрос банка,
+реплика `fallback` разговора). `data/prompts/templates/contract_fallback.txt` не читает
+никто с 2026-07-02.
 
 ---
 
@@ -126,3 +131,4 @@ Original intent: {question_seed}
 | 2026-07-02 | v0.3: minimal_summary → qwen2.5:14b-instruct (без swap при Skip) |
 | 2026-10-23 | Talk и починка перевода в раскладке и таблице моделей; `language_check.txt` — просьба о проверке речи в конце истории разговора (D3a.2) |
 | 2026-10-25 | Обе сводки получают профиль кандидата плейсхолдером (`PromptLibrary.system()`); позиционирование — по `Positioning rules` профиля, а не по зашитой роли |
+| 2026-10-25 | Перегенерация — нынешний текст `STRICT_REGENERATE` вместо экзаменаторского; `regenerate_prompt` контрактов и `contract_fallback.txt` не читаются (contract-keys) |
