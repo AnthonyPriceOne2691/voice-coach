@@ -70,11 +70,24 @@ describe("LanguageNotes — список «было → лучше» (C10)", () 
   });
 });
 
+/**
+ * Двойник `new Audio(url)` — КЛАСС, а не стрелка: с vitest 4 стрелку под `new` не
+ * зовут, и клик ронял обработчик раньше `play()` — тест краснел чужой причиной (L111).
+ */
+function stubAudio(onPlay: () => Promise<void>) {
+  const audio = vi.fn(
+    class {
+      play = onPlay;
+    },
+  );
+  vi.stubGlobal("Audio", audio);
+  return audio;
+}
+
 describe("LanguageNotes — Listen (C11)", () => {
   it("проигрывает лучший вариант по адресу своей заметки", () => {
     const play = vi.fn(() => Promise.resolve());
-    const audio = vi.fn(() => ({ play }));
-    vi.stubGlobal("Audio", audio);
+    const audio = stubAudio(play);
     render(<LanguageNotes talkId="t1" notes={NOTES} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Listen" })[1]);
@@ -84,10 +97,7 @@ describe("LanguageNotes — Listen (C11)", () => {
   });
 
   it("звук не пошёл — экран говорит об этом, а не молчит", async () => {
-    vi.stubGlobal(
-      "Audio",
-      vi.fn(() => ({ play: () => Promise.reject(new Error("NotSupportedError")) })),
-    );
+    stubAudio(() => Promise.reject(new Error("NotSupportedError")));
     render(<LanguageNotes talkId="t1" notes={NOTES} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Listen" })[0]);
