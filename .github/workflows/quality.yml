@@ -225,7 +225,26 @@ jobs:
           # 900, а не 300 канона: бюджет задаёт самый дорогой файл, а не дифф — PR с
           # api/ws_voice.py при timeout_multiplier 3 идёт 847 s (решение человека 2026-10-25)
           BUDGET_SEC: "900"
-        run: bash scripts/lint/check_mutation_gate.sh
+        # [замер, не мержить] exit 143 на PR #53: кто шлёт SIGTERM шагу мутаций.
+        run: |
+          echo "nproc=$(nproc) overcommit=$(cat /proc/sys/vm/overcommit_memory) pid_max=$(cat /proc/sys/kernel/pid_max)"
+          free -m; df -h / /tmp | tail -2; ulimit -a | head -20
+          ( while sleep 10; do
+              echo "--- $(date -u +%T) $(free -m | awk '/Mem/ {print "used="$3" avail="$7}') $(free -m | awk '/Swap/ {print "swap="$3}')"
+              ps -eo pid,ppid,pgid,rss,etimes,args --sort=-rss | sed -n 2,6p | cut -c1-170
+              f=$(ls -t /tmp/tmp.* 2>/dev/null | head -1); [ -n "$f" ] && tail -c 200 "$f" | tr '\r' '\n' | tail -1
+            done ) &
+          trap 'echo "### step shell got TERM at $(date -u +%T)"' TERM
+          bash scripts/lint/check_mutation_gate.sh; rc=$?
+          echo "gate rc=$rc at $(date -u +%T)"; exit $rc
+
+      - name: Kernel log after mutation
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          sudo dmesg -T | tail -60 || true
+          systemctl is-active systemd-oomd || true
+          sudo journalctl -u systemd-oomd --no-pager -n 30 || true
+          sudo journalctl --no-pager -n 40 -p warning || true
 
   delivery:
     runs-on: ubuntu-latest
