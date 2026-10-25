@@ -16,6 +16,30 @@ const ADD_LABEL: Record<AddState, string> = {
   failed: "Couldn't add — try again",
 };
 
+type Play = (url: string) => Promise<void>;
+
+/**
+ * Listen звучит, только пока заметки на экране (echo-защита).
+ *
+ * Звук идёт мимо очереди сессии (`AudioQueue`), и колбэк «отзвучало», по которому
+ * открывается запись, о нём не знает. Заметки уходят с экрана, как только стартует
+ * сессия (`start` сбрасывает `ended`) или меняется вкладка, — звук смолкает вместе с
+ * ними, раньше, чем запись откроется после приветствия. Без уборки длинная фраза
+ * могла бы доиграть в уже открытый микрофон.
+ *
+ * Набор один на всё время монтирования: уборка гасит каждый звук, начатый за это
+ * время, а не только последний — две фразы подряд звучат вместе.
+ */
+function usePlayer(): Play {
+  const [started] = useState(() => new Set<HTMLAudioElement>());
+  useEffect(() => () => started.forEach((audio) => audio.pause()), [started]);
+  return (url) => {
+    const audio = new Audio(url);
+    started.add(audio);
+    return audio.play();
+  };
+}
+
 /**
  * Одна заметка: что сказано — тихо, как лучше — ярко, и два действия.
  *
@@ -23,13 +47,23 @@ const ADD_LABEL: Record<AddState, string> = {
  * для соседней. Повтор после «добавлено» и «уже там» с экрана не уходит; сервер
  * всё равно не дублирует (C12), но лишний запрос к модели незачем.
  */
-function NoteRow({ talkId, index, note }: { talkId: string; index: number; note: LanguageNote }) {
+function NoteRow({
+  talkId,
+  index,
+  note,
+  play,
+}: {
+  talkId: string;
+  index: number;
+  note: LanguageNote;
+  play: Play;
+}) {
   const [add, setAdd] = useState<AddState>("idle");
   const [silent, setSilent] = useState(false);
 
   const listen = () => {
     setSilent(false);
-    new Audio(api.noteAudioUrl(talkId, index)).play().catch(() => setSilent(true));
+    play(api.noteAudioUrl(talkId, index)).catch(() => setSilent(true));
   };
   const addToWords = () => {
     setAdd("busy");
@@ -76,6 +110,7 @@ export function LanguageNotes({
   notes: LanguageNote[] | null;
   error?: string | null;
 }) {
+  const play = usePlayer();
   return (
     <>
       <h2 className="section-title">Language notes</h2>
@@ -87,7 +122,7 @@ export function LanguageNotes({
         {(list) => (
           <ul className="glass notes">
             {list.map((note, index) => (
-              <NoteRow key={index} talkId={talkId} index={index} note={note} />
+              <NoteRow key={index} talkId={talkId} index={index} note={note} play={play} />
             ))}
           </ul>
         )}

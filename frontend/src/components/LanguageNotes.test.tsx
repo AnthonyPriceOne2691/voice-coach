@@ -74,10 +74,11 @@ describe("LanguageNotes — список «было → лучше» (C10)", () 
  * Двойник `new Audio(url)` — КЛАСС, а не стрелка: с vitest 4 стрелку под `new` не
  * зовут, и клик ронял обработчик раньше `play()` — тест краснел чужой причиной (L111).
  */
-function stubAudio(onPlay: () => Promise<void>) {
+function stubAudio(onPlay: () => Promise<void>, onPause: () => void = () => undefined) {
   const audio = vi.fn(
     class {
       play = onPlay;
+      pause = onPause;
     },
   );
   vi.stubGlobal("Audio", audio);
@@ -103,6 +104,18 @@ describe("LanguageNotes — Listen (C11)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Listen" })[0]);
 
     expect(await screen.findByText("Can't play right now")).toBeTruthy(); // C11
+  });
+
+  it("заметки ушли с экрана — фраза смолкла, а не доигрывает в микрофон (C11)", () => {
+    const pause = vi.fn();
+    stubAudio(() => Promise.resolve(), pause);
+    const { unmount } = render(<LanguageNotes talkId="t1" notes={NOTES} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Listen" })[0]);
+    expect(pause).not.toHaveBeenCalled(); // C11: пока заметки на экране — звучит
+
+    unmount(); // старт сессии сбрасывает `ended`, смена вкладки снимает страницу
+    expect(pause).toHaveBeenCalledTimes(1); // C11: эхо-защита
   });
 });
 
