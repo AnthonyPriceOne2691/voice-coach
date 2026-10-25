@@ -27,7 +27,8 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30, а не 20: шаг мутаций на PR с api/ws_voice.py идёт ~14 min (BUDGET_SEC 900 ниже)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -217,7 +218,9 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         env:
           MIN_KILLED: "60"
-          BUDGET_SEC: "300"
+          # 900, а не 300 канона: бюджет задаёт самый дорогой файл, а не дифф — PR с
+          # api/ws_voice.py при timeout_multiplier 3 идёт 847 s (решение человека 2026-10-25)
+          BUDGET_SEC: "900"
         run: bash scripts/lint/check_mutation_gate.sh
 
   delivery:

@@ -9,10 +9,10 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_repo_root.py::test_mutants_copy_resolves_to_the_same_root
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
-- **human_ok_spec:** deferred (reason=человек подписывает примеры на мерже — решение human:anthony 2026-10-23; at=2026-10-23)
+- **human_ok_spec:** yes (by=human:anthony, at=2026-10-25) reason=примеры M1–M15 подписаны на мерже, как человек решил 2026-10-23
 - **human_ok_plan:** n/a
 - **shape-oracles:** cqg-deployed
 - **behavior-oracles:** tests-present
@@ -29,9 +29,9 @@
 - **irreversible_surfaces:** none reason=локальный инструмент; дифф меняет тесты, конфиг гейта и шаг CI, наружу ничего не отправляет
 - **model_surface:** data/prompts/**, data/knowledge/**, data/questions/**, data/contracts/**, data/talk/**, backend/app/config.py, backend/app/llm/**, backend/app/knowledge/prompts.py, backend/app/orchestrator/interview.py, backend/app/orchestrator/talk.py, backend/app/voice/turn_runner.py, backend/app/voice/talk_flow.py, backend/app/api/ws_voice.py, backend/app/summary/**
 - **rule_enforcers:** delivery/rule_enforcers.md
-- **canon_drift_waiver:** knowledge/engineering/model-split.md, knowledge/engineering/sentence-streaming.md reason=в backend/app/config.py изменено только то, как находится корень репозитория (по данным, а не по глубине пути) — модели, температуры, бюджеты токенов и num_ctx те же, D-8 не тронут; в backend/app/contracts/enforcer.py TurnEnforcer из dataclass стал обычным классом с тем же __init__ — проверки, их порядок и per-sentence семантика прежние, тесты контрактов те же. Правка концептов была бы ложным «обновлено» by=agent:claude-code (подпись human:anthony — на мерже вместе с примерами)
+- **canon_drift_waiver:** knowledge/engineering/model-split.md, knowledge/engineering/sentence-streaming.md reason=в backend/app/config.py изменено только то, как находится корень репозитория (по данным, а не по глубине пути) — модели, температуры, бюджеты токенов и num_ctx те же, D-8 не тронут; в backend/app/contracts/enforcer.py TurnEnforcer из dataclass стал обычным классом с тем же __init__ — проверки, их порядок и per-sentence семантика прежние, тесты контрактов те же. Правка концептов была бы ложным «обновлено» by=human:anthony at=2026-10-25 (подписано на мерже вместе с примерами M1–M15)
 - **baseline_growth_waiver:** no
 - **observability:** 1
-- **observe_signal:** M13 — на пяти следующих PR в main с python-диффом шаг «Mutation testing (changed files, budgeted)» печатает «убито N из M» и решает по порогу 60%; ни одного «не просудил» по причине среды (корень, сбор, покрытие); время шага в логе — в пределах бюджета (300 s; для PR с api/ws_voice.py — по решению человека о бюджете, замер 1,854 s / 847 s)
+- **observe_signal:** M13 — на пяти следующих PR в main с python-диффом шаг «Mutation testing (changed files, budgeted)» печатает «убито N из M» и решает по порогу 60%; ни одного «не просудил» по причине среды (корень, сбор, покрытие); время шага в логе — в пределах бюджета (`BUDGET_SEC` 900 при `timeout_multiplier = 3.0` — решение human:anthony 2026-10-25; PR с api/ws_voice.py — около 847 s, остальные 1–2 min)
 - **observe_until:** 2026-11-23
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
