@@ -13,7 +13,7 @@
        17 тестами того же класса; после — зелёный. Без сторожа тот же дефект
        ронял не его, а случайный чужой тест, в том числе test_tts_piper.py. -->
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-23) reason=примеры W1–W7 подписаны на мерже, как решил человек; подпись передала исполнителю ведущая сессия, сам исполнитель её не видел
