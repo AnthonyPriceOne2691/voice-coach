@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from app.config import Settings
-from app.knowledge.prompts import PromptLibrary
+from app.config import REPO_ROOT, Settings
+from app.knowledge.prompts import PROFILE_PLACEHOLDER, PromptLibrary
 from app.storage.db import Database
 from app.storage.repositories.interviews import InterviewRepository
 from app.storage.repositories.reviews import ReviewRepository
@@ -391,3 +391,122 @@ async def test_minimal_gives_up_quietly(prompts: PromptLibrary, db: Database) ->
     assert await service.generate_minimal("i1") is None
     row = await interviews.get("i1")
     assert row is not None and row.debrief_json is None  # nothing broken, nothing stored
+
+
+# --- Сводка видит профиль кандидата (поставка summary-profile) ---------------
+#
+# Оба промпта сводки объявляли профиль своим входом и ставили балл `positioning`,
+# а профиль не доходил: `PromptLibrary.system()` отдавал файл как есть, и не
+# подставлял его никто. Тесты берут НАСТОЯЩИЕ промпты сводки — дефект жил в них и
+# в загрузчике, а не в сервисе, — и синтетический профиль: личное в фикстуры не
+# попадает. Проверяется собранное сообщение вызова, а не наличие файлов (L20).
+
+REPO_PROMPTS = REPO_ROOT / "data" / "prompts"
+SYNTHETIC_PROFILE = (
+    "# Candidate Profile\n\nSam Example - builds AI pipelines for agencies.\n\n"
+    "## Positioning rules\n\nBuilder of systems, never an SEO lead.\n"
+)
+NO_PROFILE = "(no candidate profile available)"  # заглушка PromptLibrary._profile
+
+
+def _knowledge(tmp_path: Path, profile: str | None) -> Path:
+    knowledge = tmp_path / "repo-knowledge"
+    knowledge.mkdir()
+    if profile is not None:
+        (knowledge / "profile_condensed.md").write_text(profile, encoding="utf-8")
+    return knowledge
+
+
+async def _summary_call(pass_name: str, knowledge: Path, db: Database) -> list[dict[str, str]]:
+    """Сообщения ПЕРВОГО вызова модели в полной или минимальной сводке."""
+    await _seed_sessions(db)
+    llm = ScriptedLlm([[json.dumps(VALID)]])
+    service = _service(llm, db, PromptLibrary(REPO_PROMPTS, knowledge))
+    if pass_name == "full":
+        assert await service.generate_full("i1", "r1") is not None
+    else:
+        assert await service.generate_minimal("i1") is not None
+    return [dict(message) for message in llm.calls[0]]
+
+
+async def test_full_summary_sends_the_candidate_profile(tmp_path: Path, db: Database) -> None:
+    """Репро: полная сводка на R1 ставила `positioning`, не видя профиля."""
+    messages = await _summary_call("full", _knowledge(tmp_path, SYNTHETIC_PROFILE), db)
+
+    assert messages[0]["role"] == "system"  # U1
+    assert SYNTHETIC_PROFILE in messages[0]["content"], "профиль не дошёл до сводки"  # U1
+    assert all(PROFILE_PLACEHOLDER not in m["content"] for m in messages)  # U1
+
+
+async def test_minimal_summary_sends_the_candidate_profile(tmp_path: Path, db: Database) -> None:
+    """Минимальная сводка на qwen: «INPUT: … + candidate profile only» — теперь правда."""
+    messages = await _summary_call("minimal", _knowledge(tmp_path, SYNTHETIC_PROFILE), db)
+
+    assert messages[0]["role"] == "system"  # U2
+    assert SYNTHETIC_PROFILE in messages[0]["content"], "профиль не дошёл до сводки"  # U2
+    assert all(PROFILE_PLACEHOLDER not in m["content"] for m in messages)  # U2
+
+
+@pytest.mark.parametrize("pass_name", ["full", "minimal"])
+async def test_summary_without_profile_file_says_so(
+    pass_name: str, tmp_path: Path, db: Database
+) -> None:
+    """Нет файла профиля — заглушка, как у промптов интервью, а не голый плейсхолдер."""
+    messages = await _summary_call(pass_name, _knowledge(tmp_path, None), db)
+
+    # Строкой целиком, как стоит плейсхолдер в файле: подстрока пропускала
+    # заглушку с любым обрамлением (мутант `XX(no candidate…)XX` выживал).
+    assert NO_PROFILE in messages[0]["content"].splitlines()  # U3
+    assert all(PROFILE_PLACEHOLDER not in m["content"] for m in messages)  # U3
+
+
+SUMMARY_PROMPTS = ("summary_system", "minimal_summary_system")
+
+
+def test_positioning_is_judged_against_the_profile_section() -> None:
+    """Позиционирование судится по разделу профиля, а не по роли в тексте промпта.
+
+    До 2026-10-25 правило звучало «SEO lead vs AI automation engineer» — роль,
+    зашитая в промпт, разошлась с профилем 2026-10-17. Теперь оба промпта ссылаются
+    на раздел `Positioning rules`, и сторож держит связь: переименуй раздел в
+    профиле — промпт сводки сослался бы на пустоту. Проверка описания: ловит
+    разрыв ссылки, а не то, как модель профилем пользуется (это — живой прогон).
+    """
+    profile = (REPO_ROOT / "data" / "knowledge" / "profile_condensed.md").read_text(
+        encoding="utf-8"
+    )
+    assert "## Positioning rules" in profile  # U4
+    for name in SUMMARY_PROMPTS:
+        text = (REPO_PROMPTS / f"{name}.txt").read_text(encoding="utf-8")
+        assert PROFILE_PLACEHOLDER in text, f"{name}: профиль не объявлен входом"  # U4
+        assert "Positioning rules" in text, f"{name}: позиционирование не по профилю"  # U4
+        assert "AI automation engineer" not in text, f"{name}: зашитая роль вернулась"  # U4
+
+
+#: doc 20: оценка «4 символа на токен» — та же, что у бюджета профиля
+#: (`test_knowledge_profile.py`); по словам (0.75 слова на токен) выходит меньше,
+#: а занижение здесь опаснее завышения.
+CHARS_PER_TOKEN = 4
+#: doc 20, Summary pass: полные транскрипты 15-минутной сессии.
+INTERVIEW_TRANSCRIPT_TOKENS = 2500
+REVIEW_TRANSCRIPT_TOKENS = 3000
+
+
+def test_summary_prompts_with_profile_fit_the_context_budget() -> None:
+    """Профиль, промпт, транскрипты и генерация укладываются в `num_ctx` (doc 20, L21).
+
+    Превышение `num_ctx` не падает — Ollama молча обрезает промпт. Считается на
+    настоящих профиле и промптах; транскрипты — по оценке doc 20 для 15-минутной
+    сессии. Длинные сессии (30 и 45 минут) этим тестом не судятся: их расчёт и
+    открытый вопрос — в doc 20.
+    """
+    settings = Settings(database_url="sqlite+aiosqlite:///:memory:")
+    library = PromptLibrary(REPO_PROMPTS, REPO_ROOT / "data" / "knowledge")
+
+    def prompt_tokens(name: str) -> float:
+        return (len(library.system(name)) + len(SCHEMA_HINT)) / CHARS_PER_TOKEN
+
+    full = prompt_tokens("summary_system") + INTERVIEW_TRANSCRIPT_TOKENS + REVIEW_TRANSCRIPT_TOKENS
+    assert full + settings.summary_max_tokens <= settings.summary_num_ctx  # U5
+    minimal = prompt_tokens("minimal_summary_system") + INTERVIEW_TRANSCRIPT_TOKENS
+    assert minimal + settings.minimal_summary_max_tokens <= settings.ollama_num_ctx  # U5

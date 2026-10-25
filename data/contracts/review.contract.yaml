@@ -1,9 +1,13 @@
 # Mode 2 — Review Together behavioral contract (ABC-lite)
-# Spec: docs/13-behavioral-contracts.md
-mode: review
-version: "1.0"
-enforcement: per_sentence
+# Spec: docs/13-behavioral-contracts.md · проверки — backend/app/contracts/enforcer.py
+# Какие ключи исполняет код, а какие только объявлены, держит сторож
+# backend/tests/test_contract_keys.py: ключ без исполнителя — с пометкой здесь и причиной там.
+mode: review   # метка: ContractSpec.mode не читает никто
+version: "1.0"   # для человека, код не читает
+enforcement: per_sentence   # описание: значение не читается, енфорсер судит по предложениям всегда
 
+# Предусловия не читаются из YAML: P2-1 и P2-2 исполняет api/ws_voice.py (_on_start_review:
+# нет интервью или отвеченных вопросов — ошибка SESSION_NOT_FOUND).
 preconditions:
   - id: P2-1_source_interview
     check: interview_exists_with_transcript
@@ -19,9 +23,12 @@ invariants:
     - id: I2-H3_no_new_interview
       check: forbid_patterns
       patterns_file: interview_forbidden.txt
+      # не исполняется: сужения нет — фразы списка режутся в любом предложении разбора
       scope: interview_question_without_review_framing
     - id: I2-H5_nonempty_after_strip
       check: nonempty_after_strip_thinking   # R1 thinking may eat num_predict (doc 19/20)
+      # не исполняется: пустой поток (EMPTY_STREAM) перегенерируется turn_runner.py с
+      # ПРЕЖНИМ бюджетом, затем seed; num_predict ×2 не делает никто
       recovery: regenerate_larger_budget     # retry with num_predict x2, then fallback
   soft:
     - id: I2-S3_rephrase_after_critique
@@ -40,9 +47,13 @@ governance:
 
 recovery:
   max_retries: 1
+  # не исполняется: подсказка — константа STRICT_REGENERATE в voice/turn_runner.py (L73)
   regenerate_prompt: strict_regenerate
+  # значение не читается: запасная реплика — seed плана оркестратора (turn_runner.py)
   fallback: orchestrator_template
 
+# НЕ ИСПОЛНЯЕТСЯ: детектора дрейфа нет — пороги не считаются и ни на что не влияют
+# (doc 13, «Drift detection»). Строить ли его — решение человека.
 drift:
   window: session
   thresholds:
@@ -50,6 +61,8 @@ drift:
     same_soft_violation_remind: 5
     recovery_success_min: 0.5
 
+# Значения не читаются: счётчики нарушений (hard/soft/fallback) пишет в метаданные сессии
+# voice/session_flow.py — до восстановления; сами события нарушений не сохраняются (doc 13).
 logging:
   pre_recovery: true
   sink: session_metadata

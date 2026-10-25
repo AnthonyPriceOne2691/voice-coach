@@ -68,6 +68,40 @@ export interface VocabularyItem {
   added_at?: string;
 }
 
+/** Заметка «было → лучше» (D3a.2): пишет проверка речи, экран только показывает. */
+export interface LanguageNote {
+  turn_index: number;
+  kind: "error" | "style";
+  /** Дословный фрагмент распознанной реплики. */
+  said: string;
+  better: string;
+  /** Причина до пяти слов; может быть пустой. */
+  why: string;
+  spoken: boolean;
+}
+
+/** Строка разговора в History (doc 15, `GET /sessions/talks`). */
+export interface TalkListItem {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_sec: number | null;
+  status: string;
+  notes_count: number;
+}
+
+export interface TalkDetail extends TalkListItem {
+  transcript: TranscriptTurn[];
+  language_notes: LanguageNote[];
+}
+
+/** Ответ «Add to Useful Words»: `exists` — фраза уже в банке, повтор не дублирует. */
+export interface AddedWord {
+  status: "added" | "exists";
+  term_en: string;
+  translation_ru: string;
+}
+
 /** Ключи kv-настроек (doc 15, `GET/PATCH /settings`). */
 export interface UserSettings {
   show_live_transcript: boolean;

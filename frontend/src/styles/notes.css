@@ -1,0 +1,42 @@
+/* Заметки «было → лучше» после разговора (D3a.2).
+ *
+ * Новый слой — отдельным файлом, общий слой не переопределяется (L42): строки и
+ * кнопки берутся из app.css, здесь только то, чего там нет. Что сказано — тихо,
+ * как лучше — ярко: глаз должен попадать во вторую строку, а не в первую. */
+
+.notes {
+  list-style: none;
+  padding: 4px 22px;
+}
+.note {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--edge);
+}
+.note:last-child {
+  border-bottom: 0;
+}
+.note-said {
+  color: var(--ink-dim);
+  font-size: 13.5px;
+}
+.note-better {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 4px 0 10px;
+}
+.note-why {
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+.note-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* «Добавлено» и «уже там» — состояние, а не действие: кнопка гаснет */
+.note-actions .btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}

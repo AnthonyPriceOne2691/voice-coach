@@ -1,5 +1,7 @@
 # Summary / vocabulary JSON passes — schema-validation contract (non-voice)
 # Voice enforcer does NOT apply here; validator + retry policy instead (doc 13, doc 16)
+# YAML не загружает никто: правила S-H* — код app/summary/ (маркеры сторожит test_contracts.py),
+# файл объявлен MIRRORED в backend/tests/test_contract_keys.py.
 mode: summary
 version: "1.0"
 enforcement: whole_output
@@ -38,8 +40,10 @@ invariants:
 recovery:
   max_retries: 1
   regenerate_prompt: json_error_hint     # re-ask with validator error appended
-  fallback: minimal_summary              # degrade to minimal_summary_system.txt pass; if that fails -> mark session "summary_failed", keep transcripts
+  fallback: minimal_summary              # degrade to minimal_summary_system.txt pass; if that fails -> debrief stays empty, transcripts kept
+  # «summary_failed» не ставится: провал минимальной сводки оставляет debrief пустым (service.py)
 
+# не исполняется: ошибки сводки идут в лог приложения (service.py), в метаданные сессии не пишутся
 logging:
   pre_recovery: true
   sink: session_metadata
