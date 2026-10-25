@@ -4,7 +4,7 @@
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-a98e3306c368a0d23`, ветка `fix/contract-keys`)
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (класс S — правило §3.1d уровня 3 для M/L; утверждения сторожа ведут к примерам K1–K6 mini-spec, дайджест ниже)
-**CI run:** _заполняется после push_
+**CI run:** PR #54, коммит `1079f5a` (весь код поставки, слияние с `main` `78102a1` и архив): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40225395594 — **success**, по логу «413 passed», покрытие 96.48%; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40225395630 — **success**: «mutation: изменённых prod-файлов нет», `okf_sync_gate: OK (6 mapped concepts, 0 warning(s))`, `okf_validate: 0 error(s)`, smoke пройден, `stack_selftest … 0 failure(s)`, доктор `DEAD 0`; джоба `delivery` при пустом `active/` архивированную поставку не судит («idle … 0 error(s), 1 warning(s)») — её судил pre-push и локальный прогон с базой
 **Commit:** репро `86bf83d`, честный контракт `5378d37`, привязка утверждений `60b0920`, фаза `b79fd3a`, слияние с `main` `78102a1` — `29e2704`; ветка начата от `main` `1fa99e5`
 
 ## Оракулы mini-spec
@@ -114,6 +114,13 @@ in 0.48s`. Что может сломаться у самого сторожа �
 - Найдено на summary-profile: при пустом `active/` джоба `delivery` в CI зовёт
   `delivery_check.py` без `--diff-base` и архивированную поставку не судит; судит pre-push.
 
+## После handoff: слияние с talk-notes-screen
+
+`main` ушёл на `1149ecb` (talk-notes-screen: фронт, docs 11 и 17, концепт `echo-protection`);
+слияние `bbc711b` — конфликт только в `delivery/archive/INDEX.md` (обе строки 2026-10-25
+сохранены). Перепрогон: `run_checks.sh` — **413 passed**, 96.48%; `pre-commit run --all-files` —
+28 из 28. Прогоны CI на итоговом коммите — в PR #54.
+
 ## Verdict
 
 **READY FOR HANDOFF** — K1–K6 зелёные, репро красный на `1fa99e5` по правильной причине (41
@@ -172,7 +179,7 @@ asserts_without_example: 0
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — backend/tests/test_contract_keys.py (новый оракул) |
 | implement_retries | 2 — первая версия сторожа печатала поддеревья молчащих разделов по строке на ключ и «читала» `id`/`check` предусловий по совпадению имён — введено правило «под молчащим ключом вложенные не судятся»; утверждения переписаны под привязку к K1–K6: строки с id правил (`G1-H4`, `M-H5`) увели бы её на чужой id |
-| verify_fails_before_green | 0 — локальные гейты verify зелёные с первого прогона и после слияния; прогоны CI ветки — в шапке |
+| verify_fails_before_green | 0 — локальные гейты verify зелёные с первого прогона и после слияний; CI ветки зелёный с первого прогона (`CI` 40225395594, `quality` 40225395630) |
 | est_token_or_cost | n/a — модель не запускалась |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
