@@ -1,3 +1,4 @@
+import { EndedTalkNotes } from "../components/LanguageNotes";
 import { LiveSession, PastTranscript } from "../components/LiveSession";
 import { StateOrb } from "../components/StateOrb";
 import { useLiveTranscriptSetting } from "../hooks/useLiveTranscriptSetting";
@@ -12,6 +13,8 @@ export function TalkPage() {
   const session = useVoiceSession();
   const { transcript, error, active, ended } = session;
   const showLiveTranscript = useLiveTranscriptSetting();
+  // Заметки «было → лучше» пишет сервер по ходу разговора; после конца — его список.
+  const endedTalk = ended?.session_kind === "talk" ? ended.session_id : null;
 
   return (
     <div>
@@ -55,6 +58,7 @@ export function TalkPage() {
           <StateOrb state="idle" />
         </div>
       )}
+      {!active && endedTalk && <EndedTalkNotes talkId={endedTalk} />}
       {!active && <PastTranscript entries={transcript} />}
     </div>
   );
