@@ -32,6 +32,21 @@ def test_missing_profile_uses_placeholder_text(tmp_path: Path) -> None:
     assert "(no candidate profile available)" in system
 
 
+def test_generic_loader_substitutes_the_profile(tmp_path: Path) -> None:
+    """Сводки берут промпт общим `system()` — подстановка обязана жить в нём (U1, U2).
+
+    Файл без плейсхолдера отдаётся как есть: перевод термина профиля не просит.
+    """
+    prompts, knowledge = _make_dirs(tmp_path)
+    (prompts / "summary_system.txt").write_text("RULES\n{{profile_condensed}}\nEND")
+    (prompts / "translate_term_system.txt").write_text("translate to russian")
+    (knowledge / "profile_condensed.md").write_text("Sam, builder of things")
+
+    library = PromptLibrary(prompts, knowledge)
+    assert library.system("summary_system") == "RULES\nSam, builder of things\nEND"  # U1
+    assert library.system("translate_term_system") == "translate to russian"  # U1
+
+
 def test_template_loading(tmp_path: Path) -> None:
     prompts, knowledge = _make_dirs(tmp_path)
     (prompts / "templates" / "interview_intro.txt").write_text("Hi there.\n")
