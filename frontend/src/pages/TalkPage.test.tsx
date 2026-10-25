@@ -14,8 +14,18 @@ Element.prototype.scrollIntoView = vi.fn();
 
 const HENRY = "So, how's your day going so far?";
 
-function renderTalk(active: boolean, showLive: boolean) {
+const NOTE = {
+  turn_index: 1,
+  kind: "error",
+  said: "Pretty good",
+  better: "Pretty good, thanks",
+  why: "more natural",
+  spoken: false,
+};
+
+function renderTalk(active: boolean, showLive: boolean, ended: object | null = null) {
   const start = vi.fn();
+  const asked: string[] = [];
   session.current = {
     state: active ? "listening" : "idle",
     transcript: [
@@ -25,22 +35,25 @@ function renderTalk(active: boolean, showLive: boolean) {
     error: null,
     active,
     micLevel: -Infinity,
-    ended: null,
+    ended,
     progress: null,
     startedAt: 0,
     start,
     end: vi.fn(),
   };
-  vi.stubGlobal("fetch", () =>
-    Promise.resolve({
+  vi.stubGlobal("fetch", (url: string) => {
+    asked.push(url);
+    const talk = url.startsWith("/sessions/talks/");
+    return Promise.resolve({
       ok: true,
       status: 200,
       headers: new Headers({ "content-type": "application/json" }),
-      json: () => Promise.resolve({ show_live_transcript: showLive }),
-    }),
-  );
+      json: () =>
+        Promise.resolve(talk ? { language_notes: [NOTE] } : { show_live_transcript: showLive }),
+    });
+  });
   render(<TalkPage />);
-  return start;
+  return { start, asked };
 }
 
 afterEach(() => {
@@ -50,7 +63,7 @@ afterEach(() => {
 
 describe("TalkPage", () => {
   it("кнопка Start начинает именно разговор и несёт крючок для стенда (T1)", () => {
-    const start = renderTalk(false, true);
+    const { start } = renderTalk(false, true);
 
     const button = screen.getByTestId("start-talk");
     fireEvent.click(button);
@@ -73,5 +86,14 @@ describe("TalkPage", () => {
     cleanup();
     renderTalk(false, false);
     expect(await screen.findByText(HENRY)).toBeTruthy();
+  });
+
+  it("после разговора — его заметки «было → лучше» по session_id (C10)", async () => {
+    const ended = { session_kind: "talk", session_id: "t9", next_action: "none" };
+    const { asked } = renderTalk(false, true, ended);
+
+    expect(await screen.findByText("Language notes")).toBeTruthy(); // C10
+    expect(screen.getByRole("listitem").textContent).toContain("→ Pretty good, thanks"); // C10
+    expect(asked).toContain("/sessions/talks/t9"); // C10
   });
 });
