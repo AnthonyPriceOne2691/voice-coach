@@ -16,7 +16,7 @@
        выдано пулом и не возвращено…» и «1 соединени(й) открыто и не закрыто…», в teardown
        — страж канона и наш сторож. После — зелёные. -->
 - **diagnosis:** active/diagnosis.md
-- **phase:** implement
+- **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** deferred (reason=исполнитель работает без человека — вопросы ему по условию запуска не задаются; примеры E1–E5 предъявляются на мерже через ведущую сессию, at=2026-10-25)
