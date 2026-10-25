@@ -199,7 +199,7 @@ Start with what went well. Address problems gently but clearly — guide, don't 
 Every improvement must include a concrete fix or suggested rephrase.
 Speak as a peer mentor, not a hiring manager rejecting a candidate.
 - Be specific: cite moments from the transcript
-- Flag positioning mistakes (SEO vs automation engineer)
+- Flag positioning mistakes against the profile's Positioning rules (SEO lead instead of the builder)
 - Suggested rephrases: natural spoken English, not essay style
 - Vocabulary items: each MUST include translation_ru (Russian, Cyrillic — never Chinese/Japanese/Korean characters) — required for Vocabulary Bank tab
 - Output valid JSON matching the schema
@@ -267,3 +267,4 @@ Speak as a peer mentor, not a hiring manager rejecting a candidate.
 | 2026-06-26 | Debrief tone aligned with supportive senior colleague persona |
 | 2026-06-26 | Vocabulary linked to persistent Bank + mandatory translation_ru |
 | 2026-06-26 | Primary feedback = Mode 2 review; this doc = structured summary |
+| 2026-10-25 | Профиль кандидата впервые доходит до сводки (входа «knowledge profile» в коде не было с 2026-07-05); позиционирование — по `Positioning rules` профиля. `session_metadata` из схемы входа в сводку по-прежнему не идёт |
