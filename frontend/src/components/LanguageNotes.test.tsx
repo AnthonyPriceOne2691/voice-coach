@@ -147,4 +147,23 @@ describe("LanguageNotes — Add to Useful Words (C12)", () => {
 
     expect(await screen.findByRole("button", { name: label })).toHaveProperty("disabled", disabled); // C12
   });
+
+  it("пока идёт запрос — «Adding…», второй клик второго запроса не шлёт (C12)", () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push(`${init?.method ?? "GET"} ${url}`);
+        return new Promise(() => undefined); // ответа нет: перевод ещё идёт
+      }),
+    );
+    render(<LanguageNotes talkId="t1" notes={NOTES} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add to Useful Words" })[0]);
+    const busy = screen.getByRole("button", { name: "Adding…" });
+    fireEvent.click(busy);
+
+    expect(busy).toHaveProperty("disabled", true); // C12
+    expect(calls).toEqual(["POST /sessions/talks/t1/notes/0/vocabulary"]); // C12: двух Add нет
+  });
 });
