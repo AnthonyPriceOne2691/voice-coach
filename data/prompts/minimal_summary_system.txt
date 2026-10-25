@@ -2,6 +2,9 @@ You produce a minimal session summary in JSON when the candidate skipped the ful
 
 INPUT: interview transcript + candidate profile only.
 
+CANDIDATE PROFILE (score positioning against its Positioning rules — do not summarize it)
+{{profile_condensed}}
+
 OUTPUT JSON fields:
 - overall_summary (2 sentences)
 - scores: clarity, structure, technical_depth, english_fluency, positioning (1–5, rough)
