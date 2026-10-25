@@ -1,8 +1,10 @@
-"""Repository integration tests on in-memory SQLite (doc 18: real DB, mocked AI)."""
+"""Repository integration tests on in-memory SQLite (doc 18: real DB, mocked AI).
+
+База — фикстура `db` из `conftest.py`, с `dispose()` в teardown. Прежняя локальная
+фикстура делала `return` вместо `yield`, то есть teardown у неё не было вовсе.
+"""
 
 import json
-
-import pytest
 
 from app.storage.db import Database
 from app.storage.repositories.interviews import InterviewRepository
@@ -10,13 +12,6 @@ from app.storage.repositories.reviews import ReviewRepository
 from app.storage.repositories.settings_repo import SettingsRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.storage.turns import TranscriptBuffer
-
-
-@pytest.fixture
-async def db() -> Database:
-    database = Database("sqlite+aiosqlite:///:memory:")
-    await database.create_all()
-    return database
 
 
 async def test_interview_lifecycle(db: Database) -> None:
