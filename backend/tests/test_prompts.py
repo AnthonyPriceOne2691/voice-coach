@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 from app.knowledge.prompts import PromptLibrary
@@ -40,8 +41,7 @@ def test_template_loading(tmp_path: Path) -> None:
 
 
 def test_real_repo_prompts_load() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    library = PromptLibrary(repo_root / "data" / "prompts", repo_root / "data" / "knowledge")
+    library = PromptLibrary(REPO_ROOT / "data" / "prompts", REPO_ROOT / "data" / "knowledge")
     system = library.interviewer_system()
     assert "{{profile_condensed}}" not in system
     assert "AI Automation Engineer" in system  # profile really injected
@@ -55,9 +55,8 @@ def test_pace_templates_exist_and_survive_the_contract() -> None:
     путь изменится, а слова окажутся запрещёнными, Генри просто ОНЕМЕЕТ на
     просьбе о темпе, и ни один другой тест этого не покажет.
     """
-    repo_root = Path(__file__).resolve().parents[2]
-    contracts_dir = repo_root / "data" / "contracts"
-    library = PromptLibrary(repo_root / "data" / "prompts", repo_root / "data" / "knowledge")
+    contracts_dir = REPO_ROOT / "data" / "contracts"
+    library = PromptLibrary(REPO_ROOT / "data" / "prompts", REPO_ROOT / "data" / "knowledge")
     spec = load_contract(contracts_dir / "interview.contract.yaml")
     enforcer = ContractEnforcer(spec)
 

@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from app.config import REPO_ROOT
 from app.main import create_app
 from app.orchestrator.talk import TalkOrchestrator, load_script
 from app.voice.talk_flow import WINDOW_MAX, WINDOW_STEP, TalkFlow
@@ -24,7 +25,7 @@ from tests.helpers import (
     send_utterance,
 )
 
-SCRIPT = load_script(Path(__file__).resolve().parents[2] / "data" / "talk" / "talk.yaml")
+SCRIPT = load_script(REPO_ROOT / "data" / "talk" / "talk.yaml")
 OPENERS = {opener for openers in SCRIPT.topics.values() for opener in openers}
 REPLY = ["That sounds fun! ", "What did you train today? "]
 
