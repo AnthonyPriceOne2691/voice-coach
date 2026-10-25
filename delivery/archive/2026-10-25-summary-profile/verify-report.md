@@ -4,7 +4,7 @@
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-a98e3306c368a0d23`, ветка `fix/summary-profile`)
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (класс S — правило §3.1d уровня 3 для M/L; все 18 новых утверждений ведут к примерам U1–U5 mini-spec, дайджест ниже)
-**CI run:** _заполняется после push_
+**CI run:** PR #51, коммит `5396c57` (весь код поставки, слияние с `main` `84783b6` и архив): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40221473420 — **success**, по логу «356 passed», покрытие 96.18%, «OK: all files <= 500 LOC», mypy «Success: no issues found in 59 source files»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40221473410 — **success**: мутационный шаг «убито 64 из 78 (82%), выжило 14» по `app.knowledge.prompts.*` (на linux умирают мутанты, эквивалентные на macOS), diff-coverage `app/knowledge/prompts.py` 100.0, `okf_sync_gate: OK (5 mapped concepts, 0 warning(s))`, `okf_validate: 0 error(s)`, smoke пройден, `stack_selftest … 0 failure(s)`, доктор `DEAD 0`. ⚠ Джоба `delivery` в CI архивированную поставку НЕ судила: при пустом `active/` шаг зовёт `delivery_check.py` без `--diff-base` и печатает «idle … 0 error(s), 1 warning(s)»; с базой её судил pre-push (`delivery phase gate + breakers (pre-push) … Passed`) и локальный прогон — 0 ошибок (ниже)
 **Commit:** репро `0e6d540`, починка `ce0108e`, канон и доки `ef6a20c`, слияние с `main` `84783b6` — `c45c9db`, корень репозитория в тестах из `app.config` — `959198e`, U3 строкой целиком — `4954127`; ветка начата от `main` `5d7d7b7`
 
 ## Оракулы mini-spec
@@ -205,7 +205,7 @@ asserts_without_example: 0
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | no |
 | implement_retries | 2 — тесты взяли `REPO_ROOT` из `app.config` после слияния с `main` (сторож M15 пришёл с mutation-gate) и U3 сверяет заглушку строкой после выжившего мутанта; код починки — с первого раза |
-| verify_fails_before_green | 0 — локальные гейты verify зелёные с первого прогона и после слияния; прогоны CI ветки — в шапке |
+| verify_fails_before_green | 0 — локальные гейты verify зелёные с первого прогона и после слияния; CI ветки зелёный с первого прогона (`CI` 40221473420, `quality` 40221473410) |
 | est_token_or_cost | n/a — модель не запускалась; прогоны CI на публичном репозитории |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
