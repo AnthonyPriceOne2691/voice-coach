@@ -4,12 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import ContractError, load_contract
 from app.orchestrator.question_bank import load_bank
 
-CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "data" / "contracts"
-QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "data" / "questions"
+CONTRACTS_DIR = REPO_ROOT / "data" / "contracts"
+QUESTIONS_DIR = REPO_ROOT / "data" / "questions"
 
 
 @pytest.fixture(scope="module")
