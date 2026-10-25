@@ -12,5 +12,5 @@
 - [x] T6 — слой `memory` в `backend/.importlinter`.
 - [x] T7 — доки: doc 13, концепт `knowledge/ops/talk-memory.md`, `orchestrator-owns-structure`,
   `knowledge/index.md`, `knowledge/log.md`, `delivery/rule_enforcers.md`.
-- [ ] T8 — мутации, verify-report, handoff, PR и зелёные `CI`/`quality`. Уроки этой
+- [x] T8 — мутации, verify-report, handoff, PR и зелёные `CI`/`quality`. Уроки этой
   поставки, записанные на handoff, — L105, L106, L107 (`delivery/archive/INDEX.md`).

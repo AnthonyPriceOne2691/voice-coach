@@ -4,7 +4,7 @@
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-a4f54d21e471ed425`, ветка `feat/memory-guard`)
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (все 31 новое утверждение ведут к подписанным примерам K2, K3, K4, K10, K11, K12 — дайджест ниже; спека подписана human:anthony 2026-10-23, `human_ok_spec: yes`)
-**CI run:** вписывается после первого прогона PR — см. ниже «Прогоны CI»
+**CI run:** PR #50, коммит `a2e996d` (весь код поставки и handoff): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40220784235 — **success**, по логу «404 passed», покрытие 96.47%, стражи канона «пул: взято 703, не вернулось 0 · утечек 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40220784224 — **success**: `delivery_check: 0 error(s), 1 warning(s)`, `okf_sync_gate: OK`, мутационный гейт «убито 399 из 470 (84%)», доктор `DEAD 0`
 **Commit:** спека `ef322c7`, код `a3b660c`, корень репозитория в тестах `30d2b3a`; слияния с `main` — `de7bb73` (deps-refresh `8d344d4`), `a71e483` (talk-check-wiring `5d7d7b7`, talk-notes-rest `a97a621`), `e106fc0` (mutation-gate `84783b6`)
 
 Все замеры ниже — с дерева после третьего слияния с `main` (`e106fc0` + `30d2b3a`),
@@ -118,13 +118,22 @@ macOS, load average 2–6 во время прогонов; мутации MG1�
 
 ## Прогоны CI
 
-Заполняется после push: ссылки на `CI` и `quality` и их итоги по логу.
+Оба прогона — PR #50, событие `pull_request`, коммит `a2e996d`; итоги — по логу.
+
+| Workflow | Прогон | Итог по логу |
+|---|---|---|
+| `CI` | https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40220784235 | **success** — ruff и mypy зелёные; «404 passed in 12.39s», «Total coverage: 96.47%»; стражи канона: «записей прочитано 24531 · текстов под меткой 1 (canary_text в 4 тест(ах)) · пул: взято 703, не вернулось 0 · утечек 0» |
+| `quality` | https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40220784224 | **success** — `delivery_check: 0 error(s), 1 warning(s)`; `okf_sync_gate: OK (6 mapped concepts, 0 warning(s))`; `okf_validate: 0 error(s), 0 warning(s), files=14`; «smoke: all checks passed»; `stack_selftest: 121 block(s) checked … 0 failure(s)`; `jscpd: OK` — 77 файлов, clone-пар 0; `contour-doctor: AUTO 44 · WEAK 17 · ABSENT 0 · TOOL 3 · SKIP 4 · DEAD 0`; diff-coverage — `app/memory/*` 100%, `orchestrator/tips.py` 98.2%; мутационный гейт — «убито 399 из 470 (84%), выжило 71», `mutation: OK` |
+
+Локальный прогон мутаций давал 400 из 470 (85%): один мутант разошёлся между машинами — вердикт тот же. Шаг `Vulnerable dependencies` зелёный, но его последняя строка — ветка «не найдено ни одного поддерживаемого манифеста»: проверка манифестов смотрит в корень репозитория, а `pyproject.toml` и `package.json` лежат в `backend/` и `frontend/`, поэтому итоговых чисел шаг не печатает. К этой поставке не относится — передано ведущей сессии.
+
 
 ## Verdict
 
 **READY FOR HANDOFF** — оракулы K3–K8, K10, K12 (и части K2, K11) зелёные на настоящих
 данных, десять мутаций красные, машинные гейты зелёные по правилам delivery@2.07 ·
-cqg@2.74 · okf@1.21. Живых проверок у поставки нет: модель не зовётся.
+cqg@2.74 · okf@1.21 — локально и в `CI`/`quality` PR #50. Живых проверок у поставки
+нет: модель не зовётся.
 
 ## Assertion digest (ревью ожиданий, не кода)
 
@@ -184,7 +193,7 @@ asserts_without_example: 0
 | rework_after_done | 3 commit(s) after first phase: handoff |
 | harness_hardened | yes — backend/tests/test_memory_guard.py (новый оракул) |
 | implement_retries | 3 — ruff на первом прогоне (SIM905 на словаре служебных слов, RUF043 в `match=`); срез по предохранителю объёма: net 870 → 814 → 789 → 786; после #44 — корень репозитория в тесте (`parents[2]` → `REPO_ROOT`, net 787) |
-| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
+| verify_fails_before_green | 0 — первые прогоны `CI` и `quality` на PR #50 зелёные |
 | est_token_or_cost | n/a — модель не зовётся, живых прогонов нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
