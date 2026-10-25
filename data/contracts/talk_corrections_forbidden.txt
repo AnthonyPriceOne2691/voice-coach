@@ -1,0 +1,33 @@
+# Разговор (D3a.2, I3-H4): поправки речи — только от кода. Генри сам не поправляет
+# Антона и не объясняет грамматику: подсказку по заметке говорит код по шаблону, а
+# модель её не видит. Подстрока в нижнем регистре.
+#
+# Список узкий намеренно: здесь только ФОРМА поправки и урока. «grammar», «tense»,
+# «correct» — законные слова в разговоре об английском (тема `english` в банке), а
+# причина подсказки («past tense») идёт через этот же контракт и резаться не должна.
+
+# «Как сказать лучше» — форма поправки
+by the way, you could say
+you could also say
+you can also say
+a better way to say
+a more natural way to say
+more natural to say
+the correct way to say
+the right way to say
+instead of saying
+try saying
+you meant to say
+the correct form
+small correction
+quick correction
+little correction
+tiny correction
+
+# Урок грамматики — форма объяснения
+grammar tip
+language tip
+english tip
+the past tense of
+the past form of
+past participle
