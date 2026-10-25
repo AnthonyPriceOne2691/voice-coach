@@ -93,6 +93,16 @@ class StuckOnFinalWrite(InterviewRepository):
         await self._hold_connection()
 
 
+def _messages_of(caplog: pytest.LogCaptureFixture, logger_name: str) -> list[str]:
+    """Строки лога одного модуля — целиком, со счётчиком задач.
+
+    Целиком, а не подстрокой: строку гашения читает наблюдение `ws-disconnect-hang`
+    (L104), и мутационный гейт показал, что подстрока не замечает ни потерянного
+    счётчика (`%d` без аргумента остаётся буквой), ни обёртки текста.
+    """
+    return [r.getMessage() for r in caplog.records if r.name == logger_name]
+
+
 async def _seed_interview_and_review(container: Container) -> None:
     await container.db.create_all()
     await container.interviews.create("i1", interview_mode="m", persona="p")
@@ -128,8 +138,9 @@ async def test_shutdown_waits_until_a_cancelled_summary_returns_its_connection(
                 await stuck.holding.wait()  # разбор готов и встал на записи в базу
         leaks = ledger.leaks()
 
+    cancelled = ["shutdown: 1 summary task(s) cancelled by timeout"]
     assert leaks == []  # E1: к концу гашения соединение возвращено и закрыто
-    assert "summary task(s) cancelled by timeout" in caplog.text  # E1: отмена названа
+    assert _messages_of(caplog, "app.summary.service") == cancelled  # E1: названа и сосчитана
 
 
 async def test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it(
@@ -158,5 +169,6 @@ async def test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it(
         leaks = ledger.leaks()
 
     assert ws.sent[0]["type"] == "session_started"  # E2: сессия была, уборке было что писать
+    cancelling = ["shutdown: 1 ws cleanup(s) did not finish in time — cancelling"]
     assert leaks == []  # E2: к концу гашения соединение возвращено и закрыто
-    assert "ws cleanup(s) did not finish in time" in caplog.text  # E2: срок назван в логе
+    assert _messages_of(caplog, "app.main") == cancelling  # E2: срок, отмена и счёт в логе
