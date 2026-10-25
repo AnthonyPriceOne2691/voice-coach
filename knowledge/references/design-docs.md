@@ -29,6 +29,7 @@ implementation: []
 | `04-interview-orchestrator`, `11-two-modes` | [orchestrator-owns-structure](../engineering/orchestrator-owns-structure.md) |
 | `03-voice-pipeline`, `15-api-websocket-spec` | [echo-protection](../engineering/echo-protection.md) |
 | `12-session-storage`, `18-engineering-standards` | [transcript-durability](../ops/transcript-durability.md) |
+| `13-behavioral-contracts` (память D3b) | [talk-memory](../ops/talk-memory.md) |
 
 # Not yet covered by concepts
 
