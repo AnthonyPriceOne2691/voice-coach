@@ -454,7 +454,9 @@ async def test_summary_without_profile_file_says_so(
     """Нет файла профиля — заглушка, как у промптов интервью, а не голый плейсхолдер."""
     messages = await _summary_call(pass_name, _knowledge(tmp_path, None), db)
 
-    assert NO_PROFILE in messages[0]["content"]  # U3
+    # Строкой целиком, как стоит плейсхолдер в файле: подстрока пропускала
+    # заглушку с любым обрамлением (мутант `XX(no candidate…)XX` выживал).
+    assert NO_PROFILE in messages[0]["content"].splitlines()  # U3
     assert all(PROFILE_PLACEHOLDER not in m["content"] for m in messages)  # U3
 
 
