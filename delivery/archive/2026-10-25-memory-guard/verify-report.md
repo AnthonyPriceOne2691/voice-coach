@@ -5,11 +5,16 @@
 **Verifier:** human:anthony
 **asserts_reviewed_by:** n/a (все 31 новое утверждение ведут к подписанным примерам K2, K3, K4, K10, K11, K12 — дайджест ниже; спека подписана human:anthony 2026-10-23, `human_ok_spec: yes`)
 **CI run:** вписывается после первого прогона PR — см. ниже «Прогоны CI»
-**Commit:** спека `ef322c7`, код `a3b660c`, слияния с `main` — `de7bb73` (deps-refresh `8d344d4`) и `a71e483` (talk-check-wiring `5d7d7b7`, talk-notes-rest `a97a621`)
+**Commit:** спека `ef322c7`, код `a3b660c`, корень репозитория в тестах `30d2b3a`; слияния с `main` — `de7bb73` (deps-refresh `8d344d4`), `a71e483` (talk-check-wiring `5d7d7b7`, talk-notes-rest `a97a621`), `e106fc0` (mutation-gate `84783b6`)
 
-Все замеры ниже — с дерева после второго слияния с `main` (`a71e483`), macOS, load
-average 2–6 во время прогонов. Модель, Ollama, браузерный стенд не запускались: в этой
-поставке модель не зовётся.
+Все замеры ниже — с дерева после третьего слияния с `main` (`e106fc0` + `30d2b3a`),
+macOS, load average 2–6 во время прогонов; мутации MG1–MG10 сняты дважды — на `a71e483`
+и на итоговом дереве, счёт одинаковый. Модель, Ollama, браузерный стенд не запускались:
+в этой поставке модель не зовётся.
+
+С `main` пришёл мутационный гейт (#44) и с ним сторож `test_repo_root.py`: корень в
+тестах — только `app.config.REPO_ROOT`. `test_memory_guard.py` считал его `parents[2]` —
+переведён на `REPO_ROOT` (`30d2b3a`).
 
 ## Оракулы спеки
 
@@ -45,14 +50,15 @@ average 2–6 во время прогонов. Модель, Ollama, брауз
 
 | Гейт | Результат |
 |---|---|
-| `uv run pytest` | **PASS** — 388 passed, покрытие 96.26%; `app/memory/` — 100%; новых тестов 55 (53 в `test_memory_guard.py`, 2 случая сторожа маркеров); стражи канона: «записей прочитано 24259 · текстов под меткой 1 (canary_text в 4 тест(ах)) · пул: взято 698, не вернулось 0 · утечек 0» |
+| `uv run pytest` | **PASS** — 404 passed, покрытие 96.47%; `app/memory/` — 100%; новых тестов 55 (53 в `test_memory_guard.py`, 2 случая сторожа маркеров); стражи канона: «записей прочитано 24531 · текстов под меткой 1 (canary_text в 4 тест(ах)) · пул: взято 703, не вернулось 0 · утечек 0» |
+| мутационный гейт `check_mutation_gate.sh` (параметры CI: `MIN_KILLED=60`, `BUDGET_SEC=900`) | **PASS** — 4 файла (`app/memory/*`, `orchestrator/tips.py`), убито 400 из 470 (85%), выжило 70 |
 | `uv run mypy app` | **PASS** — strict, 62 файла |
 | `ruff check` / `ruff format --check` | **PASS** |
 | `lint-imports` | **PASS** — 3 kept, 0 broken (новый слой `memory`) |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — 28 хуков Passed, exit 0 (jscpd — ратчет не вырос) |
 | `okf_sync_gate.py --base origin/main` | **PASS** — OK, 6 mapped concepts |
 | `okf_validate.py` | **PASS** — 0 errors, 0 warnings, files=14 |
-| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 10 файлов кода, net +786 (+809/−23) при 800 |
+| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 10 файлов кода, net +787 (+810/−23) при 800 |
 | `delivery/evals/smoke/run.sh` | **PASS** — S1–S6 ok, S7 пропущен (сервер не поднят) |
 
 ### Оставшиеся предупреждения
@@ -61,7 +67,7 @@ average 2–6 во время прогонов. Модель, Ollama, брауз
   тестах — они принадлежат поставкам memory-write и memory-recall.
 - Реляционный оракул (§6.5) — тест-зависимость для свойств не добавляется (решение
   человека 2026-08-12, решение 12); инварианты идут перебором с зерном 20261025.
-- Предохранитель: net 786 при 800. Первая собранная версия была выше предела —
+- Предохранитель: net 787 при 800. Первая собранная версия была выше предела —
   срезано без waiver: таблицы случаев переписаны строками, дублирующий тест снят,
   повторы прозы в docstring и YAML убраны (урок L105).
 
@@ -172,12 +178,12 @@ asserts_without_example: 0
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 10 code (+13 process docs) / +809/-23 (net +786) |
-| commits | 4 |
+| files_touched / loc_diff | 10 code (+14 process docs) / +810/-23 (net +787) |
+| commits | 7 |
 | time_to_accepted_spec | 0.0h |
-| rework_after_done | 0 (handoff not declared yet) |
+| rework_after_done | 3 commit(s) after first phase: handoff |
 | harness_hardened | yes — backend/tests/test_memory_guard.py (новый оракул) |
-| implement_retries | 2 — ruff на первом прогоне (SIM905 на словаре служебных слов, RUF043 в `match=`); срез по предохранителю объёма в три прохода: net 870 → 814 → 789 → 786 |
+| implement_retries | 3 — ruff на первом прогоне (SIM905 на словаре служебных слов, RUF043 в `match=`); срез по предохранителю объёма: net 870 → 814 → 789 → 786; после #44 — корень репозитория в тесте (`parents[2]` → `REPO_ROOT`, net 787) |
 | verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
 | est_token_or_cost | n/a — модель не зовётся, живых прогонов нет |
 
