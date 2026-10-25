@@ -15,6 +15,7 @@ from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 from app.orchestrator.talk import load_script
+from app.voice.prosody import MAX_LEAD_IN_S, lead_in
 from app.voice.talk_tips import PlaybackClock, TalkTips, Tip, tip_line
 from tests.fakes import FAKE_TTS_RATE, fake_wav
 
@@ -81,6 +82,12 @@ def test_playback_ends_where_the_client_queue_ends() -> None:
     now = 20.0
     clock.sent(fake_wav(FAKE_TTS_RATE // 10), final=False)
     assert clock.ends_at == pytest.approx(20.1)
+
+
+def test_breath_longer_than_a_few_seconds_is_a_setting_error() -> None:
+    """Дыхание перед подсказкой — доли секунды; минуты тишины — ошибка, а не гигабайты нулей."""
+    with pytest.raises(ValueError, match="sentence_pause_ms"):
+        lead_in(fake_wav(FAKE_TTS_RATE // 10), MAX_LEAD_IN_S * 1000)
 
 
 class _Checks:

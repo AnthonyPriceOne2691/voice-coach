@@ -33,7 +33,10 @@ talk-check-wiring) и REST заметок (talk-notes-rest) уже в `main`: з
    разговоре об английском (тема `english` есть в банке). Загрузчик читал один
    `patterns_file` на контракт, и второе правило проверяло бы чужой список — починка
    72a2f7b (cherry-pick) получает тест на два правила в одном контракте.
-6. **Место в `ws_voice.py`** (490 строк при потолке 500): мёртвый
+6. **Граница паузы.** `lead_in` (`voice/prosody.py`) отвергает паузу дольше 5 s:
+   мутант `sentence_pause_ms * 1000` собирал 15 GB тишины, и раннер CI на 16 GB снимал
+   шаг мутаций SIGTERM (найдено по ходу verify, ветка-замер PR #55).
+7. **Место в `ws_voice.py`** (490 строк при потолке 500): мёртвый
    `QUESTIONS_PER_SESSION` удалён, `PACE_SETTING` голоса и шаблоны подтверждения темпа —
    в `orchestrator/pace.py` (REST держит своё имя — decisions); логика подсказки — в новом
    `voice/talk_tips.py`, ожидание с дедлайном — `TalkChecks.note_by`. В `ws_voice.py`
