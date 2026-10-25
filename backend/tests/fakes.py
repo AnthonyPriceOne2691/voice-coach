@@ -141,13 +141,17 @@ class RoutingLlm:
 
     Проверку узнаём по схеме ответа: её зовут с `json_schema`, реплику — без.
     `checks` — ответы проверки по порядку (последний повторяется); `None` — проверка
-    ЗАВИСАЕТ, пока её не отменят (C8). `check_done` ставится, когда ответ проверки
-    отдан целиком: тест ждёт его, а не гадает про планировщик.
+    ЗАВИСАЕТ, пока её не отменят (C8). `check_delay_s` — ответ проверки приходит через
+    столько секунд: успевает ли она к сроку подсказки (C17). `check_done` ставится,
+    когда ответ проверки отдан целиком: тест ждёт его, а не гадает про планировщик.
     """
 
-    def __init__(self, reply: list[str], checks: list[str | None]) -> None:
+    def __init__(
+        self, reply: list[str], checks: list[str | None], *, check_delay_s: float = 0.0
+    ) -> None:
         self.reply = reply
         self.checks = checks
+        self.check_delay_s = check_delay_s
         self.calls: list[tuple[list[ChatMessage], dict[str, Any] | None]] = []
         self.check_calls: list[list[ChatMessage]] = []
         self.check_done = threading.Event()
@@ -171,6 +175,8 @@ class RoutingLlm:
         answer = self.checks[min(len(self.check_calls) - 1, len(self.checks) - 1)]
         if answer is None:
             await asyncio.Event().wait()  # висит до отмены
+        if self.check_delay_s:
+            await asyncio.sleep(self.check_delay_s)
         yield str(answer)
         self.check_done.set()
 

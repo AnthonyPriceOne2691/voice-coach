@@ -12,7 +12,7 @@ import random
 import re
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -43,6 +43,9 @@ REQUIRED_LINES = (
     "keep_english",
     "fallback",
 )
+
+#: Шаблоны подсказки вслух (D3a.2, talk-tips) и поля заметки, которые в них стоят.
+REQUIRED_TIPS = {"with_reason": ("{better}", "{why}"), "without_reason": ("{better}",)}
 
 
 class TalkState(StrEnum):
@@ -104,16 +107,24 @@ class TalkScript:
 
     lines: dict[str, str]
     topics: dict[str, tuple[str, ...]]
+    #: Подсказка по заметке к речи (D3a.2): говорит код, модель её не видит.
+    tips: dict[str, str] = field(default_factory=dict)
 
 
 def load_script(path: Path) -> TalkScript:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     lines = {str(k): str(v) for k, v in (data.get("lines") or {}).items()}
     topics = {str(k): tuple(map(str, v or ())) for k, v in (data.get("topics") or {}).items()}
+    tips = {str(k): str(v) for k, v in (data.get("tips") or {}).items()}
     missing = [name for name in REQUIRED_LINES if not lines.get(name)]
+    missing += [
+        f"tips.{name}"
+        for name, fields in REQUIRED_TIPS.items()
+        if not all(f in tips.get(name, "") for f in fields)
+    ]
     if missing or not topics or not all(topics.values()):
-        raise ValueError(f"{path}: talk script incomplete — lines missing {missing}")
-    return TalkScript(lines=lines, topics=topics)
+        raise ValueError(f"{path}: talk script incomplete — missing {missing}")
+    return TalkScript(lines=lines, topics=topics, tips=tips)
 
 
 @dataclass(frozen=True)

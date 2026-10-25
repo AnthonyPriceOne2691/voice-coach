@@ -5,6 +5,7 @@ from typing import Any
 from app.common.interfaces import ChatMessage
 from app.orchestrator.talk import TalkOrchestrator, TalkPlan
 from app.storage.repositories.talks import TalkRepository
+from app.storage.turns import TIP_STATE
 from app.voice.session_flow import SessionFlow
 
 #: Окно истории: модель видит системный промпт и не больше WINDOW_MAX последних
@@ -82,6 +83,16 @@ class TalkFlow(SessionFlow[TalkRepository]):
     def messages(self) -> list[ChatMessage]:
         window = self._history[window_start(len(self._history)) :]
         return [{"role": "system", "content": self._system}, *window]
+
+    async def on_tip(self, line: str, note: dict[str, Any]) -> None:
+        """Подсказка прозвучала (D3a.2): она в транскрипте и в списке, но не в истории модели.
+
+        Модель подсказку не видит (инвариант 4): иначе училась бы поправлять сама, а
+        поправки — работа кода (I3-H4). Префикс следующего хода от этого не меняется.
+        """
+        self.buffer.append("agent", line, state=TIP_STATE)
+        note["spoken"] = True
+        await self._checkpoint()
 
     def add_note(self, note: dict[str, Any]) -> None:
         """Заметка — только в память потока; в базу её несёт следующий чекпойнт.

@@ -1,6 +1,8 @@
-"""Фоновая проверка речи (D3a.2): сбой проверки — не сбой разговора."""
+"""Фоновая проверка речи (D3a.2): сбой проверки — не сбой разговора, срок — не отмена."""
 
+import json
 import random
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -12,6 +14,10 @@ from app.llm.ollama_client import OllamaError
 from app.orchestrator.talk import TalkOrchestrator, load_script
 from app.voice.talk_checks import TalkChecks
 from app.voice.talk_flow import TalkFlow
+from tests.fakes import RoutingLlm
+
+SAID = "Yesterday I go to the office."
+NOTE = json.dumps({"kind": "error", "said": "I go", "better": "I went", "why": "past tense"})
 
 
 class NullRepo:
@@ -82,3 +88,33 @@ async def test_request_answered_by_code_starts_no_check() -> None:
     checks.start(flow)
     await checks.finished()
     assert flow.check_counts["run"] == 0
+
+
+async def test_note_by_hands_over_the_note_of_a_check_that_ends_in_time() -> None:
+    """C14: проверка кончилась к сроку — её заметка, тот же объект, что в списке, — к подсказке."""
+    flow = await _flow_after(SAID)
+    checks = _checks(RoutingLlm([], [NOTE], check_delay_s=0.01))
+    checks.start(flow)
+    note = await checks.note_by(time.monotonic() + 5)
+    assert note is not None and note is flow.language_notes[0]
+
+
+async def test_late_check_gives_no_tip_but_is_not_cancelled_and_lands_in_the_list() -> None:
+    """C17: срок прошёл — пусто, без ожидания сверх срока; проверка жива, заметка — в списке."""
+    flow = await _flow_after(SAID)
+    checks = _checks(RoutingLlm([], [NOTE], check_delay_s=0.2))
+    checks.start(flow)
+    started = time.monotonic()
+    assert await checks.note_by(started + 0.02) is None
+    assert time.monotonic() - started < 0.15
+    await checks.finished()
+    assert [note["spoken"] for note in flow.language_notes] == [False]
+    assert flow.check_counts["cancelled"] == 0
+
+
+async def test_no_check_means_no_tip() -> None:
+    """C15: просьбу отвечает код — проверки нет, и подсказке ждать нечего."""
+    flow = await _flow_after("Can we talk about something else?")
+    checks = _checks(BrokenLlm(OllamaError("must not be called")))
+    checks.start(flow)
+    assert await checks.note_by(time.monotonic() + 5) is None
