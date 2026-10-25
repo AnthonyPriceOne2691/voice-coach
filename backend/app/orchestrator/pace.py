@@ -8,6 +8,9 @@ the model is never asked to classify, because classification is structure.
 import re
 from enum import StrEnum
 
+#: Настройка, в которой живёт темп речи между сессиями (doc 15).
+PACE_SETTING = "speech_length_scale"
+
 #: Одна просьба = одна ступень. Пять ступеней от заметно быстрее до заметно
 #: медленнее; подтверждено человеком 2026-08-12 вместе со спекой.
 PACE_STEP = 0.15
@@ -78,6 +81,22 @@ def detect(text: str, *, casual: bool = False) -> PaceRequest | None:
         if pattern.search(lowered):
             return request
     return None
+
+
+#: Какую реплику подтверждения произнести. Ключ — (просьба, уже на границе):
+#: на границе Генри обязан сказать, что дальше некуда, иначе «Sure» прозвучит
+#: обещанием изменения, которого не будет.
+_ACK_TEMPLATES = {
+    (PaceRequest.SLOWER, False): "pace_slower",
+    (PaceRequest.SLOWER, True): "pace_slowest",
+    (PaceRequest.FASTER, False): "pace_faster",
+    (PaceRequest.FASTER, True): "pace_fastest",
+}
+
+
+def ack_template(request: PaceRequest, *, at_limit: bool) -> str:
+    """Имя шаблона подтверждения из `data/prompts/templates/` для этой просьбы."""
+    return _ACK_TEMPLATES[request, at_limit]
 
 
 def apply(current: float, request: PaceRequest) -> tuple[float, bool]:

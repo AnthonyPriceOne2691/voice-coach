@@ -28,6 +28,13 @@ invariants:
     - id: I3-H3_friend_mentor_role
       check: mode_persona     # декларативная: персона — в системном промпте, проверки нет
       persona: friend_mentor
+    # Поправки речи — только от кода (D3a.2, talk-tips): Генри сам не поправляет
+    # Антона и не объясняет грамматику. Подсказку по заметке говорит код по шаблону
+    # (data/talk/talk.yaml, `tips:`), и модель её не видит. Держит енфорсер до
+    # озвучки (L24); список свой — у каждого forbid_patterns свой файл.
+    - id: I3-H4_no_corrections
+      check: forbid_patterns
+      patterns_file: talk_corrections_forbidden.txt
   # I3-S1 (теплота, один вопрос в ответ) — prompt-level, advisory: машиной не
   # проверить. Живёт в data/prompts/talk_system.txt.
 

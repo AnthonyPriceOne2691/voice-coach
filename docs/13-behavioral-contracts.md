@@ -215,6 +215,7 @@ thanks, thank you, clear, alright
 | I3-H1 | English only | `no_cyrillic`, на каждом предложении |
 | I3-H2 | Никаких оценок: ни балла, ни уровня, ни рубрики | `forbid_patterns` + `talk_forbidden.txt`; список узкий — «score» в разговоре о матче законен, похвала — не оценка |
 | I3-H3 | Роль — друг-наставник | декларативно (`mode_persona`) |
+| I3-H4 | Поправки речи — только от кода (D3a.2): Генри сам не поправляет и не объясняет грамматику | `forbid_patterns` + `talk_corrections_forbidden.txt` — форма поправки и урока; «grammar», «tense» в беседе законны, перефраз мимо списка не ловится |
 | G3-H1 / G3-H2 | ≤ 4 предложений, ≤ 450 символов | `max_sentences`, `max_chars_cumulative` |
 | G3-H3 | Тема, прощание, конец по времени — решения кода | `orchestrator/talk.py`, не текстовая проверка |
 | G3-H4 | Заметка к речи (D3a.2): фрагмент дословно в распознанном, вариант меняет слова, английский и проходит этот контракт, повтор в разговоре — не заметка; причина до пяти слов | `orchestrator/tips.py` — решение кода о кандидате модели; модель только предлагает |
@@ -223,6 +224,12 @@ thanks, thank you, clear, alright
 (оценка, другой язык, смена темы, прощание) узнаются **по форме** до модели и
 отвечаются репликами из `data/talk/talk.yaml`; эти реплики звучат мимо
 енфорсера, поэтому каждая проверяется тестом на этот контракт.
+
+Подсказку вслух после ответа (D3a.2, talk-tips) говорит код по шаблону `tips:` из
+того же `talk.yaml`: она проходит этот контракт целиком, кроме I3-H4, — и именно
+I3-H4 не дал бы сказать её модели. У каждого правила `forbid_patterns` свой
+`patterns_file` (до 2026-10-25 загрузчик читал один на контракт, и второе правило
+проверяло чужой список).
 
 ---
 
@@ -366,6 +373,7 @@ voice-interview-coach/
         ├── summary.contract.yaml       # JSON-passes (schema validation)
         ├── talk.contract.yaml          # разговор (D3a)
         ├── talk_forbidden.txt          # оценки в разговоре (I3-H2)
+        ├── talk_corrections_forbidden.txt  # поправки речи — только от кода (I3-H4)
         ├── memory.contract.yaml        # память разговора (D3b), не голосовой
         ├── memory_never_store.txt      # чего память не хранит никогда (M-H4)
         ├── interview_forbidden.txt     # coaching/debrief паттерны
@@ -524,3 +532,4 @@ Post-MVP: rolling window on ack/question ratio, coaching pattern frequency.
 | 2026-10-17 | Talk (D3a): `talk.contract.yaml` — I3-H1..H3, G3-H1..H3; просьбы к Генри — по форме, до модели |
 | 2026-10-25 | Память (D3b, memory-guard): `memory.contract.yaml` — M-H1..M-H7 и список `memory_never_store.txt`; исполнитель — `backend/app/memory/` |
 | 2026-10-25 | contract-keys: что из YAML исполняется — сторож `test_contract_keys.py`; дрейф-детекция, журнал событий нарушений и `recovery_success_rate` названы нереализованными; таблица recovery — одной лестницей `turn_runner.py` |
+| 2026-10-25 | Talk (D3a.2, talk-tips): I3-H4 — поправки речи только от кода, свой список; запрещённые фразы — по правилу, а не одним списком на контракт |

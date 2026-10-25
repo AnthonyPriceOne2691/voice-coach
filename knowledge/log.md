@@ -1,5 +1,16 @@
 # Knowledge Bundle Update Log
 
+## 2026-10-25 — подсказка вслух (talk-tips, D3a.2)
+
+* **Sentence streaming**: подсказка — ещё один чанк той же реплики до `final`; срок —
+  конец звука ответа у клиента (`PlaybackClock`) + 1.5 s; не успела — подсказки нет,
+  проверка не снимается. `implementation:` дополнен `talk_tips.py`.
+* **Orchestrator owns structure**: подсказку говорит код по шаблону `data/talk/talk.yaml`
+  (`tips:`), поправки модели режет I3-H4; настройка и шаблоны темпа — в `pace.py`.
+* **Transcript durability**: реплика `state: TIP` в транскрипте, мимо истории модели;
+  `last_agent_text` её пропускает.
+* **Границы**: docs 12 (`TIP`, `spoken`), 13 (I3-H4), 15 (подсказка в ходе разговора).
+
 ## 2026-10-25 — сводка видит профиль кандидата (summary-profile)
 
 * **Model split (D-8)**: добавлено правило — **офлайн-разбор видит профиль кандидата**.

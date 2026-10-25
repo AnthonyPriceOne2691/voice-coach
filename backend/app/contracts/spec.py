@@ -56,8 +56,17 @@ class ContractSpec:
     enforcement: str
     rules: list[RuleSpec]
     max_retries: int
-    forbidden_patterns: list[str]
+    #: Запрещённые фразы ПО ПРАВИЛУ: у каждого `forbid_patterns` свой файл.
+    #: До 2026-10-23 список был один на контракт (из первого `patterns_file`), и
+    #: второе правило молча проверяло чужой список, а свой файл не читало вовсе —
+    #: нашла спека памяти D3b, починено в talk-tips вместе с правилом I3-H4.
+    patterns: dict[str, list[str]]
     ack_whitelist: list[str]
+
+    @property
+    def forbidden_patterns(self) -> list[str]:
+        """Все запрещённые фразы контракта — объединение по правилам."""
+        return [pattern for listed in self.patterns.values() for pattern in listed]
 
     def runtime_rules(self) -> list[RuleSpec]:
         return [r for r in self.rules if r.check in RUNTIME_CHECKS]
@@ -95,12 +104,12 @@ def load_contract(path: Path) -> ContractSpec:
         rules += _collect_rules(block.get("soft"), "soft")
 
     contracts_dir = path.parent
-    forbidden: list[str] = []
+    patterns: dict[str, list[str]] = {}
     ack_whitelist: list[str] = []
     for rule in rules:
         patterns_file = rule.params.get("patterns_file")
-        if patterns_file and not forbidden:
-            forbidden = _load_lines(contracts_dir / str(patterns_file))
+        if patterns_file:
+            patterns[rule.rule_id] = _load_lines(contracts_dir / str(patterns_file))
         ack_file = rule.params.get("ack_whitelist_file")
         if ack_file and not ack_whitelist:
             ack_whitelist = _load_lines(contracts_dir / str(ack_file))
@@ -111,6 +120,6 @@ def load_contract(path: Path) -> ContractSpec:
         enforcement=str(data.get("enforcement", "per_sentence")),
         rules=rules,
         max_retries=int(recovery.get("max_retries", 1)),
-        forbidden_patterns=forbidden,
+        patterns=patterns,
         ack_whitelist=ack_whitelist,
     )

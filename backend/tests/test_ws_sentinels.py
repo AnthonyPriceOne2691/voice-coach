@@ -26,7 +26,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from app.main import create_app
-from tests.fakes import FakeLlm, FakeStt
+from tests.fakes import FakeLlm, FakeStt, RoutingLlm
 from tests.helpers import (
     collect_until,
     drain_intro,
@@ -111,3 +111,22 @@ def test_rejected_utterance_keeps_its_raw_transcript_out_of_the_log(
     errors = [m["payload"] for m in turn if m["type"] == "error"]
     assert [e["code"] for e in errors] == ["STT_EMPTY"]
     assert _mark(canary_text) in errors[0]["message"]  # «heard: …» — человеку, не в лог
+
+
+def test_tip_built_from_the_users_words_stays_out_of_the_log(
+    tmp_path: Path, canary_text: str
+) -> None:
+    """C14: подсказка из слов Антона звучит и пишется в транскрипт, но в лог не уходит."""
+    mark = _mark(canary_text)
+    note = {"kind": "style", "said": mark, "better": f"the {mark}", "why": "more natural"}
+    llm = RoutingLlm(["Nice! "], [json.dumps(note)])
+    container = make_container(tmp_path, llm, FakeStt(canary_text))
+    with TestClient(create_app(container)) as client, client.websocket_connect("/ws/session") as ws:
+        ws.send_json({"type": "start_talk", "payload": {}})
+        drain_intro(ws)
+        send_utterance(ws)
+        turn = drain_until_listening(ws)
+        _end(ws)
+
+    henry = [m["payload"]["text"] for m in turn if m["type"] == "transcript"]
+    assert any(f"the {mark}" in line for line in henry), "метка не дошла до подсказки"

@@ -32,6 +32,7 @@ from app.voice.session_factory import (
     mode_params,
 )
 from app.voice.talk_flow import TalkFlow
+from app.voice.talk_tips import PlaybackClock, TalkTips
 from app.voice.transcribe import SttEmptyError, transcribe_utterance
 from app.voice.tts_paced import PacedTts
 from app.voice.turn_runner import AgentCompleted, AgentSentence, TurnRunner
@@ -39,22 +40,7 @@ from app.voice.warmup import warm_up
 
 logger = logging.getLogger(__name__)
 
-QUESTIONS_PER_SESSION = 6
-
 TERMINAL_STATES = {"DEBRIEF", "END"}
-
-#: Настройка, в которой живёт темп речи между сессиями (doc 15).
-PACE_SETTING = "speech_length_scale"
-
-#: Какую реплику подтверждения произнести. Ключ — (просьба, уже на границе):
-#: на границе Генри обязан сказать, что дальше некуда, иначе «Sure» прозвучит
-#: обещанием изменения, которого не будет.
-_PACE_TEMPLATES = {
-    (pace.PaceRequest.SLOWER, False): "pace_slower",
-    (pace.PaceRequest.SLOWER, True): "pace_slowest",
-    (pace.PaceRequest.FASTER, False): "pace_faster",
-    (pace.PaceRequest.FASTER, True): "pace_fastest",
-}
 
 VoiceFlow = InterviewFlow | ReviewFlow | TalkFlow
 
@@ -113,6 +99,8 @@ class _SessionHandler:
         self._spoken_chunks = 0
         self._runner = TurnRunner(container.llm, self._tts)
         self._checks = build_talk_checks(container)  # проверка речи в разговоре (D3a.2)
+        self._tips = TalkTips(self._checks, container.talk_script.tips)
+        self._playback = PlaybackClock()  # когда у клиента доиграет ответ — срок подсказки
 
     # -- dispatch --------------------------------------------------------------
 
@@ -173,7 +161,7 @@ class _SessionHandler:
 
     def _restore_pace(self, user_settings: dict[str, Any]) -> None:
         """Темп, о котором попросили в прошлый раз, — не значение по умолчанию."""
-        stored = user_settings.get(PACE_SETTING)
+        stored = user_settings.get(pace.PACE_SETTING)
         if isinstance(stored, int | float) and pace.in_range(float(stored)):
             self._tts.set_scale(float(stored))
 
@@ -327,9 +315,9 @@ class _SessionHandler:
         """
         new_scale, at_limit = pace.apply(self._tts.scale, request)
         self._tts.set_scale(new_scale)  # ДО синтеза: подтверждение звучит новым темпом
-        await self._c.user_settings.update({PACE_SETTING: new_scale})
+        await self._c.user_settings.update({pace.PACE_SETTING: new_scale})
 
-        ack = self._c.prompts.template(_PACE_TEMPLATES[request, at_limit])
+        ack = self._c.prompts.template(pace.ack_template(request, at_limit=at_limit))
         repeat = last_agent_text(flow.buffer)
         await self._speak_meta_turn(flow, text, [ack, repeat])
 
@@ -389,11 +377,20 @@ class _SessionHandler:
                 await flow.on_agent(
                     event.text, violations=event.violations, fallback_used=event.fallback_used
                 )
+                await self._transcript("agent", event.text)
                 if isinstance(flow, TalkFlow):
                     self._checks.start(flow)
-                await self._transcript("agent", event.text)
+                    await self._speak_tip(flow)
                 await self._send_audio(b"", final=True)
                 await self._state("listening")
+
+    async def _speak_tip(self, flow: TalkFlow) -> None:
+        """Подсказка после ответа по сути (D3a.2): код по шаблону, мимо истории модели."""
+        tip = await self._tips.after_reply(audio_ends_at=self._playback.ends_at)
+        if tip is not None:
+            await self._send_audio(await self._tts.synthesize(tip.line), final=False)
+            await flow.on_tip(tip.line, tip.note)
+            await self._transcript("agent", tip.line)
 
     # -- session end ---------------------------------------------------------------
 
@@ -477,6 +474,7 @@ class _SessionHandler:
         if wav and self._spoken_chunks:
             wav = lead_in(wav, self._c.settings.sentence_pause_ms / 1000)
         self._spoken_chunks = 0 if final else self._spoken_chunks + 1
+        self._playback.sent(wav, final=final)
         await self._send(
             "audio",
             {

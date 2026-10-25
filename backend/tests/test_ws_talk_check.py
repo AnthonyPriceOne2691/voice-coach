@@ -6,13 +6,16 @@
 """
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
+import pytest
 from starlette.testclient import TestClient
 
 from app.main import create_app
 from app.orchestrator.tips import CANDIDATE_SCHEMA
+from app.voice import talk_tips
 from tests.fakes import FakeStt, RoutingLlm
 from tests.helpers import drain_until_listening, fetch_talk, make_container, send_utterance
 
@@ -27,6 +30,16 @@ C2_CHECK = json.dumps(
     }
 )
 NONE_CHECK = json.dumps({"kind": "none", "said": "", "better": "", "why": ""})
+
+
+@pytest.fixture(autouse=True)
+def _tip_window_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Здесь судится проверка и её отмена, а не подсказка вслух (её — test_ws_talk_tips).
+
+    С открытым окном ход с висящей проверкой ждал бы конец звука + 1.5 s, и каждый
+    тест отмены платил бы эти секунды — в том числе за каждого мутанта `ws_voice.py`.
+    """
+    monkeypatch.setattr(talk_tips, "TIP_GRACE_S", -math.inf)
 
 
 def _until_turn_end(ws: Any) -> list[dict[str, Any]]:
@@ -73,13 +86,12 @@ def test_error_is_noted_after_the_reply_with_the_recognized_fragment(tmp_path: P
     llm = RoutingLlm(REPLY, [C2_CHECK])
     metadata, talk = _converse(tmp_path, llm, [C2_SAID])
     notes = metadata["language_notes"]
-    assert [(n["kind"], n["said"], n["better"], n["why"], n["spoken"]) for n in notes] == [
+    assert [(n["kind"], n["said"], n["better"], n["why"]) for n in notes] == [  # C2
         (
             "error",
             "I go to the office and meet my client",
             "I went to the office and met my client",
             "past tense",
-            False,
         )
     ]
     transcript = json.loads(talk.transcript_json)

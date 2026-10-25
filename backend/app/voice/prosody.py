@@ -13,6 +13,11 @@
 import io
 import wave
 
+#: Дыхание — доли секунды (`sentence_pause_ms` = 350). Дольше — ошибка настройки, а
+#: не тишина: нули ложатся прямо в память, и 350 000 s (мутант `* 1000` вместо
+#: `/ 1000`) дали 15 GB — раннер CI на 16 GB снял шаг мутаций SIGTERM (2026-10-25).
+MAX_LEAD_IN_S = 5.0
+
 
 def lead_in(wav: bytes, seconds: float) -> bytes:
     """Return the same WAV with `seconds` of silence prepended.
@@ -22,6 +27,10 @@ def lead_in(wav: bytes, seconds: float) -> bytes:
     """
     if seconds <= 0:
         return wav
+    if seconds > MAX_LEAD_IN_S:
+        raise ValueError(
+            f"lead-in {seconds:g} s exceeds {MAX_LEAD_IN_S:g} s: check sentence_pause_ms"
+        )
     with wave.open(io.BytesIO(wav)) as source:
         params = source.getparams()
         frames = source.readframes(source.getnframes())

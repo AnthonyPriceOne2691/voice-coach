@@ -84,7 +84,7 @@ class TurnEnforcer:
 
     def _forbid_patterns(self, rule: RuleSpec, sentence: str, index: int) -> Violation | None:
         lowered = sentence.lower()
-        for pattern in self.spec.forbidden_patterns:
+        for pattern in self.spec.patterns.get(rule.rule_id, []):
             if pattern in lowered:
                 return self._violation(rule, index, pattern)
         return None

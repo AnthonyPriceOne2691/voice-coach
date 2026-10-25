@@ -87,7 +87,7 @@ History и суммаризация читают ту таблицу как ин
 | id | UUID | PK |
 | started_at / ended_at / created_at | ISO8601 | |
 | persona | TEXT | `friend_mentor` |
-| transcript_json | TEXT | turns; `state` — `INTRO` \| `CHAT` \| `TOPIC` \| `REQUEST` \| `GOODBYE` (чем оказалась реплика), `question_id` — `null` |
+| transcript_json | TEXT | turns; `state` — `INTRO` \| `CHAT` \| `TOPIC` \| `REQUEST` \| `GOODBYE` (чем оказалась реплика) \| `TIP` (подсказка вслух, её сказал код), `question_id` — `null` |
 | metadata_json | TEXT | `{phase, topics, hard_violations, soft_violations, fallback_count, language_notes, checks_run, checks_noted, checks_cancelled, checks_failed}` |
 | status | TEXT | `in_progress` \| `completed` \| `failed` |
 
@@ -101,8 +101,9 @@ History и суммаризация читают ту таблицу как ин
 
 `turn_index` — индекс реплики Антона в `transcript_json`; `kind` — `error` | `style`;
 `said` — фрагмент В НАПИСАНИИ РАСПОЗНАННОГО (код сверил его с репликой дословно);
-`why` — до пяти английских слов или `""`; `spoken` — прозвучала ли подсказка вслух
-(поставка talk-tips; до неё `false`). Счётчики `checks_*` — сколько проверок
+`why` — до пяти английских слов или `""`; `spoken` — прозвучала ли подсказка вслух:
+`true` — после ответа (реплика `TIP` в транскрипте), `false` — проверка не успела к
+концу ответа + 1.5 s, и заметка попала только в список. Счётчики `checks_*` — сколько проверок
 запущено, дало заметку, снято следующей репликой и упало. Заметку пишет в базу
 чекпойнт хода или `finish`, а не фоновая проверка (класс виса L5–L7): проверка,
 снятая концом сессии, своей заметки не оставляет.
@@ -122,7 +123,7 @@ History и суммаризация читают ту таблицу как ин
 | `said` | дословный фрагмент распознанной реплики |
 | `better` | лучший вариант |
 | `why` | причина до пяти английских слов, может быть `""` |
-| `spoken` | прозвучала ли подсказка вслух; до поставки talk-tips — `false` |
+| `spoken` | прозвучала ли подсказка вслух (с talk-tips 2026-10-25): `false` — проверка не успела к концу ответа + 1.5 s |
 
 Заметка без строк `said` и `better` — нарушение контракта со стороны записи: читатель
 пропускает её с записью в лог, а не роняет экран. Номер заметки в адресах REST —
@@ -170,3 +171,4 @@ On crash → resume or show partial in History.
 | 2026-07-02 | v0.3: таблица `settings` (kv в app.db) |
 | 2026-10-17 | Таблица `talk_sessions` — разговор с Генри (D3a) |
 | 2026-10-23 | `talk_sessions.metadata_json.language_notes` и счётчики `checks_*` — заметки к речи «было → лучше» (D3a.2); `vocabulary_bank.session_id` — и разговор |
+| 2026-10-25 | Подсказка вслух (talk-tips): реплика транскрипта `state: TIP`, у заметки `spoken: true` |

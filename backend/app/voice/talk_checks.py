@@ -10,12 +10,15 @@
   (задача-сирота держит соединение, и закрытие цикла ждёт её вечно, L5–L7).
 
 Задача ничего не пишет в базу: заметка уходит в память потока (`TalkFlow.add_note`),
-а на диск — со следующим чекпойнтом хода или с `finish`.
+а на диск — со следующим чекпойнтом хода или с `finish`. Подсказка вслух (talk-tips)
+ждёт её заметку не дольше срока (`note_by`) и проверку при этом не снимает.
 """
 
 import asyncio
 import contextlib
 import logging
+import time
+from typing import Any
 
 from app.common.interfaces import ChatMessage, LlmClient
 from app.contracts.enforcer import ContractEnforcer
@@ -45,7 +48,7 @@ class TalkChecks:
         self._model = model
         self._temperature = temperature
         self._max_tokens = max_tokens
-        self._task: asyncio.Task[None] | None = None
+        self._task: asyncio.Task[dict[str, Any] | None] | None = None
         self._flow: TalkFlow | None = None
 
     def start(self, flow: TalkFlow) -> None:
@@ -58,10 +61,22 @@ class TalkChecks:
         self._task = asyncio.create_task(self._run(flow, messages, utterance, turn_index))
 
     async def finished(self) -> None:
-        """Дождаться текущей проверки, не отменяя её (подсказка вслух ждёт её с дедлайном)."""
+        """Дождаться текущей проверки, не отменяя её."""
         task = self._task
         if task is not None:
             await asyncio.wait({task})
+
+    async def note_by(self, deadline: float) -> dict[str, Any] | None:
+        """Заметка текущей проверки, если та кончится к `deadline` (часы `time.monotonic`).
+
+        Не успела — пусто, и проверка НЕ снимается (C17): кончится до следующей реплики —
+        её заметка ещё ляжет в список. Снимают её только реплика, конец и уборка (`cancel`).
+        """
+        task = self._task
+        if task is None:
+            return None
+        done, _ = await asyncio.wait({task}, timeout=max(0.0, deadline - time.monotonic()))
+        return task.result() if done else None
 
     async def cancel(self) -> None:
         """Снять незаконченную проверку и дождаться снятия."""
@@ -76,24 +91,26 @@ class TalkChecks:
 
     async def _run(
         self, flow: TalkFlow, messages: list[ChatMessage], utterance: str, turn_index: int
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Сбой проверки — не сбой разговора: записан и посчитан, но наружу не идёт.
 
         Отмена (`CancelledError`) — не `Exception` и проходит насквозь, как и должна.
+        Итог задачи — заметка или пусто: его ждёт подсказка вслух (`note_by`).
         """
         flow.check_counts["run"] += 1
         try:
-            await self._check(flow, messages, utterance, turn_index)
+            return await self._check(flow, messages, utterance, turn_index)
         except OllamaError:
             flow.check_counts["failed"] += 1
             logger.warning("talk check failed", extra={"turn_index": turn_index}, exc_info=True)
         except Exception:
             flow.check_counts["failed"] += 1
             logger.exception("talk check crashed", extra={"turn_index": turn_index})
+        return None
 
     async def _check(
         self, flow: TalkFlow, messages: list[ChatMessage], utterance: str, turn_index: int
-    ) -> None:
+    ) -> dict[str, Any] | None:
         raw = await ask_candidate(
             self._llm,
             messages,
@@ -113,6 +130,8 @@ class TalkChecks:
             logger.info(
                 "talk check: no note", extra={"turn_index": turn_index, "reason": verdict.value}
             )
-            return
-        flow.add_note({"turn_index": turn_index, **verdict})
+            return None
+        note = {"turn_index": turn_index, **verdict}
+        flow.add_note(note)
         logger.info("talk check: note", extra={"turn_index": turn_index, "kind": verdict["kind"]})
+        return note

@@ -268,6 +268,13 @@ Server: evict Qwen → load R1 → begin review intro.
 → `listening`. В `state` поля вопроса — `null`. По «bye» или через 20 минут Генри
 прощается, и приходит `session_ended {next_action: "none"}`.
 
+**Подсказка вслух (D3a.2, talk-tips).** После ответа модели сервер ждёт проверку речи
+не дольше конца звука ответа + 1.5 s и только потом шлёт `audio {final: true}` и
+`listening`. Нашлась поправка — между ними приходит ещё один чанк `audio` и вторая
+реплика `transcript {role: "agent"}`: «By the way, you could say: … — причина.» Новых
+типов сообщений нет; клиент открывает микрофон, как и прежде, после `listening` и
+конца воспроизведения.
+
 #### `utterance_end`
 
 User finished speaking (client VAD).
@@ -521,3 +528,4 @@ On disconnect: interview remains resumable from History (P1); в MVP partial tra
 | 2026-07-02 | v0.3: mid-session failure policy (матрица деградации, flush-first); коды TTS_FALLBACK, PIPELINE_FAILURE; settings — kv-таблица в app.db |
 | 2026-10-17 | `start_talk`, `session_kind: talk` — разговор с Генри (D3a) |
 | 2026-10-23 | REST разговоров и заметок «было → лучше»: страница, деталь, Useful Words, звук (D3a.2) |
+| 2026-10-25 | Talk: подсказка вслух — ещё чанк `audio` и реплика `transcript` до `final` и `listening` (D3a.2) |

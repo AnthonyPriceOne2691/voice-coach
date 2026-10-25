@@ -13,6 +13,14 @@ lines:
   keep_english: "Let's keep it in English — that's the whole point of our chats."
   fallback: "That sounds interesting — tell me a bit more about it."
 
+# Подсказка вслух после ответа по сути (D3a.2, talk-tips): одна на ход, её говорит
+# код по заметке к речи. {better} — лучший вариант, {why} — короткая причина; модель
+# подсказку не видит. Мимо енфорсера, как и реплики выше: тест проверяет, что шаблон
+# по-английски и без оценок, а правило I3-H4 не дало бы сказать его модели.
+tips:
+  with_reason: "By the way, you could say: {better} — {why}."
+  without_reason: "By the way, you could say: {better}."
+
 topics:
   day:
     - "So, how's your day going so far?"

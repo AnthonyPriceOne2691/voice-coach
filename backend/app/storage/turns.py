@@ -68,9 +68,15 @@ def is_meta(turn: dict[str, Any]) -> bool:
     return turn.get("state") == META_STATE
 
 
+#: `state` подсказки вслух в разговоре (D3a.2, doc 12): её сказал код по заметке к речи.
+#: Она звучала и потому в транскрипте, но это поправка, а не реплика разговора: к ней
+#: не возвращаются ни повтор по просьбе о темпе, ни вопрос после отказа.
+TIP_STATE = "TIP"
+
+
 def last_agent_text(buffer: TranscriptBuffer) -> str:
-    """The agent's last spoken line — what "say that again" has to repeat."""
+    """The agent's last spoken line — what "say that again" has to repeat (tips skipped)."""
     for turn in reversed(buffer.turns):
-        if turn.role == "agent":
+        if turn.role == "agent" and turn.state != TIP_STATE:
             return turn.text
     return ""
