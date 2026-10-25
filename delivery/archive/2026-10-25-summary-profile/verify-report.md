@@ -152,8 +152,15 @@ INDEX `docs/20-*` заменён полным: сопоставление уро
 маска не совпала бы ни с чем (L107). Перепрогон после `uv sync --all-extras` и `npm ci`:
 `run_checks.sh` — **411 passed**, покрытие 96.48%; `pre-commit run --all-files` — 28 из 28;
 `delivery_check.py --diff-base origin/main` — судит эту поставку, `0 error(s), 2 warning(s)`
-(idle и размер класса S); `okf_sync_gate: OK (6 mapped concepts, 0 warning(s))`. Прогоны CI на
-итоговом коммите — в PR #51.
+(idle и размер класса S); `okf_sync_gate: OK (6 mapped concepts, 0 warning(s))`. CI на `d2ed001`:
+`CI` 40222737790 — success (411 passed, 96.48%), `quality` 40222737732 — success (мутации 64 из
+78, 82%).
+
+Затем `main` ушёл на `78102a1` (shutdown-leaks H5: `summary/service.py`, `main.py`); слияние
+`f3bc4c4` — конфликт только в `delivery/archive/INDEX.md`, `service.py` поставка не меняет.
+Перепрогон: `run_checks.sh` — **413 passed**, 96.48%; `pre-commit run --all-files` — 28 из 28;
+`delivery_check.py --diff-base origin/main` — `0 error(s), 2 warning(s)`; `okf_sync_gate: OK`.
+Прогоны CI на итоговом коммите — в PR #51.
 
 ## Verdict
 
