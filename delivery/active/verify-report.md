@@ -4,76 +4,106 @@
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-acb118d08a01f0c55`, ветка `fix/shutdown-leaks`)
 **Verifier:** human:anthony
 **asserts_reviewed_by:** deferred (reason=все 5 новых утверждений ведут к примерам E1–E2 — дайджест ниже; подпись примеров E1–E5 человеком на мерже вместе с human_ok_spec, после неё здесь n/a)
-**CI run:** PR #49, коммит `c25439c` — GitHub гонял его слитым с `main` `a97a621` (merge-ref `e8af5ef`; дерево побайтно равно локальному слиянию `9d7d429`, `git diff` пуст): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40219453296 — **success**, по логу `tests/test_shutdown_cancellation.py ..`, «335 passed», покрытие 95.94%, итог стражей канона «пул: взято 711, не вернулось 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40219453297 — **success**: `delivery_check: 0 error(s), 3 warning(s)`, `okf_sync_gate` — drift разрешён waiver'ом, «stack: в STATUS совпадает со снимком docs/canon/», `smoke: all checks passed`, доктор в CI `DEAD 0`, jscpd — 0 клон-пар, «Vulnerable dependencies» зелёный. Следующие коммиты ветки — слияние `9d7d429` (его дерево и есть `e8af5ef`) и правки этого отчёта; их прогоны CI — в PR #49
-**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, verify `75b3d47`, слияние с `main` `58b1a5c` (#48), сверка документов с кодом #48 `c25439c`, слияние с `main` `9d7d429` (#42), третий круг замеров — следующий коммит
+**CI run:** PR #49. Последний прогон ДО слияния #44 — коммит `c25439c`, GitHub гонял его слитым с `main` `a97a621` (merge-ref `e8af5ef`, дерево побайтно равно локальному слиянию `9d7d429`): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40219453296 — **success**, по логу `tests/test_shutdown_cancellation.py ..`, «335 passed», покрытие 95.94%, итог стражей канона «пул: взято 711, не вернулось 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40219453297 — **success**: `delivery_check: 0 error(s), 3 warning(s)`, `okf_sync_gate` — drift разрешён waiver'ом, «stack: в STATUS совпадает со снимком docs/canon/», `smoke: all checks passed`, доктор в CI `DEAD 0`, jscpd — 0 клон-пар, «Vulnerable dependencies» зелёный. Прогоны на дереве с #44 (шаг мутаций) — в PR #49 на коммите, который везёт этот отчёт
+**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, verify `75b3d47`; слияния с `main` — `58b1a5c` (#48), `9d7d429` (#42), `25c2282` (#44); сверка документов с кодом #48 `c25439c`, третий круг замеров `30726fe`, утверждения E1/E2 строкой лога целиком `1b34e16` и литерал в строке `assert` `83018f4` (та же проверка — для дайджеста), этот отчёт — следующий коммит
 
-Verify прогнан дважды. Первый круг — на `main` `8d344d4` (#46 deps-refresh; ветка
-отведена от `c1e4952` и до первого коммита сведена fast-forward, venv и node_modules
-пересобраны по новым lock-файлам), под нагрузкой соседних сессий: load average 6–74.
-Во время verify в `main` пришёл `5d7d7b7` (#48 talk-check-wiring: `_cancel_warmup` в
-`ws_voice.py` стал `_cancel_background` и получил соседа `TalkChecks.cancel()`, +12
-тестов). Он влит слиянием `58b1a5c` без конфликтов, lock-файлы не менялись; всё, что
-зависит от дерева, перемерено на слитом дереве в тихой машине (load average 2–3).
-Пока шёл CI, в `main` пришёл ещё `a97a621` (#42 talk-notes-rest: REST разговоров, в
-`main.py` — импорт и подключение роутера, другие строки, чем у правки). Он влит
-слиянием `9d7d429` без конфликтов, lock-файлы не менялись, и замеры сняты третий раз.
-Числа ниже — с дерева `9d7d429`, если не сказано иное.
+Verify прогнан на четырёх деревьях — `main` уходил вперёд четыре раза, и каждый раз ветка
+сводилась слиянием (force-push в проекте запрещён):
+
+| Дерево | Что пришло в `main` | Как сведено | Нагрузка |
+|---|---|---|---|
+| `13839f6` на `8d344d4` | #46 deps-refresh | fast-forward до первого коммита; venv и node_modules пересобраны | load average 6–74 |
+| `58b1a5c` | #48 talk-check-wiring: `_cancel_warmup` в `ws_voice.py` стал `_cancel_background`, сосед — `TalkChecks.cancel()` | слияние без конфликтов, документы сверены с новым кодом | 2–3 |
+| `9d7d429` | #42 talk-notes-rest: в `main.py` — импорт и подключение роутера, другие строки | слияние без конфликтов | ~2 |
+| `25c2282` | #44 mutation-gate: шаг мутаций в `quality`, сторож `test_repo_root.py` | слияние без конфликтов; `uv sync --all-extras` (lock не менялся) | 2–8 |
+
+Lock-файлы слияниями #48, #42, #44 не менялись. Числа ниже — с четвёртого дерева
+(`1b34e16`), если не сказано иное.
 
 ## Оракулы спеки
 
 | id | Оракул | Результат |
 |---|---|---|
-| E1 | `test_shutdown_cancellation.py::test_shutdown_waits_until_a_cancelled_summary_returns_its_connection` | **PASS** — учёт соединений после выхода из lifespan пуст, в логе `summary task(s) cancelled by timeout`. До правки 5 из 5 красных: «1 соединени(й) выдано пулом и не возвращено…» + «1 соединени(й) открыто и не закрыто…» в теле, «не вернулось в пул» от стража канона в teardown |
-| E2 | `test_shutdown_cancellation.py::test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it` | **PASS** — учёт пуст, в логе `ws cleanup(s) did not finish in time — cancelling`. До правки 5 из 5 красных: те же две строки в теле, «открыто и не закрыто» от нашего сторожа в teardown |
+| E1 | `test_shutdown_cancellation.py::test_shutdown_waits_until_a_cancelled_summary_returns_its_connection` | **PASS** — учёт соединений после выхода из lifespan пуст, в логе разбора ровно одна строка `shutdown: 1 summary task(s) cancelled by timeout`. До правки 5 из 5 красных: «1 соединени(й) выдано пулом и не возвращено…» + «1 соединени(й) открыто и не закрыто…» в теле, «не вернулось в пул» от стража канона в teardown |
+| E2 | `test_shutdown_cancellation.py::test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it` | **PASS** — учёт пуст, в логе гашения ровно одна строка `shutdown: 1 ws cleanup(s) did not finish in time — cancelling`. До правки 5 из 5 красных: те же две строки в теле, «открыто и не закрыто» от нашего сторожа в teardown |
 | E3 | `test_shutdown_summary.py::test_shutdown_waits_for_a_running_background_summary` | **PASS** без правки теста |
 | E4 | `test_shutdown_summary.py::test_shutdown_gives_up_on_a_hung_summary_and_says_so` | **PASS** без правки теста — отмена зависшей модели теперь дожидается, размотка мгновенна |
 | E5 | `test_ws_voice.py::test_disconnect_without_end_session_finishes_flow`, `::test_disconnect_during_turn_finishes_session` | **PASS** без правки тестов |
 | repro | E1/E2 на коммите repro `3a0b7d5` (код до правки) / на коммите правки `13839f6` | **PASS** — история показывает тест раньше починки: на `3a0b7d5` оба красные, на `13839f6` оба зелёные |
 
-## Мутации (правка обязана краснеть, и ровно там, где её сняли)
+Строки лога в E1/E2 уточнены на verify (подстрока → строка целиком), до подписи
+примеров человеком: в первой редакции утверждалась подстрока, и мутационный гейт показал,
+что она не видит ни потерянного счётчика, ни обёртки текста (раздел «Мутационный гейт»).
 
-Скрипт мутаций — по одной, файл восстанавливается в `finally`, после всех пяти
+## Мутации правки (обязана краснеть, и ровно там, где её сняли)
+
+Свой скрипт мутаций — по одной, файл восстанавливается в `finally`, после всех пяти
 `git diff` совпадает с коммитом правки. Прогон — три модуля: `test_shutdown_cancellation`,
-`test_shutdown_summary`, `test_ws_voice` (16 тестов). Прогнан трижды: до слияния #48 под
-нагрузкой, после него (E2 идёт через изменённый `ws_voice.py`) и после слияния #42 — оба
-раза в тихой машине. Мутанта убивает его тест на всех трёх деревьях, 3 из 3; на третьем
-к M3–M5 добавился прохожий — см. ниже.
+`test_shutdown_summary`, `test_ws_voice` (16 тестов), по 3 раза на каждом из четырёх
+деревьев.
 
 | Мутация | Ожидание | Результат |
 |---|---|---|
-| M1: `aclose()` отменяет без ожидания (как до правки) | красный ровно E1 | **E1 красный 3 из 3** (FAILED + ERROR в teardown), 15 зелёных |
-| M2: `aclose()` ждёт отмену со сроком `SHUTDOWN_SUMMARY_TIMEOUT_S` | красный ровно E1 | **E1 красный 3 из 3**, 15 зелёных |
-| M3: `_drain` без отмены (как до правки) | красный ровно E2 | **E2 красный 3 из 3**, 15 зелёных |
-| M4: `_drain` отменяет без ожидания | красный ровно E2 | **E2 красный 3 из 3**, 15 зелёных |
-| M5: `_drain` ждёт отмену со сроком `SHUTDOWN_DRAIN_TIMEOUT_S` | красный ровно E2 | **E2 красный 3 из 3**, 15 зелёных |
+| M1: `aclose()` отменяет без ожидания (как до правки) | красный ровно E1 | **E1 красный 3 из 3** (FAILED + ERROR в teardown) на всех четырёх деревьях, 15 зелёных |
+| M2: `aclose()` ждёт отмену со сроком `SHUTDOWN_SUMMARY_TIMEOUT_S` | красный ровно E1 | **E1 красный 3 из 3** на всех четырёх, 15 зелёных |
+| M3: `_drain` без отмены (как до правки) | красный ровно E2 | **E2 красный 3 из 3** на всех четырёх; на третьем и четвёртом — плюс прохожий B5b (ниже) |
+| M4: `_drain` отменяет без ожидания | красный ровно E2 | так же, как M3 |
+| M5: `_drain` ждёт отмену со сроком `SHUTDOWN_DRAIN_TIMEOUT_S` | красный ровно E2 | так же, как M3 |
 
 M2 и M5 — то, ради чего в тесте медленная размотка (decisions D5): с мгновенной
 размоткой вариант «ждать отмену со сроком» краснел бы монеткой — в замере test-leaks
 2 из ~45 под нагрузкой. С медленной M2 и M5 красные 3 из 3 и в тихой машине (load
-average 2–3 на втором и третьем кругах), то есть от нагрузки вердикт не зависит.
+average 2–3), то есть от нагрузки вердикт не зависит.
 
-**Прохожий на третьем дереве (L89 в действии).** После слияния #42 у мутаций M3–M5 к
-красному E2 добавился красный `test_shutdown_summary.py::test_shutdown_gives_up_on_a_hung_summary_and_says_so`
-(B5b), 3 из 3: `ResourceWarning: <aiosqlite.core.Connection …> was deleted before being
-closed` → `PytestUnraisableExceptionWarning`. Это соединение, которое мутант оставил
-вне пула в E2, а сборщик мусора добил в следующем модуле: новые модули #42 сдвинули
-пороги аллокаций, и монетка легла на B5b. На двух прежних деревьях прохожего среди тестов
-не было — сборщик срабатывал вне них (в первом красном прогоне repro это видно как
-`ExceptionGroup` из `pytest_unconfigure`). Виновника при этом называет синхронно сторож —
-E2 FAILED в теле и ERROR в teardown на каждом прогоне. На правленном коде утечки нет, и
-прохожего нет: сьют 10 из 10.
+**Прохожий на третьем и четвёртом деревьях (L89 в действии).** После слияния #42 у
+мутаций M3–M5 к красному E2 добавился красный
+`test_shutdown_summary.py::test_shutdown_gives_up_on_a_hung_summary_and_says_so` (B5b), 3
+из 3: `ResourceWarning: <aiosqlite.core.Connection …> was deleted before being closed` →
+`PytestUnraisableExceptionWarning`. Это соединение, которое мутант оставил вне пула в E2, а
+сборщик мусора добил в следующем модуле: новые модули сдвинули пороги аллокаций, и
+монетка легла на B5b. На двух первых деревьях прохожего среди тестов не было — сборщик
+срабатывал вне них (в первом красном прогоне repro это видно как `ExceptionGroup` из
+`pytest_unconfigure`). Виновника при этом называет синхронно сторож — E2 FAILED в теле и
+ERROR в teardown на каждом прогоне. На правленном коде утечки нет, и прохожего нет: сьют
+10 из 10.
+
+## Мутационный гейт (#44, `check_mutation_gate.sh`)
+
+Шаг приехал в `main` во время verify; локально прогнан с параметрами CI
+(`MIN_KILLED=60`, `BUDGET_SEC=900`, `timeout_multiplier = 3`). Область — оба
+изменённых файла целиком (`app.main.*`, `app.summary.service.*`); доля =
+убито / (убито + выжило), timeout в счёт не идёт.
+
+| Состояние | Убито / всего | Выжило | Timeout | Вердикт |
+|---|---|---|---|---|
+| утверждения E1/E2 — подстрокой (`25c2282`) | 211 / 343 — **61%** | 132 | 12 | OK |
+| утверждения E1/E2 — строкой целиком (`1b34e16`; `83018f4` переносит литерал в строку `assert`, сравнение то же) | 215 / 343 — **62%** | 128 | 12 | OK |
+
+- **В правленных функциях выживших нет:** `aclose()` и `_drain` — 26 убито, 4 timeout
+  (снятый срок ПЕРВОГО ожидания — `timeout=None` или без аргумента — вешает тест на
+  застрявшей задаче; это тоже «пойман»). До усиления утверждений в каждой выживали два
+  мутанта строки лога: снятый аргумент (`logger.warning("… %d …", )` — без аргументов
+  `logging` не форматирует вовсе и печатает `%d` буквой, подстрока на месте) и обёртка
+  `"XX…XX"`.
+- **128 выживших — в прежнем коде двух файлов:** `_generate_validated` 32,
+  `generate_full` 23, `_repair_vocabulary` 23, `translate_term` 17, `generate_minimal` 14,
+  `_safe_full` 6, `create_app` 6, `_complete` 5, `schedule_full` 1, `_render_transcript` 1.
+  Это слабые места сьюта разбора, правкой не затронутые; гейт судит файл целиком, поэтому
+  они входят в долю этой поставки. Запас до порога — 2 пункта; кандидат в отдельную
+  поставку (Spec coverage gaps).
 
 ## Машинные гейты
 
 | Гейт | Результат |
 |---|---|
-| `uv run pytest` 10 раз подряд (сьют + coverage-гейт 85) | **PASS 10 из 10** на дереве `9d7d429` — 335 passed и 95.94% в каждом; итог стражей канона одинаковый во всех десяти: «пул: взято 711, не вернулось 0 · утечек 0»; load average ~2. На двух прежних деревьях — тоже **10 из 10**: после слияния #48 — 324 passed, 95.92%, «пул: взято 630»; до него — 312 passed, 95.81%, «пул: взято 540», под load average 13–74 |
-| `./scripts/run_checks.sh` | **PASS** — размер модулей, `ruff check` (All checks passed), `ruff format --check` (104 файла), `mypy app` strict (59 файлов, 0 ошибок), pytest 335 passed, 95.94% |
-| diff coverage (шаг CI `quality`) | `app/summary/service.py` — 96.3%, непокрыты строки 124, 130, 159 (`_safe_full`, `generate_full`, `generate_minimal` — не строки правки); `app/main.py` — в `omit` проекта (`[tool.coverage.run]`), coverage его не меряет вовсе. Что новые строки `_drain` исполняются и утверждаются, доказывают мутации M3–M5: каждую убивает E2 |
+| `uv run pytest` 10 раз подряд (сьют + coverage-гейт 85) | **PASS 10 из 10** на четвёртом дереве — 351 passed и 96.17% в каждом; итог стражей канона одинаковый во всех десяти: «пул: взято 716, не вернулось 0 · утечек 0»; load average 5–8. На трёх прежних деревьях — тоже **10 из 10** каждый: 335 passed / 95.94% / «взято 711»; 324 / 95.92% / «взято 630»; 312 / 95.81% / «взято 540» (последнее — под load average 13–74) |
+| `./scripts/run_checks.sh` | **PASS** — размер модулей, `ruff check` (All checks passed), `ruff format --check` (107 файлов), `mypy app` strict (59 файлов, 0 ошибок), pytest 351 passed, 96.17% |
+| `check_mutation_gate.sh` (`MIN_KILLED=60`, `BUDGET_SEC=900`) | **PASS** — 215 из 343 (62%), раздел выше |
+| diff coverage (шаг CI `quality`, прогон `c25439c`) | `app/summary/service.py` — 96.3%, непокрыты строки 124, 130, 159 (`_safe_full`, `generate_full`, `generate_minimal` — не строки правки); `app/main.py` — в `omit` проекта (`[tool.coverage.run]`), coverage его не меряет вовсе. Что новые строки `_drain` исполняются и утверждаются, доказывают мутации M3–M5 и мутационный гейт |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — 28 хуков из 28, включая jscpd, слои, ратчет сложности, secrets |
 | `bash delivery/evals/smoke/run.sh` | **PASS** — S1–S6 ok, S7 skip (сервер не поднят) |
 | `python3 scripts/lint/contour_doctor.py` | **PASS** — `AUTO 47 · WEAK 17 · ABSENT 0 · TOOL 3 · SKIP 1 · DEAD 0` |
-| `python3 scripts/delivery_check.py --diff-base origin/main` | **PASS** — 0 ошибок, 3 предупреждения ниже; предохранитель — 3 файла кода, +188/−4 (net +184) при пределах 25 / 800 |
+| `python3 scripts/delivery_check.py --diff-base origin/main` | **PASS** — 0 ошибок, 3 предупреждения ниже; предохранитель — 3 файла кода, +202/−4 (net +198) при пределах 25 / 800 |
 | `python3 scripts/okf_sync_gate.py --base origin/main` | **PASS** (rc 0) — `model-split.md`: путь `backend/app/summary/service.py` тронут, концепт нет; drift разрешён `canon_drift_waiver` из STATUS |
 | `python3 scripts/okf_validate.py` | **PASS** — 0 ошибок, 0 предупреждений, 13 файлов |
 | классы риска §12.5 (тем же `risky_classes`, что гейт) | транзакция БД (`rollback`), производительность (`json.dumps`), новый модуль (`test_shutdown_cancellation`) — разобраны в «Ревью рисковых мест» |
@@ -110,7 +140,7 @@ Linux-контейнер не поднят: демон Docker на машине 
 0. **Что смотрел:** дифф целиком — `SummaryService.aclose()` в
    `backend/app/summary/service.py`, `_drain` в `backend/app/main.py`, новый
    `backend/tests/test_shutdown_cancellation.py` (`StuckOnFinalWrite`,
-   `_hold_connection`, `SLOW_UNWIND_S`); соседей правки — `ws_session` и
+   `_hold_connection`, `SLOW_UNWIND_S`, `_messages_of`); соседей правки — `ws_session` и
    `_SessionHandler.aclose()` / `_cancel_background` в `ws_voice.py`,
    `TalkChecks.cancel()` в `voice/talk_checks.py` (оба — в виде после слияния #48),
    `_safe_full` в `summary/service.py`, `Database.session()`, `AsyncSession.__aexit__`
@@ -133,15 +163,18 @@ Linux-контейнер не поднят: демон Docker на машине 
 3. **новый модуль** (`test_shutdown_cancellation`) — что может сломаться: (а) ложный
    зелёный, если задача не успела взять соединение к гашению — закрыто ожиданием
    `holding` до выхода из lifespan; (б) ложный красный от сборщика мусора в чужом
-   тесте — на правленном коде утечки нет, полный сьют зелёный 10 из 10; в красном
-   состоянии (мутации) сторож называет виновника синхронно, а прохожего сборщик мусора
-   уронить может — на третьем дереве это B5b под M3–M5 (L89, раздел «Мутации»); (в) зависимость от
-   соседних модулей: модуль берёт `GoneClientWebSocket`, `make_container`,
-   `MINIMAL_SUMMARY` и не правит ни `fakes.py`, ни `helpers.py`, которые меняют
-   соседние PR #44 и #48 (#48 слит во время поставки, слияние без конфликтов).
+   тесте — на правленном коде утечки нет, полный сьют зелёный 10 из 10 на каждом
+   дереве; в красном состоянии (мутации) сторож называет виновника синхронно, а прохожего
+   сборщик мусора уронить может — на третьем и четвёртом деревьях это B5b под M3–M5 (L89,
+   раздел «Мутации правки»); (в) зависимость от соседних модулей: модуль берёт
+   `GoneClientWebSocket`, `make_container`, `MINIMAL_SUMMARY` и не правит ни `fakes.py`,
+   ни `helpers.py`, которые меняли соседние PR #44 и #48 (оба слиты во время поставки,
+   слияния без конфликтов); корень репозитория модулю не нужен — сторож
+   `test_repo_root.py` (#44) зелёный.
 4. **строки лога** — `did not finish in time` и `cancelled by timeout` сохранены
-   дословно (их ищет наблюдение `ws-disconnect-hang`) и утверждаются тестами E1/E2:
-   переименование покраснело бы здесь, а не тихо обнулило бы сигнал наблюдения.
+   дословно (их ищет наблюдение `ws-disconnect-hang`) и входят в строки, которые E1/E2
+   утверждают целиком (`_messages_of`): переименование покраснело бы здесь, а не тихо
+   обнулило бы сигнал наблюдения.
 
 ## Spec coverage gaps
 
@@ -152,6 +185,9 @@ Linux-контейнер не поднят: демон Docker на машине 
   обработчика посреди `_on_utterance_end` тоже была бы проглочена. Не тронуто (spec,
   out of scope; голосовой путь, `ws_voice.py` — поверхность модели); кандидат в
   следующую поставку вместе с общим помощником на все четыре сайта (plan, D4).
+- 128 выживших мутантов в прежнем коде `summary/service.py` и `create_app` — запас до
+  порога мутационного гейта 2 пункта, и следующая правка любого из двух файлов
+  унаследует его. Кандидат в отдельную поставку на тесты разбора.
 - Уборки, начатые после того, как `_drain` снял свой список, гашение не ждёт —
   записано, не тронуто.
 - Живое гашение `./scripts/dev.sh` — по «запускай» (`eval-smoke.md`, отложено).
@@ -168,19 +204,24 @@ Linux-контейнер не поднят: демон Docker на машине 
 - **L103:** утечку «под нагрузкой» делает детерминированной замедление того, что под
   нагрузкой медленно. Размотка отмены 0.2 s в управляемом репозитории превратила
   «2 из ~45 на занятой машине» из замера test-leaks в красный на каждом прогоне у
-  обоих вариантов «ждать отмену со сроком» (M2, M5). Управляемость (L60) — это не
-  только «где остановить», но и «сколько длится уборка после остановки».
-- **L104:** строка лога, которую читает открытое наблюдение, — интерфейс, а не текст.
-  Сигнал `ws-disconnect-hang` — «в логе гашения нет `did not finish in time` /
-  `cancelled by timeout`»; переименуй строку — и наблюдение позеленеет по построению.
-  Перед правкой текста лога — `git grep` по `observe_signal` архивных STATUS, а
-  нужная подстрока — под утверждением теста.
+  обоих вариантов «ждать отмену со сроком» (M2, M5), и в тихой машине тоже.
+  Управляемость (L60) — это не только «где остановить», но и «сколько длится уборка
+  после остановки».
+- **L104:** строка лога, которую читает открытое наблюдение, — интерфейс, а не текст,
+  и утверждать её надо целиком. Сигнал `ws-disconnect-hang` — «в логе гашения нет
+  `did not finish in time` / `cancelled by timeout`»: переименуй строку — и наблюдение
+  позеленеет по построению. Подстрочное утверждение при этом слепо к потере данных в
+  строке: `logger.warning("… %d …")` без аргумента не падает — `logging` без аргументов
+  не форматирует и печатает `%d` буквой; мутационный гейт нашёл ровно двух таких
+  выживших в каждой правленной функции. Перед правкой текста лога — `git grep` по
+  `observe_signal` архивных STATUS.
 
 ## Verdict
 
 - [x] **READY FOR HANDOFF** — E1–E5 и repro зелёные; мутации M1–M5 краснят ровно свои
-      тесты; машинные гейты — таблица выше; переход в `handoff` ждёт подписи примеров
-      E1–E5 человеком (`human_ok_spec: deferred`)
+      тесты; мутационный гейт 62% при пороге 60%, в правленных функциях выживших нет;
+      машинные гейты — таблица выше; переход в `handoff` ждёт подписи примеров E1–E5
+      человеком (`human_ok_spec: deferred`)
 - [ ] NEED CONVERGE
 - [ ] BLOCKED
 
@@ -194,18 +235,23 @@ Linux-контейнер не поднят: демон Docker на машине 
 
 ```
 E1	assert leaks == []  # E1: к концу гашения соединение возвращено и закрыто
-E1	assert "summary task(s) cancelled by timeout" in caplog.text  # E1: отмена названа
+E1	assert warned == ["shutdown: 1 summary task(s) cancelled by timeout"]  # E1
 E2	assert ws.sent[0]["type"] == "session_started"  # E2: сессия была, уборке было что писать
 E2	assert leaks == []  # E2: к концу гашения соединение возвращено и закрыто
-E2	assert "ws cleanup(s) did not finish in time" in caplog.text  # E2: срок назван в логе
+E2	assert warned == ["shutdown: 1 ws cleanup(s) did not finish in time — cancelling"]  # E2
 ```
+
+✅ **Каждое утверждение ведёт к примеру спеки** (E1 E2), а примеры человек
+подписал до кода (`human_ok_spec`). Подпись под дайджестом здесь
+**не требуется**: она уже стоит, заранее и на числах. Пиши в verify-report
+`asserts_reviewed_by: n/a (все утверждения ведут к одобренным примерам)`.
 
 asserts_without_example: 0
 
 Строку дайджеста «примеры человек подписал до кода» эта поставка пока не заслужила:
 примеры E1–E5 написаны и закоммичены до кода (`6c7083f` раньше `3a0b7d5`), но подпись
-человека под ними будет на мерже (`human_ok_spec: deferred`). Поэтому
-`asserts_reviewed_by` — `deferred`, а не `n/a`.
+человека под ними будет на мерже (`human_ok_spec: deferred`), а строки лога в E1/E2
+уточнены на verify. Поэтому `asserts_reviewed_by` — `deferred`, а не `n/a`.
 
 ## Harness metrics (this shipment)
 
@@ -213,13 +259,13 @@ asserts_without_example: 0
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 3 code (+8 process docs) / +188/-4 (net +184) |
-| commits | 7 |
+| files_touched / loc_diff | 3 code (+8 process docs) / +202/-4 (net +198) |
+| commits | 11 |
 | time_to_accepted_spec | spec drafted, not yet accepted |
 | rework_after_done | 0 (handoff not declared yet) |
 | harness_hardened | yes — backend/tests/test_shutdown_cancellation.py (новый оракул) |
-| implement_retries | MANUAL — fills from session log |
-| verify_fails_before_green | MANUAL — count red verify runs (CI run list) |
-| est_token_or_cost | MANUAL / n/a |
+| implement_retries | 1 — мутационный гейт (#44, влит на verify) показал по два выживших мутанта строки лога в `aclose()` и `_drain`: утверждения E1/E2 усилены с подстроки до строки целиком (`1b34e16`), литерал перенесён в строку `assert` ради дайджеста (`83018f4`). Сама правка зелёная с первого прогона; медленная размотка (D5) добавлена в тест до правки, на красном repro |
+| verify_fails_before_green | 0 — ни одного красного прогона verify: сьют 10 из 10 на каждом из четырёх деревьев, мутационный гейт 61% уже до усиления; CI — строка «CI run» в шапке |
+| est_token_or_cost | n/a — не измерялось; локальные прогоны, внешних платных вызовов и модели нет |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
