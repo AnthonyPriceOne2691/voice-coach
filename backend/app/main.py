@@ -11,6 +11,7 @@ from app import __version__
 from app.api.routes_health import router as health_router
 from app.api.routes_sessions import router as sessions_router
 from app.api.routes_settings import router as settings_router
+from app.api.routes_talks import router as talks_router
 from app.api.routes_vocabulary import router as vocabulary_router
 from app.api.ws_voice import ws_session
 from app.config import get_settings
@@ -77,6 +78,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     application.include_router(sessions_router)
     application.include_router(vocabulary_router)
     application.include_router(settings_router)
+    application.include_router(talks_router)
 
     @application.websocket("/ws/session")
     async def websocket_session(websocket: WebSocket) -> None:
