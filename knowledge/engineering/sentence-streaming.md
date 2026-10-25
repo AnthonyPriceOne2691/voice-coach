@@ -12,6 +12,8 @@ implementation:
   - backend/app/voice/interview_flow.py
   - backend/app/voice/review_flow.py
   - backend/app/voice/talk_flow.py
+  - backend/app/voice/talk_checks.py
+  - backend/app/voice/language_check.py
   - backend/app/voice/warmup.py
   - backend/app/contracts/enforcer.py
   - frontend/src/lib/audioQueue.ts
@@ -47,6 +49,14 @@ implementation:
   енфорсер на каждом предложении. Своё у него — окно истории ступенькой
   (`talk_flow.py`): префикс промпта для KV-кэша меняется раз в 20 сообщений, а не
   на каждом ходе, иначе окно съело бы выигрыш prefill (doc 20).
+- **Проверка речи (D3a.2) живёт ПОСЛЕ стрима и в том же префиксе.** Она
+  стартует, когда ответ Генри уже сгенерирован (первый звук не сдвигается), и
+  дописывает свою просьбу в конец истории разговора: отдельный промпт вытеснил бы
+  из единственного слота Ollama системный промпт и историю, и следующий ход снова
+  платил бы полный prefill (L78/L80). Следующая реплика Антона отменяет
+  незаконченную проверку и дожидается отмены — ответ не стоит в очереди за ней.
+  Фоновая задача в базу не пишет: заметку несёт следующий чекпойнт (класс виса
+  L5–L7). Расчёт «вопрос N из M» переехал из `ws_voice.py` в `interview_flow.py`.
 - **Прогревать префикс, а не модель.** Прогрев «hi» грузит веса и не кэширует ничего:
   первый ход платит полный prefill системного промпта с профилем после реплики
   человека — замер 2026-10-17: 8,763 ms до первого звука при гейте 3,000, тёплые
@@ -73,6 +83,7 @@ implementation:
 | Темп сессии | `backend/app/voice/tts_paced.py` |
 | Дыхание между предложениями | `backend/app/voice/prosody.py` |
 | Прогрев префикса сессии | `backend/app/voice/warmup.py` |
+| Проверка речи после ответа (D3a.2): префикс и жизненный цикл | `backend/app/voice/language_check.py`, `backend/app/voice/talk_checks.py` |
 | Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py`, `backend/app/voice/talk_flow.py` |
 | Per-sentence контракты | `backend/app/contracts/enforcer.py` |
 | Проигрывание на клиенте | `frontend/src/lib/audioQueue.ts` |

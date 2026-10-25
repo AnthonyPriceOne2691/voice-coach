@@ -1,5 +1,7 @@
 """Shared fakes for STT/TTS/LLM/decoder — real AI is always mocked (doc 18)."""
 
+import asyncio
+import threading
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -132,6 +134,45 @@ class ScriptedLlm:
         script = self._scripts[min(len(self.calls) - 1, len(self._scripts) - 1)]
         for token in script:
             yield token
+
+
+class RoutingLlm:
+    """Ответ Генри и проверка речи (D3a.2) — разные сценарии одной модели.
+
+    Проверку узнаём по схеме ответа: её зовут с `json_schema`, реплику — без.
+    `checks` — ответы проверки по порядку (последний повторяется); `None` — проверка
+    ЗАВИСАЕТ, пока её не отменят (C8). `check_done` ставится, когда ответ проверки
+    отдан целиком: тест ждёт его, а не гадает про планировщик.
+    """
+
+    def __init__(self, reply: list[str], checks: list[str | None]) -> None:
+        self.reply = reply
+        self.checks = checks
+        self.calls: list[tuple[list[ChatMessage], dict[str, Any] | None]] = []
+        self.check_calls: list[list[ChatMessage]] = []
+        self.check_done = threading.Event()
+
+    async def stream_chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        num_ctx: int | None = None,
+        json_schema: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str]:
+        self.calls.append((list(messages), json_schema))
+        if json_schema is None:
+            for token in self.reply:
+                yield token
+            return
+        self.check_calls.append(list(messages))
+        answer = self.checks[min(len(self.check_calls) - 1, len(self.checks) - 1)]
+        if answer is None:
+            await asyncio.Event().wait()  # висит до отмены
+        yield str(answer)
+        self.check_done.set()
 
 
 class GoneClientWebSocket:
