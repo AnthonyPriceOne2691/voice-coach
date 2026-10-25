@@ -94,6 +94,15 @@ class SummaryService:
         вне пула. Ровно этот класс подвесил прогон в ws-сессии (diagnosis.md той
         же поставки), просто там сирота была видимее. Здесь — та же дверь.
 
+        Не уложилась в срок — ОТМЕНИТЬ и ДОЖДАТЬСЯ отмены: это два шага (L90).
+        Отмена без ожидания только помечена, а выход из `async with db.session()`
+        сам требует `await` (rollback и возврат соединения): `dispose()` движка
+        прошёл бы раньше, и соединение осталось бы вне пула (поставка
+        shutdown-leaks, E1). Второй шаг — без срока: выход процесса этих задач
+        всё равно дождётся (`asyncio.run` ждёт отменённые задачи без срока),
+        так что срок здесь ничего бы не ограничил, а только пустил бы `dispose()`
+        вперёд размотки.
+
         Срок ожидания — константа модуля, а не параметр (ASYNC109): у гашения он
         один на всё приложение, и прятать его в аргумент по умолчанию значит
         разрешить двум вызывающим ждать по-разному без причины.
@@ -101,10 +110,12 @@ class SummaryService:
         if not self._tasks:
             return
         _, pending = await asyncio.wait(set(self._tasks), timeout=SHUTDOWN_SUMMARY_TIMEOUT_S)
+        if not pending:
+            return
+        logger.warning("shutdown: %d summary task(s) cancelled by timeout", len(pending))
         for task in pending:
             task.cancel()
-        if pending:
-            logger.warning("shutdown: %d summary task(s) cancelled by timeout", len(pending))
+        await asyncio.wait(pending)
 
     async def _safe_full(self, interview_id: str, review_id: str) -> None:
         try:

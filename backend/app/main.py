@@ -31,12 +31,23 @@ async def _drain(tasks: set[asyncio.Task[None]]) -> None:
     SQLAlchemy добивает его отдельной задачей, и закрытие цикла ждёт её вечно.
     Таймаут здесь — предохранитель, а не политика: если уборка не уложилась,
     честнее отпустить гашение и сказать об этом, чем висеть.
+
+    Отпустить — значит ОТМЕНИТЬ уборку и ДОЖДАТЬСЯ отмены, два шага (L90). Без
+    отмены движок гасился при живой уборке, державшей соединение (поставка
+    shutdown-leaks, E2); без ожидания отмена только помечена, а выход из
+    `async with db.session()` сам требует `await`. Ожидание — без срока: выход
+    процесса этих задач всё равно дождётся, срок лишь пустил бы `dispose()`
+    вперёд размотки (то же в `SummaryService.aclose()`).
     """
     if not tasks:
         return
     _, pending = await asyncio.wait(set(tasks), timeout=SHUTDOWN_DRAIN_TIMEOUT_S)
-    if pending:
-        logger.warning("shutdown: %d ws cleanup(s) did not finish in time", len(pending))
+    if not pending:
+        return
+    logger.warning("shutdown: %d ws cleanup(s) did not finish in time — cancelling", len(pending))
+    for task in pending:
+        task.cancel()
+    await asyncio.wait(pending)
 
 
 def create_app(container: Container | None = None) -> FastAPI:
