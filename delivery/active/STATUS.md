@@ -4,8 +4,8 @@
 - **stack:** delivery@2.07, cqg@2.74, okf@1.21
   <!-- Ветка отведена от main c1e4952, до первого коммита сведена fast-forward на
        8d344d4 (#46 deps-refresh), на verify в неё влиты слиянием 5d7d7b7 (#48
-       talk-check-wiring), a97a621 (#42 talk-notes-rest) и 84783b6 (#44 mutation-gate);
-       версии канонов на всех базах одни. -->
+       talk-check-wiring), a97a621 (#42 talk-notes-rest), 84783b6 (#44 mutation-gate)
+       и 1fa99e5 (memory-guard); версии канонов на всех базах одни. -->
 - **class:** M
   <!-- Не S, хотя repro ясен и правка мала: S канона — «багфикс ≤1 файла» (§2.2), а здесь
        два продуктовых файла, две двери гашения, и в одной из них меняется поведение —
