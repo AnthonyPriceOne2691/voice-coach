@@ -1,5 +1,14 @@
 # Knowledge Bundle Update Log
 
+## 2026-10-25 — заметки разговора: экран (talk-notes-screen, D3a.2)
+
+* **Echo protection**: добавлено правило — голос Генри вне сессии гаснет раньше,
+  чем откроется запись. Listen у заметки играет фразу мимо `AudioQueue`, поэтому
+  звук живёт, только пока заметки на экране; уборка списка его глушит.
+  `implementation:` дополнен `LanguageNotes.tsx`.
+* **Границы**: docs 11 и 17 — Language notes после разговора, History делится на
+  Interviews и Talks.
+
 ## 2026-10-23 — проверка речи: проводка (talk-check-wiring, D3a.2 — 2 из 5)
 
 * **Sentence streaming**: проверка идёт ПОСЛЕ стрима, в префиксе того же разговора,
