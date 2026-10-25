@@ -7,6 +7,7 @@
 """
 
 import json
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -88,9 +89,9 @@ def test_note_is_spoken_after_the_reply_and_never_reaches_the_model(tmp_path: Pa
     assert tts.synthesized.count(TIP) == 1  # в третьем ходе поправлять нечего
     assert _henry(turns[1])[0].endswith(" Nice, and then?")
     transcript = json.loads(talk.transcript_json)
-    assert [(t["role"], t["state"]) for t in transcript[2:4]] == [
-        ("agent", "CHAT"),
-        ("agent", "TIP"),
+    assert [(t["role"], t["state"], t["text"]) for t in transcript[2:4]] == [
+        ("agent", "CHAT", "Nice, and then?"),
+        ("agent", "TIP", TIP),
     ]
     assert [n["spoken"] for n in json.loads(talk.metadata_json)["language_notes"]] == [True]
     seen = [m["content"] for messages, _ in llm.calls for m in messages]
@@ -116,8 +117,13 @@ def test_the_mic_waits_for_a_check_that_ends_while_the_reply_plays(tmp_path: Pat
 
 
 def test_a_check_late_for_the_end_of_the_reply_gives_no_tip(tmp_path: Path) -> None:
-    """C17: проверка не успела к концу ответа — подсказки нет, микрофон открывается."""
+    """C17: проверка не успела к концу ответа — подсказки нет, микрофон открывается.
+
+    Срок — от конца звука ЭТОГО ответа: приветствие (~1.3 s звука) его не сдвигает.
+    """
+    started = time.monotonic()
     turns, talk, _ = _talk(tmp_path, RoutingLlm(REPLY, [None]), [SAID])
+    assert time.monotonic() - started < 1.0
     assert _henry(turns[0]) == ["Nice, and then?"]
     assert turns[0][-1]["payload"]["value"] == "listening"
     metadata = json.loads(talk.metadata_json)

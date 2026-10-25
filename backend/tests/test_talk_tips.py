@@ -21,7 +21,7 @@ from tests.fakes import FAKE_TTS_RATE, fake_wav
 SCRIPT = REPO_ROOT / "data" / "talk" / "talk.yaml"
 TEMPLATES = load_script(SCRIPT).tips
 NO_CORRECTIONS = "I3-H4_no_corrections"
-NOTE = {"better": "I went to the office and met my client.", "why": "past tense"}
+NOTE = {"better": "I went to the office and met my client.", "why": "past tense."}
 
 
 def test_tip_is_the_code_template_with_the_better_phrase_and_the_reason() -> None:
@@ -29,8 +29,8 @@ def test_tip_is_the_code_template_with_the_better_phrase_and_the_reason() -> Non
     assert tip_line(NOTE, TEMPLATES) == (
         "By the way, you could say: I went to the office and met my client — past tense."
     )
-    plain = {"better": "the food was delicious", "why": ""}
-    assert tip_line(plain, TEMPLATES) == "By the way, you could say: the food was delicious."
+    plain = {"better": "I bought an iPhone X", "why": ""}
+    assert tip_line(plain, TEMPLATES) == "By the way, you could say: I bought an iPhone X."
 
 
 @pytest.mark.parametrize(
@@ -70,15 +70,15 @@ def test_playback_ends_where_the_client_queue_ends() -> None:
     `final` закрывает реплику: следующая начинается от «сейчас», даже если по часам
     сервера прежняя ещё звучит (человек заговорил — значит, клиент её доиграл).
     """
-    now = 10.0
+    now = 0.0
     clock = PlaybackClock(lambda: now)
     clock.sent(fake_wav(FAKE_TTS_RATE // 10), final=False)  # 0.1 s
     clock.sent(fake_wav(FAKE_TTS_RATE // 5), final=False)  # 0.2 s, пока играет первый
-    assert clock.ends_at == pytest.approx(10.3)
-    now = 20.0
+    assert clock.ends_at == pytest.approx(0.3)
+    clock.sent(b"", final=True)  # пустой `final` закрывает реплику
     clock.sent(fake_wav(FAKE_TTS_RATE // 10), final=False)
-    assert clock.ends_at == pytest.approx(20.1)
-    clock.sent(b"", final=True)
+    assert clock.ends_at == pytest.approx(0.1)
+    now = 20.0
     clock.sent(fake_wav(FAKE_TTS_RATE // 10), final=False)
     assert clock.ends_at == pytest.approx(20.1)
 

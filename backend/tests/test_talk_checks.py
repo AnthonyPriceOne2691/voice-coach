@@ -1,6 +1,7 @@
 """Фоновая проверка речи (D3a.2): сбой проверки — не сбой разговора, срок — не отмена."""
 
 import json
+import logging
 import random
 import time
 from collections.abc import AsyncIterator
@@ -71,14 +72,28 @@ async def test_unreachable_model_is_counted_and_the_talk_goes_on() -> None:
     assert flow.language_notes == []
 
 
-async def test_unexpected_crash_is_logged_not_raised(caplog: Any) -> None:
-    """Неожиданное исключение в проверке не доходит до разговора и не теряется молча."""
-    flow = await _flow_after("Yesterday I go to the office.")
-    checks = _checks(BrokenLlm(ValueError("boom")))
-    checks.start(flow)
-    await checks.finished()
-    assert flow.check_counts["failed"] == 1
-    assert "talk check crashed" in caplog.text
+async def test_every_failure_and_cancellation_is_counted_and_logged(caplog: Any) -> None:
+    """C8: каждая упавшая и снятая проверка — в счётчике и в журнале с причиной, без текста.
+
+    Неожиданное исключение не доходит до разговора и не теряется молча.
+    """
+    caplog.set_level(logging.INFO, logger="app.voice.talk_checks")
+    flow = await _flow_after(SAID)
+    for error in (OllamaError("down"), ValueError("boom"), OllamaError("down")):
+        checks = _checks(BrokenLlm(error))
+        checks.start(flow)
+        await checks.finished()
+    hanging = _checks(RoutingLlm([], [None]))
+    for _ in range(2):
+        hanging.start(flow)
+        await hanging.cancel()
+    assert (flow.check_counts["failed"], flow.check_counts["cancelled"]) == (3, 2)
+    logged = [(r.getMessage(), r.levelname, r.turn_index, bool(r.exc_info)) for r in caplog.records]
+    assert logged == [
+        ("talk check failed", "WARNING", 1, True),
+        ("talk check crashed", "ERROR", 1, True),
+        ("talk check failed", "WARNING", 1, True),
+    ]
 
 
 async def test_request_answered_by_code_starts_no_check() -> None:
@@ -118,3 +133,27 @@ async def test_no_check_means_no_tip() -> None:
     checks = _checks(BrokenLlm(OllamaError("must not be called")))
     checks.start(flow)
     assert await checks.note_by(time.monotonic() + 5) is None
+
+
+async def test_check_outcome_is_logged_by_field_with_the_voice_model(caplog: Any) -> None:
+    """C8: проверка идёт моделью голоса со своей выборкой; исход — в журнале полями."""
+    caplog.set_level(logging.INFO, logger="app.voice.talk_checks")
+    flow = await _flow_after(SAID)
+    office = {"kind": "style", "said": "the office", "better": "my office", "why": "warmer"}
+    none = json.dumps({"kind": "none", "said": "", "better": "", "why": ""})
+    llm = RoutingLlm([], [NOTE, json.dumps(office), none])
+    checks = _checks(llm)
+    for _ in range(3):
+        checks.start(flow)
+        await checks.finished()
+    assert llm.check_params == [("m", 0.0, 120)] * 3
+    assert flow.check_counts["noted"] == 2
+    logged = [
+        (r.getMessage(), r.turn_index, getattr(r, "kind", None), getattr(r, "reason", None))
+        for r in caplog.records
+    ]
+    assert logged == [
+        ("talk check: note", 1, "error", None),
+        ("talk check: note", 1, "style", None),
+        ("talk check: no note", 1, None, "none"),
+    ]

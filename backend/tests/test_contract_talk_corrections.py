@@ -88,3 +88,29 @@ def test_each_forbid_patterns_rule_judges_its_own_list(tmp_path: Path) -> None:
         "beta": ("second", "beta"),
     }
     assert pair.spec.forbidden_patterns == ["alpha", "beta"]
+
+
+def test_contract_loads_rules_and_defaults_as_declared(tmp_path: Path) -> None:
+    """C16: контракт читается как объявлен — у правила свои параметры, мягкие правила и
+    умолчания на месте; иначе правило о поправках доехало бы до енфорсера не тем."""
+    bare = tmp_path / "bare.contract.yaml"
+    bare.write_text(
+        "invariants:\n  hard:\n    - check: no_cyrillic\n"
+        "  soft:\n    - id: short\n      check: max_sentences\n      max: 2\n",
+        encoding="utf-8",
+    )
+    spec = load_contract(bare)
+    assert (spec.mode, spec.enforcement, spec.max_retries, spec.ack_whitelist) == (
+        "bare.contract",
+        "per_sentence",
+        1,
+        [],
+    )
+    assert [(r.rule_id, r.check, r.severity, r.params) for r in spec.rules] == [
+        ("no_cyrillic", "no_cyrillic", "hard", {}),
+        ("short", "max_sentences", "soft", {"max": 2}),
+    ]
+    full = tmp_path / "full.contract.yaml"
+    full.write_text("mode: m\nenforcement: e\nrecovery:\n  max_retries: 3\n", encoding="utf-8")
+    loaded = load_contract(full)
+    assert (loaded.mode, loaded.enforcement, loaded.max_retries) == ("m", "e", 3)

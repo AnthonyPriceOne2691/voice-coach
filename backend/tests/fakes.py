@@ -154,6 +154,8 @@ class RoutingLlm:
         self.check_delay_s = check_delay_s
         self.calls: list[tuple[list[ChatMessage], dict[str, Any] | None]] = []
         self.check_calls: list[list[ChatMessage]] = []
+        #: Модель и выборка каждой проверки: (model, temperature, max_tokens).
+        self.check_params: list[tuple[str, float, int]] = []
         self.check_done = threading.Event()
 
     async def stream_chat(
@@ -172,6 +174,7 @@ class RoutingLlm:
                 yield token
             return
         self.check_calls.append(list(messages))
+        self.check_params.append((model, temperature, max_tokens))
         answer = self.checks[min(len(self.check_calls) - 1, len(self.checks) - 1)]
         if answer is None:
             await asyncio.Event().wait()  # висит до отмены

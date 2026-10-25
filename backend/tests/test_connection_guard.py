@@ -1,18 +1,25 @@
-"""Сторож утечек соединений сам под проверкой (`db_lifecycle.py`, `conftest.py`).
+"""Сторожа сьюта сами под проверкой (`db_lifecycle.py`, `conftest.py`).
 
 Сторож, который не может покраснеть, неотличим от отсутствующего, а краснеющий
 всегда будет снят через неделю. Поэтому здесь обе стороны: каждая форма утечки
 называется, чистая работа — тишина. Каждый тест убирает свою утечку сам, ДО конца:
-autouse-сторож из `conftest.py` смотрит и на этот файл.
+autouse-сторож из `conftest.py` смотрит и на этот файл. Срок на кадр WebSocket — так же.
 """
 
 import asyncio
+import contextlib
 import threading
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from starlette.applications import Starlette
+from starlette.routing import WebSocketRoute
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from tests import conftest
 from tests.db_lifecycle import ConnectionLedger, owned_database
 
 NOT_DISPOSED = "движок без `dispose()`"
@@ -118,3 +125,18 @@ def test_connection_opened_in_another_thread_is_seen(tmp_path: Path) -> None:
 
     assert len(found) == 1 and NOT_DISPOSED in found[0]  # W7
     assert after == []  # W7
+
+
+def test_a_frame_that_never_comes_fails_the_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Сервер молчит — тест падает за срок, а не висит (под mutmut — таймаут мутанта)."""
+    monkeypatch.setattr(conftest, "WS_FRAME_DEADLINE_S", 0.05)
+
+    async def silent(websocket: WebSocket) -> None:
+        await websocket.accept()
+        with contextlib.suppress(WebSocketDisconnect):
+            await websocket.receive_text()
+
+    app = Starlette(routes=[WebSocketRoute("/ws", silent)])
+    with TestClient(app) as client, client.websocket_connect("/ws") as ws:
+        with pytest.raises(AssertionError, match="не прислал кадр"):
+            ws.receive_json()

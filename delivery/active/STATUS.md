@@ -11,7 +11,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; подсказка вслух после ответа по сути, оракулы спеки C14–C17
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** plan
+- **phase:** implement
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-23)
