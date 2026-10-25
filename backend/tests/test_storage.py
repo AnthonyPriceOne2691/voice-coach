@@ -119,6 +119,49 @@ async def test_vocabulary_merge_dedup_and_soft_delete(db: Database) -> None:
     assert (await repo.list(query="through"))[0].term_en == "throughput"
 
 
+async def test_vocabulary_merge_keeps_going_and_list_filters(db: Database) -> None:
+    """M14: отброшенная и повторная записи не обрывают пачку; фильтр и сортировка doc 15.
+
+    Мутационный гейт (2026-10-23) оставил в живых `continue` → `break` после обеих
+    веток и подмену полей записи на `None`: прежний тест клал отброшенную запись
+    ПОСЛЕДНЕЙ и не смотрел ни на одно поле, кроме термина и перевода.
+    """
+    repo = VocabularyRepository(db)
+    await repo.merge(
+        [{"term_en": "trade-off", "translation_ru": "компромисс", "example_en": "A trade-off."}],
+        session_id="s1",
+    )
+    batch = [
+        {"term_en": "no-example", "translation_ru": "нет примера", "example_en": " "},  # неполная
+        {"term_en": "trade-off", "translation_ru": "компромисс", "example_en": "Again."},
+        {
+            "term_en": "blast radius",
+            "translation_ru": "радиус поражения",
+            "example_en": "We kept the blast radius small.",
+            "type": "phrase",
+            "category": "architecture",
+            "context_note_en": "Use when scoping a risky change.",
+        },
+        {"term_en": "headroom", "translation_ru": "запас", "example_en": "Leave headroom."},
+    ]
+    assert await repo.merge(batch, session_id="s2") == 2
+
+    entries = {e.term_en: e for e in await repo.list()}
+    assert set(entries) == {"trade-off", "blast radius", "headroom"}
+    assert entries["trade-off"].times_seen == 2
+    blast = entries["blast radius"]
+    assert (blast.type, blast.category) == ("phrase", "architecture")
+    assert blast.context_note_en == "Use when scoping a risky change."
+    assert blast.session_id == "s2"
+
+    assert [e.term_en for e in await repo.list(category="architecture")] == ["blast radius"]
+    assert [e.term_en for e in await repo.list(sort="alpha")] == [
+        "blast radius",
+        "headroom",
+        "trade-off",
+    ]
+
+
 async def test_settings_defaults_and_patch(db: Database) -> None:
     repo = SettingsRepository(db)
     values = await repo.get_all()

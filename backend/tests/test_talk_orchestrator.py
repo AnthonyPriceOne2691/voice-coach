@@ -7,15 +7,13 @@
 
 import itertools
 import random
-from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 from app.orchestrator.talk import TalkOrchestrator, TalkScript, TalkState, load_script
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 LINES = {
     "intro": "Hi, I'm Henry.",

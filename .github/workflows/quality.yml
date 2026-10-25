@@ -27,7 +27,8 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30, а не 20: шаг мутаций на PR с api/ws_voice.py идёт ~14 min (BUDGET_SEC 900 ниже)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -213,6 +214,18 @@ jobs:
       - name: Canon vendor + stack selftest
         if: always()
         run: bash scripts/lint/check_canon_vendor.sh
+
+      # Мутационный гейт — самый дорогой, поэтому только на PR и с бюджетом.
+      # Он отвечает на вопрос, который diff-coverage не задаёт: тесты вообще
+      # что-нибудь утверждают?
+      - name: Mutation testing (changed files, budgeted)
+        if: always() && github.event_name == 'pull_request'
+        env:
+          MIN_KILLED: "60"
+          # 900, а не 300 канона: бюджет задаёт самый дорогой файл, а не дифф — PR с
+          # api/ws_voice.py при timeout_multiplier 3 идёт 847 s (решение человека 2026-10-25)
+          BUDGET_SEC: "900"
+        run: bash scripts/lint/check_mutation_gate.sh
 
   delivery:
     runs-on: ubuntu-latest
