@@ -10,7 +10,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; новая функция — проверки памяти кодом, оракулы спеки K3–K8, K10, K12
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-23) reason=«Подписать с рекомендациями» — приняты все шесть рекомендаций раздела «Открытые вопросы к Антону»
@@ -37,6 +37,6 @@
 - **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
-- **observe_signal:** заполняется на handoff
+- **observe_signal:** K3, K4, K5, K6, K7, K8, K10, K12 на живых заметках после memory-write: за первые пять разговоров Антона — 0 заметок с контактами, деньгами, судом, здоровьем, семьёй или Ally, у каждой заметки цитата — его слова дословно, ни одной второй заметки об одном и том же, в логе отказов только причина, категория и число; ложные отказы (заметка о деле, отброшенная из-за слова мимоходом) — считать и решать с Антоном, не ослаблять список молча
 - **observe_until:** 2026-12-07
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
