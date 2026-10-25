@@ -15,7 +15,9 @@ baseline-ratchet — 15 снимков; новых зависимостей не
 в «Что CI на этом PR не судит»). Первый прогон — на `4101a3e`, до теста секций
 History: `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40223372166
 и `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40223372135 —
-оба **success**. Прогоны на итоговом коммите этого отчёта (только `delivery/`) — в PR.
+оба **success**. После них `main` ушёл вперёд на shutdown-leaks (`78102a1`, только
+бэкенд), ветка сведена с ним слиянием (`b688bf7`; конфликт — одна строка таблицы
+INDEX) и перепрогнана локально — таблица ниже. Прогоны CI на итоговом коммите — в PR.
 
 ## Оракулы спеки
 
@@ -114,16 +116,16 @@ MF14 убита.
 
 ## Машинные гейты
 
-После слияния `origin/main` (`1fa99e5`, memory-guard):
+После слияния `origin/main` (`78102a1`, shutdown-leaks; до него — `1fa99e5`, memory-guard):
 
 | Гейт | Результат |
 |---|---|
-| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — бэкенд не тронут: 404 passed, coverage 96.47% (гейт 85), mypy strict, ruff, модули ≤ 500 строк |
+| `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — бэкенд поставкой не тронут: 406 passed, coverage 96.48% (гейт 85), mypy strict, ruff, модули ≤ 500 строк |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — все хуки; jscpd 0 клон-пар (python + ts, снимок 0), сложность 0 (python + ts), слои OK (import-linter + dependency-cruiser), ESLint warnings 1 при снимке 1 |
 | `npx vitest run` | **PASS** — 70 тестов в 13 файлах |
 | `npm run build` (`artifact_oracle`) | **PASS** — `tsc -b` + `vite build`; в собранном CSS слой заметок есть: `grep -c note-better dist/assets/*.css` → 1 (L46: потерянный `@import` сборку не роняет) |
 | `bash delivery/evals/smoke/run.sh` | **PASS** — S1–S6 ok, S7 (health) пропущен: сервер не поднят |
-| `okf_sync_gate.py --base origin/main`, `okf_validate.py` | **PASS** — 5 mapped concepts, 0 warnings; 0 errors, 13 files |
+| `okf_sync_gate.py --base origin/main`, `okf_validate.py` | **PASS** — 6 mapped concepts, 0 warnings; 0 errors, 14 files |
 | `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 14 файлов, net +712 (+742/−30) при лимите 800 |
 
 Поверхность модели (`model_surface`) не задета: дифф — фронт, docs 11 и 17, концепт
