@@ -5,7 +5,33 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# Корень репозитория узнаётся по ДАННЫМ, а не по глубине пути. Было
+# `parents[2]`: мутационный гейт копирует пакет в `backend/mutants/app/`, и там
+# тот же счёт давал `backend/` — сьют не находил `data/contracts`, и гейт не
+# просудил ни одного мутанта (замер 2026-10-23).
+ROOT_MARKERS = (Path("data") / "prompts", Path("data") / "contracts")
+
+
+class RepoRootNotFoundError(RuntimeError):
+    """Ни один предок не держит данные приложения — запускать нечего."""
+
+
+def find_repo_root(start: Path) -> Path:
+    """Ближайший предок `start`, в котором лежат все `ROOT_MARKERS`.
+
+    Ближайший — чтобы worktree внутри репозитория (`.claude/worktrees/…`) читал
+    свои данные, а не данные основного клона.
+    """
+    for candidate in start.resolve().parents:
+        if all((candidate / marker).is_dir() for marker in ROOT_MARKERS):
+            return candidate
+    markers = " и ".join(marker.as_posix() for marker in ROOT_MARKERS)
+    raise RepoRootNotFoundError(
+        f"корень репозитория не найден: над {start} нет каталога с {markers}"
+    )
+
+
+REPO_ROOT = find_repo_root(Path(__file__))
 
 
 class Settings(BaseSettings):

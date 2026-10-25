@@ -1,5 +1,10 @@
 """Vocabulary Bank persistence with the dedup/merge rules from doc 10."""
 
+# Отложенные аннотации — ради мутационного гейта: под копией mutmut метод `list`
+# ниже прячет встроенный `list` из собственной аннотации, и модуль не импортируется
+# (сторож — tests/test_mutation_copy.py).
+from __future__ import annotations
+
 import uuid
 from typing import Any
 
