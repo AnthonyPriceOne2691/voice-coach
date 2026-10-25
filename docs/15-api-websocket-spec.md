@@ -8,7 +8,7 @@
 |---------|-----|
 | REST | `http://127.0.0.1:8000` |
 | WebSocket (voice) | `ws://127.0.0.1:8000/ws/session` |
-| Frontend dev | `http://127.0.0.1:5273` → proxy `/sessions`, `/vocabulary`, `/health`, `/ws` (5173 занят другим проектом) |
+| Frontend dev | `http://127.0.0.1:5273` → proxy `/sessions`, `/vocabulary`, `/settings`, `/health`, `/ws` (5173 занят другим проектом) |
 
 > ⚠ **Список префиксов выше — часть спецификации, а не примечание.** До
 > 2026-08-12 здесь стояло `proxy /api, /ws`, хотя ни один эндпоинт ниже под
@@ -87,6 +87,58 @@ Generate **minimal summary** when user skipped Mode 2 (LLM pass on interview onl
 ### `DELETE /sessions/interviews/{id}`
 
 Cascade delete linked review + debrief. Returns `204`.
+
+### `GET /sessions/talks` (D3a.2, 2026-10-23)
+
+Разговоры с Генри, новые первыми. **Query:** `limit` (1…100, по умолчанию 50),
+`offset` (≥ 0); вне границ — **422**: разговоров с каждым днём больше, и страница без
+верхней границы однажды отдала бы всё.
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "started_at": "2026-10-23T18:00:00+00:00",
+      "ended_at": "2026-10-23T18:12:30+00:00",
+      "duration_sec": 750,
+      "status": "completed",
+      "notes_count": 2
+    }
+  ]
+}
+```
+
+`duration_sec` — `ended_at − started_at`. Без `ended_at` (разговор брошен) —
+`null`: клиент пишет «not finished», а не число, которое итогом не является.
+
+### `GET /sessions/talks/{id}`
+
+Строка списка + `transcript` (turns, doc 12) + `language_notes` — заметки «было →
+лучше» в порядке разговора (контракт — doc 12). **404** — разговора нет.
+
+### `POST /sessions/talks/{id}/notes/{n}/vocabulary`
+
+Лучший вариант заметки `n` (индекс в `language_notes`) → Useful Words (doc 10).
+
+```json
+{
+  "status": "added",
+  "term_en": "I went to the office and met my client",
+  "translation_ru": "Я пошёл в офис и встретился с клиентом"
+}
+```
+
+`status`: `added` — записано или возвращено удалённое человеком; `exists` — уже в
+банке: ничего не меняется, модель не зовётся. **502** — перевод не прошёл S-H6 или
+модель недоступна, ничего не записано. **404** — нет разговора или заметки с таким
+номером; отрицательный номер — тоже 404, а не «последняя заметка».
+
+### `GET /sessions/talks/{id}/notes/{n}/audio`
+
+`audio/wav` — лучший вариант голосом Генри в сохранённом темпе `speech_length_scale`:
+тот же коридор, что у сессии; не число или вне коридора — темп по умолчанию. **404** —
+как выше.
 
 ### `GET /vocabulary`
 
@@ -455,6 +507,7 @@ On disconnect: interview remains resumable from History (P1); в MVP partial tra
 | `/health`, `hello`, `start_interview`, `utterance_end`, `transcript`, `audio` | 1 |
 | `start_review`, model swap, REST History | 2 |
 | `minimal-summary`, vocabulary REST | 2 |
+| `/sessions/talks*` — разговоры и заметки | D3a.2 |
 | `barge_in`, resume session | P1 |
 
 ---
@@ -467,3 +520,4 @@ On disconnect: interview remains resumable from History (P1); в MVP partial tra
 | 2026-07-02 | v0.2: MVP-поведение mic при `speaking` (no barge-in); checkpoint «3 turns or 30 s» согласован с doc 12; DELETE /vocabulary — soft delete |
 | 2026-07-02 | v0.3: mid-session failure policy (матрица деградации, flush-first); коды TTS_FALLBACK, PIPELINE_FAILURE; settings — kv-таблица в app.db |
 | 2026-10-17 | `start_talk`, `session_kind: talk` — разговор с Генри (D3a) |
+| 2026-10-23 | REST разговоров и заметок «было → лучше»: страница, деталь, Useful Words, звук (D3a.2) |
