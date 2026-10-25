@@ -206,6 +206,10 @@ jobs:
           MIN_PCT: "70"
         run: bash scripts/lint/check_diff_coverage.sh
 
+      - name: Vulnerable dependencies
+        if: always()
+        run: bash scripts/lint/check_deps_audit.sh
+
       - name: Canon vendor + stack selftest
         if: always()
         run: bash scripts/lint/check_canon_vendor.sh
