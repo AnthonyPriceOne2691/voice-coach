@@ -217,9 +217,9 @@ def _service(llm: ScriptedLlm, db: Database, prompts: PromptLibrary) -> SummaryS
     )
 
 
-async def test_full_summary_stores_debrief_and_vocabulary(prompts: PromptLibrary) -> None:
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
+async def test_full_summary_stores_debrief_and_vocabulary(
+    prompts: PromptLibrary, db: Database
+) -> None:
     interviews, _ = await _seed_sessions(db)
     llm = ScriptedLlm([["<think>hm</think>", json.dumps(VALID)]])
     service = _service(llm, db, prompts)
@@ -237,10 +237,10 @@ async def test_full_summary_stores_debrief_and_vocabulary(prompts: PromptLibrary
     assert "REVIEW TRANSCRIPT" in llm.calls[0][1]["content"]
 
 
-async def test_string_focus_from_the_model_is_stored_as_a_list(prompts: PromptLibrary) -> None:
+async def test_string_focus_from_the_model_is_stored_as_a_list(
+    prompts: PromptLibrary, db: Database
+) -> None:
     """Форма живой записи 2026-07-05 доезжает до БД уже списком — фронту нечего чинить."""
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     interviews, _ = await _seed_sessions(db)
     llm = ScriptedLlm([[json.dumps(_with("next_session_focus", "Lead with the metric."))]])
 
@@ -257,14 +257,14 @@ def _with_translation(translation: str) -> dict:
     return data
 
 
-async def test_broken_translation_is_repaired_on_the_voice_model(prompts: PromptLibrary) -> None:
+async def test_broken_translation_is_repaired_on_the_voice_model(
+    prompts: PromptLibrary, db: Database
+) -> None:
     """V4: запись чинится, а не теряется — и чинит её qwen, а не тот, кто сломал.
 
     D-8: R1 живёт только в офлайн-разборе, и именно он срывается на китайский.
     Просить починку у него значит просить у источника дефекта.
     """
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     await _seed_sessions(db)
     llm = ScriptedLlm([[json.dumps(_with_translation("выразительный陳述"))], ["компромисс"]])
     service = _service(llm, db, prompts)
@@ -285,11 +285,11 @@ async def test_broken_translation_is_repaired_on_the_voice_model(prompts: Prompt
 
 
 async def test_unrepairable_translation_is_dropped_out_loud(
-    prompts: PromptLibrary, caplog: pytest.LogCaptureFixture
+    prompts: PromptLibrary,
+    caplog: pytest.LogCaptureFixture,
+    db: Database,
 ) -> None:
     """V5: потеря записи обязана звучать — иначе она неотличима от «слова не было»."""
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     await _seed_sessions(db)
     llm = ScriptedLlm([[json.dumps(_with_translation("выразительный陳述"))], ["陳述"]])
     service = _service(llm, db, prompts)
@@ -302,10 +302,10 @@ async def test_unrepairable_translation_is_dropped_out_loud(
     assert "trade-off" in caplog.text and "иероглифы" in caplog.text
 
 
-async def test_all_vocabulary_broken_does_not_kill_the_summary(prompts: PromptLibrary) -> None:
+async def test_all_vocabulary_broken_does_not_kill_the_summary(
+    prompts: PromptLibrary, db: Database
+) -> None:
     """V6: словарь — часть разбора, а не его условие. Оценки и текст остаются."""
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     interviews, _ = await _seed_sessions(db)
     llm = ScriptedLlm([[json.dumps(_with_translation("陳述"))], ["陳述"]])
     service = _service(llm, db, prompts)
@@ -317,10 +317,8 @@ async def test_all_vocabulary_broken_does_not_kill_the_summary(prompts: PromptLi
     assert row is not None and row.summary_kind == "full"
 
 
-async def test_clean_summary_costs_no_extra_call(prompts: PromptLibrary) -> None:
+async def test_clean_summary_costs_no_extra_call(prompts: PromptLibrary, db: Database) -> None:
     """V7: исправный перевод не платит ничем — починка вызывается только по нужде."""
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     await _seed_sessions(db)
     llm = ScriptedLlm([[json.dumps(VALID)]])
     service = _service(llm, db, prompts)
@@ -330,10 +328,10 @@ async def test_clean_summary_costs_no_extra_call(prompts: PromptLibrary) -> None
     assert len(llm.calls) == 1
 
 
-async def test_meta_turns_never_reach_the_summary_prompt(prompts: PromptLibrary) -> None:
+async def test_meta_turns_never_reach_the_summary_prompt(
+    prompts: PromptLibrary, db: Database
+) -> None:
     """P9: просьба о темпе была, но она не реплика кандидата и не улика в разборе."""
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
     interviews = InterviewRepository(db)
     reviews = ReviewRepository(db)
     await interviews.create("i1", interview_mode="m", persona="p")
@@ -358,9 +356,7 @@ async def test_meta_turns_never_reach_the_summary_prompt(prompts: PromptLibrary)
     assert "Sure, slowing down." not in sent
 
 
-async def test_invalid_json_retries_with_error_hint(prompts: PromptLibrary) -> None:
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
+async def test_invalid_json_retries_with_error_hint(prompts: PromptLibrary, db: Database) -> None:
     await _seed_sessions(db)
     llm = ScriptedLlm([["not json at all"], [json.dumps(VALID)]])
     service = _service(llm, db, prompts)
@@ -371,9 +367,9 @@ async def test_invalid_json_retries_with_error_hint(prompts: PromptLibrary) -> N
     assert "Your JSON was invalid" in retry_message
 
 
-async def test_full_degrades_to_minimal_after_two_failures(prompts: PromptLibrary) -> None:
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
+async def test_full_degrades_to_minimal_after_two_failures(
+    prompts: PromptLibrary, db: Database
+) -> None:
     interviews, _ = await _seed_sessions(db)
     minimal_ok = json.loads(json.dumps(VALID))
     minimal_ok["vocabulary"] = []
@@ -387,9 +383,7 @@ async def test_full_degrades_to_minimal_after_two_failures(prompts: PromptLibrar
     assert "minimal system" in llm.calls[2][0]["content"]  # switched to the minimal prompt
 
 
-async def test_minimal_gives_up_quietly(prompts: PromptLibrary) -> None:
-    db = Database("sqlite+aiosqlite:///:memory:")
-    await db.create_all()
+async def test_minimal_gives_up_quietly(prompts: PromptLibrary, db: Database) -> None:
     interviews, _ = await _seed_sessions(db)
     llm = ScriptedLlm([["junk"], ["junk"]])
     service = _service(llm, db, prompts)

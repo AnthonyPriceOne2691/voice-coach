@@ -2,10 +2,11 @@
 
 import json
 from collections.abc import AsyncIterator
+from typing import Any, Unpack
 
 import httpx
 
-from app.common.interfaces import ChatMessage
+from app.common.interfaces import ChatMessage, ChatOptions
 
 
 class OllamaError(RuntimeError):
@@ -34,24 +35,25 @@ class OllamaClient:
             return False
 
     async def stream_chat(
-        self,
-        messages: list[ChatMessage],
-        *,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        num_ctx: int | None = None,
+        self, messages: list[ChatMessage], **options: Unpack[ChatOptions]
     ) -> AsyncIterator[str]:
-        payload = {
-            "model": model,
+        payload: dict[str, Any] = {
+            "model": options["model"],
             "messages": messages,
             "stream": True,
             "options": {
-                "temperature": temperature,
-                "num_predict": max_tokens,
-                "num_ctx": num_ctx or self._num_ctx,
+                "temperature": options["temperature"],
+                "num_predict": options["max_tokens"],
+                # ⚠ Тот же num_ctx у ВСЕХ запросов одной модели: другое значение
+                # заставляет Ollama перезагрузить модель целиком.
+                "num_ctx": options.get("num_ctx") or self._num_ctx,
             },
         }
+        json_schema = options.get("json_schema")
+        if json_schema is not None:
+            # Схема ограничивает выборку токенов, а не промпт: префикс запроса тот же,
+            # и KV-кэш разговора переиспользуется (проверка речи, D3a.2).
+            payload["format"] = json_schema
         try:
             async with self._client.stream(
                 "POST", f"{self._base_url}/api/chat", json=payload

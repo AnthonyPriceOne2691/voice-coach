@@ -22,11 +22,9 @@ import pytest
 
 from app.common.interfaces import ChatMessage
 from app.main import create_app
-from app.storage.db import Database
-from app.storage.repositories.interviews import InterviewRepository
 from app.summary import service as summary_service
 from tests.fakes import FakeStt
-from tests.helpers import make_container
+from tests.helpers import load_interview, make_container
 
 pytestmark = pytest.mark.asyncio
 
@@ -119,8 +117,7 @@ async def test_shutdown_waits_for_a_running_background_summary(tmp_path: Path) -
         await llm.started.wait()  # задача точно в полёте, а не в очереди
     elapsed = time.monotonic() - started_at
 
-    fresh = InterviewRepository(Database(container.settings.database_url))
-    row = await fresh.get("i1")
+    row = await load_interview(container.settings.database_url, "i1")
     assert row is not None and row.summary_kind == "full"
     assert json.loads(row.debrief_json or "{}")["scores"]["clarity"] == 4
     assert elapsed >= delay * 0.8
@@ -147,8 +144,7 @@ async def test_shutdown_gives_up_on_a_hung_summary_and_says_so(
             await llm.started.wait()
 
     assert "summary task(s) cancelled by timeout" in caplog.text
-    fresh = InterviewRepository(Database(container.settings.database_url))
-    row = await fresh.get("i1")
+    row = await load_interview(container.settings.database_url, "i1")
     # Транскрипт — невосполнимый артефакт: он на месте даже когда разбора нет.
     assert row is not None and row.summary_kind is None
     assert json.loads(row.transcript_json)[0]["text"] == "I built a CRM."

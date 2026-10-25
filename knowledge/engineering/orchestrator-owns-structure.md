@@ -10,6 +10,7 @@ implementation:
   - backend/app/orchestrator/review.py
   - backend/app/orchestrator/question_bank.py
   - backend/app/orchestrator/talk.py
+  - backend/app/orchestrator/tips.py
   # Только промпты голосового цикла: `data/prompts/` целиком тянуло сюда и
   # промпты суммаризации, которые описывает другой concept (model-split).
   # Путь, покрывающий чужое, делает гейт code<->canon шумным, а шумный гейт
@@ -17,6 +18,7 @@ implementation:
   - data/prompts/interviewer_system.txt
   - data/prompts/review_system.txt
   - data/prompts/talk_system.txt
+  - data/prompts/language_check.txt
   - data/prompts/templates/
   - data/questions/
   - data/talk/
@@ -63,6 +65,14 @@ implementation:
   норма, и «It was a slow day» — рассказ. Поэтому в разговоре темп и просьбы
   засчитываются только как обращение («could you speak slower», «bye, Henry»), а
   у интервью таблица прежняя (`pace.detect(text, casual=True)`).
+- **Заметки к речи (D3a.2) — та же граница, и она дороже всех прочих.** После
+  ответа Генри модель предлагает ОДНОГО кандидата строгим JSON (схема Ollama), а
+  станет ли он заметкой, решает `orchestrator/tips.py`: фрагмент дословно в
+  распознанном (поправлять несказанное нельзя — whisper мог ослышаться), вариант
+  меняет слова, английский и проходит контракт разговора, повтор в том же
+  разговоре — не заметка. Что считать ошибкой и бедной речью, говорит просьба к
+  модели (`data/prompts/language_check.txt`), а не словарь в коде: словарь «плоских
+  слов» вырождается в «поправлять всегда».
 - Промпты и банк вопросов живут в `data/`, не в коде: перечитываются на каждой
   сессии, рестарт не нужен (и гейт `inline-prompt` не даст вписать их в `.py`).
 
@@ -84,6 +94,7 @@ implementation:
 | Оркестратор review | `backend/app/orchestrator/review.py` |
 | Банк вопросов и состав сессии | `backend/app/orchestrator/question_bank.py` |
 | Оркестратор разговора, просьбы по форме | `backend/app/orchestrator/talk.py` |
+| Заметки к речи: решение кода о кандидате модели | `backend/app/orchestrator/tips.py` |
 | Промпты / вопросы / темы (данные) | `data/prompts/`, `data/questions/`, `data/talk/` |
 
 # Sources
