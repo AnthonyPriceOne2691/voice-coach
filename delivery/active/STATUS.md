@@ -11,7 +11,7 @@
 - **kind:** feature
 - **repro_test:** n/a reason=не багфикс; экран заметок разговора, оракулы спеки C10–C13
 - **diagnosis:** n/a reason=не багфикс
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** yes (by=human:anthony, at=2026-10-23)
