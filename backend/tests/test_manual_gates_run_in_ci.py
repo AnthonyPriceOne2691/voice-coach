@@ -11,13 +11,13 @@
 """
 
 import re
-from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from app.config import REPO_ROOT
+
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 SCRIPT_RE = re.compile(r"scripts/[\w./-]+\.(?:sh|py)")

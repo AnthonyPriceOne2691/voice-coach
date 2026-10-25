@@ -156,6 +156,19 @@ CI судит PR слитым с `main`, а `main` за это время при
 зелёный. Открытое закрыто человеком 2026-10-25: бюджет на `api/ws_voice.py` — вариант (а),
 подписи под примерами и под `canon_drift_waiver` стоят (раздел «Решения человека 2026-10-25»).
 
+## После handoff (2026-10-25)
+
+Ветка сведена с `main` `5d7d7b7` (test-leaks, deps-refresh, talk-check-wiring). Конфликты —
+текст записей `adapted.json` (`quality.yml`, `backend/pyproject.toml`) и две строки
+`STACK-ACCEPTANCE.md`: обе стороны закрывали разные «Остатки 2.69», объединено — закрыты все
+три. Шаг мутаций теперь стоит сразу за шагом «Vulnerable dependencies», как в каноне.
+
+Сторож M15 сработал на слиянии, как задуман: два теста, пришедшие из `main` после этой
+поставки, считали корень глубиной пути — `test_manual_gates_run_in_ci.py:20` (deps-refresh) и
+`test_talk_checks.py:16` (wiring); под копией mutmut оба смотрели бы в `backend/`, и шаг снова
+«не просудил бы НИЧЕГО» (класс L91). Переведены на `from app.config import REPO_ROOT`; сьют —
+338 passed, доктор контура — `DEAD 0`.
+
 ## Решения человека 2026-10-25
 
 - **Бюджет — вариант (а)** (human:anthony): `timeout_multiplier = 3.0` в `[tool.mutmut]`,
