@@ -8,9 +8,9 @@ from starlette.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 from app.orchestrator.pace import in_range
-from app.storage.db import Database
 from app.storage.repositories.settings_repo import DEFAULTS
 from app.storage.repositories.vocabulary import VocabularyRepository
+from tests.db_lifecycle import owned_database
 from tests.fakes import FakeLlm, FakeStt, ScriptedLlm
 from tests.helpers import make_container, minimal_summary_tokens, seed_finished_interview
 
@@ -68,20 +68,19 @@ def test_vocabulary_list_and_soft_delete(tmp_path: Path) -> None:
     container = make_container(tmp_path, FakeLlm(["x. "]), FakeStt())
 
     async def seed() -> None:
-        db = Database(container.settings.database_url)
-        await db.create_all()
-        await VocabularyRepository(db).merge(
-            [
-                {
-                    "term_en": "trade-off",
-                    "translation_ru": "компромисс",
-                    "example_en": "The trade-off was X.",
-                    "category": "architecture",
-                }
-            ],
-            session_id="s1",
-        )
-        await db.dispose()
+        async with owned_database(container.settings.database_url) as db:
+            await db.create_all()
+            await VocabularyRepository(db).merge(
+                [
+                    {
+                        "term_en": "trade-off",
+                        "translation_ru": "компромисс",
+                        "example_en": "The trade-off was X.",
+                        "category": "architecture",
+                    }
+                ],
+                session_id="s1",
+            )
 
     asyncio.run(seed())
     with TestClient(create_app(container)) as client:

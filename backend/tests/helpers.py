@@ -23,6 +23,7 @@ from app.storage.repositories.settings_repo import SettingsRepository
 from app.storage.repositories.talks import TalkRepository
 from app.storage.repositories.vocabulary import VocabularyRepository
 from app.summary.service import SummaryService
+from tests.db_lifecycle import owned_database
 from tests.fakes import FakeDecoder, FakeStt, FakeTts
 
 #: Реплики подтверждения темпа. В тестовом контейнере они СВОИ, а не копия
@@ -73,6 +74,10 @@ def make_container(tmp_path: Path, llm: Any, stt: FakeStt) -> Container:
     # перевод повторным запросом, и без этого файла первый же тест, дошедший до
     # починки, упал бы на отсутствующем промпте, а не на своём предмете.
     (prompts / "translate_term_system.txt").write_text("translate term")
+    # Просьба о проверке речи (D3a.2) — настоящая: тесты сверяют подстановку реплики.
+    (prompts / "language_check.txt").write_text(
+        (REPO_ROOT / "data" / "prompts" / "language_check.txt").read_text(encoding="utf-8")
+    )
     (prompts / "templates" / "interview_intro.txt").write_text(
         "Hi, I'm Henry. Walk me through an internal tool you built end-to-end."
     )
@@ -163,32 +168,28 @@ def send_utterance(ws: WebSocketTestSession, payload: bytes = b"webm") -> None:
     )
 
 
-def fetch_interview(database_url: str, session_id: str) -> InterviewSession | None:
-    async def go() -> InterviewSession | None:
-        db = Database(database_url)
-        row = await InterviewRepository(db).get(session_id)
-        await db.dispose()
-        return row
+async def load_interview(database_url: str, session_id: str) -> InterviewSession | None:
+    """Прочитать сессию отдельным движком из async-теста — и погасить его."""
+    async with owned_database(database_url) as db:
+        return await InterviewRepository(db).get(session_id)
 
-    return asyncio.run(go())
+
+def fetch_interview(database_url: str, session_id: str) -> InterviewSession | None:
+    return asyncio.run(load_interview(database_url, session_id))
 
 
 def fetch_review(database_url: str, review_id: str) -> ReviewSession | None:
     async def go() -> ReviewSession | None:
-        db = Database(database_url)
-        row = await ReviewRepository(db).get(review_id)
-        await db.dispose()
-        return row
+        async with owned_database(database_url) as db:
+            return await ReviewRepository(db).get(review_id)
 
     return asyncio.run(go())
 
 
 def fetch_talk(database_url: str, talk_id: str) -> TalkSession | None:
     async def go() -> TalkSession | None:
-        db = Database(database_url)
-        row = await TalkRepository(db).get(talk_id)
-        await db.dispose()
-        return row
+        async with owned_database(database_url) as db:
+            return await TalkRepository(db).get(talk_id)
 
     return asyncio.run(go())
 
@@ -230,13 +231,12 @@ def seed_finished_interview(database_url: str, interview_id: str = "int-1") -> N
     ]
 
     async def go() -> None:
-        db = Database(database_url)
-        await db.create_all()
-        repo = InterviewRepository(db)
-        await repo.create(interview_id, interview_mode="m", persona="senior_colleague")
-        await repo.checkpoint(interview_id, turns, {"duration_sec": 120})
-        await repo.finish(interview_id, status="completed")
-        await db.dispose()
+        async with owned_database(database_url) as db:
+            await db.create_all()
+            repo = InterviewRepository(db)
+            await repo.create(interview_id, interview_mode="m", persona="senior_colleague")
+            await repo.checkpoint(interview_id, turns, {"duration_sec": 120})
+            await repo.finish(interview_id, status="completed")
 
     asyncio.run(go())
 
