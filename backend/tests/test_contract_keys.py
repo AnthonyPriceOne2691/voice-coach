@@ -288,7 +288,7 @@ def _family_of(file: str) -> Family:
 def test_every_contract_key_is_executed_or_declared(file: str) -> None:
     family = _family_of(file)
     silent = _silent(family, file, _code(family))
-    assert silent == [], (
+    assert silent == [], (  # K1
         f"{file}: ключи без исполнителя — контракт обещает поведение, которого нет "
         f"(L72, L73). Подключи исполнителя или внеси ключ в NOT_EXECUTED с причиной: {silent}"
     )
@@ -298,11 +298,12 @@ def test_every_contract_file_is_read_or_mirrored() -> None:
     """Новый контракт приходит с читателем или с причиной, почему YAML не читает никто."""
     on_disk = {path.name for path in CONTRACTS.glob("*.contract.yaml")}
     declared = {f for family in FAMILIES for f in family.files} | set(MIRRORED)
-    assert on_disk == declared, f"контракты вне сторожа: {sorted(on_disk ^ declared)}"
+    assert on_disk == declared, f"контракты вне сторожа: {sorted(on_disk ^ declared)}"  # K4
     loaded, _ = _constants(str(p.relative_to(APP)) for p in APP.rglob("*.py"))
-    assert all(f in loaded for family in FAMILIES for f in family.files)
+    unread = sorted(f for family in FAMILIES for f in family.files if f not in loaded)
+    assert unread == [], f"у контракта есть семья, а его файл не грузит никто: {unread}"  # K4
     stale = sorted(f for f in MIRRORED if f in loaded)
-    assert stale == [], f"контракт объявлен незагружаемым, а код его грузит: {stale}"
+    assert stale == [], f"контракт объявлен незагружаемым, а код его грузит: {stale}"  # K4
 
 
 def test_not_executed_entries_are_alive() -> None:
@@ -320,22 +321,27 @@ def test_not_executed_entries_are_alive() -> None:
                 for k in keys
                 if k.path == pattern or ("*" in pattern and _covers(pattern, k.path))
             ]
-            assert anchors, f"NOT_EXECUTED[{pattern!r}] не совпал ни с одним ключом"
+            assert anchors, f"NOT_EXECUTED[{pattern!r}] не совпал ни с одним ключом"  # K5
             executed = [k.path for k in anchors if _why_silent(family, k, code) is None]
-            assert executed == [], f"NOT_EXECUTED[{pattern!r}] протух: {executed} исполняются"
+            assert executed == [], f"NOT_EXECUTED[{pattern!r}] протух: {executed}"  # K5
+
+
+#: Правило с параметрами и правило памяти — образцы для проверки обхода.
+QUESTION_OR_ACK = "governance/hard/G1-H4_question_or_ack"
+MEMORY_FORM = "invariants/hard/M-H5_form"
 
 
 def test_the_sweep_sees_the_contracts() -> None:
-    """Сторож судит не пустоту (L92): обход видит ключи всех глубин, читатель — код."""
+    """Сторож судит не пустоту: обход видит ключи всех глубин, читатель — код (L92)."""
     interview = {key.path: key for key in _keys("interview.contract.yaml")}
-    assert "drift/thresholds/hard_violations_tighten" in interview
-    assert "recovery/max_retries" in interview
-    assert interview["governance/hard/G1-H4_question_or_ack/states"].rule_param
-    assert not interview["governance/hard/G1-H4_question_or_ack/check"].rule_param
     memory = {key.path for key in _keys("memory.contract.yaml")}
-    assert "invariants/hard/M-H5_form/text_max_words" in memory
+    deep = {"drift/thresholds/hard_violations_tighten", "recovery/max_retries"}
+    assert deep <= set(interview)  # K6
+    assert f"{MEMORY_FORM}/text_max_words" in memory  # K6
+    assert interview[f"{QUESTION_OR_ACK}/states"].rule_param  # K3
+    assert not interview[f"{QUESTION_OR_ACK}/check"].rule_param  # K3
     voice, memory_code = _code(VOICE), _code(MEMORY)
-    assert {"max_retries", "patterns_file"} <= voice.names
-    assert {"max", "states", "ack_max_words", "patterns_file"} <= voice.params
-    assert "max_retries" in voice.fields_read
-    assert {"min_quote_words", "follow_up_max_words"} <= memory_code.fields_read
+    assert {"max_retries", "patterns_file"} <= voice.names  # K6
+    assert {"max", "states", "ack_max_words", "patterns_file"} <= voice.params  # K3
+    assert "max_retries" in voice.fields_read  # K2
+    assert {"min_quote_words", "follow_up_max_words"} <= memory_code.fields_read  # K2
