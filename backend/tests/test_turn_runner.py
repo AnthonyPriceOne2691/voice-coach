@@ -1,15 +1,14 @@
 """TurnRunner: sentence-gated generation with the doc 13 recovery ladder."""
 
-from pathlib import Path
-
 import pytest
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer, TurnContext
 from app.contracts.spec import load_contract
 from app.voice.turn_runner import AgentCompleted, AgentSentence, LlmParams, TurnRunner
 from tests.fakes import FakeLlm, FakeTts, ScriptedLlm
 
-CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "data" / "contracts"
+CONTRACTS_DIR = REPO_ROOT / "data" / "contracts"
 PARAMS = LlmParams(model="m", temperature=0.7, max_tokens=100)
 SEED = "Help me understand the trade-off you considered there."
 

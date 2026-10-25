@@ -1,13 +1,10 @@
 """Просьба о проверке речи (D3a.2): префикс разговора тот же, схема ответа — своя."""
 
-from pathlib import Path
-
+from app.config import REPO_ROOT
 from app.knowledge.prompts import PromptLibrary
 from app.orchestrator.tips import CANDIDATE_SCHEMA
 from app.voice.language_check import ask_candidate, check_messages
 from tests.fakes import FakeLlm
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_request_goes_last_and_the_conversation_prefix_is_untouched() -> None:

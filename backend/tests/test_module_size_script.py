@@ -2,9 +2,9 @@
 
 import subprocess
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from app.config import REPO_ROOT
+
 SCRIPT = REPO_ROOT / "scripts" / "check_module_size.py"
 
 

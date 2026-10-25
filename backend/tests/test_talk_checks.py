@@ -2,9 +2,9 @@
 
 import random
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any
 
+from app.config import REPO_ROOT
 from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import load_contract
 from app.knowledge.prompts import PromptLibrary
@@ -12,8 +12,6 @@ from app.llm.ollama_client import OllamaError
 from app.orchestrator.talk import TalkOrchestrator, load_script
 from app.voice.talk_checks import TalkChecks
 from app.voice.talk_flow import TalkFlow
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class NullRepo:

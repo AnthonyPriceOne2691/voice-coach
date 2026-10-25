@@ -1,10 +1,10 @@
 """Interview orchestrator: state x event -> next state (doc 04; coverage gate 90%)."""
 
 import random
-from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.orchestrator.interview import InterviewOrchestrator, Phase
 from app.orchestrator.question_bank import (
     Question,
@@ -13,7 +13,7 @@ from app.orchestrator.question_bank import (
     pick_session_pool,
 )
 
-QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "data" / "questions"
+QUESTIONS_DIR = REPO_ROOT / "data" / "questions"
 TECHNICAL_BANK = QUESTIONS_DIR / "technical_project_walkthrough.yaml"
 BEHAVIORAL_BANK = QUESTIONS_DIR / "behavioral.yaml"
 

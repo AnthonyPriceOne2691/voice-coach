@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
+from app.config import REPO_ROOT
 from app.knowledge.prompts import PromptLibrary
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PROFILE = REPO_ROOT / "data" / "knowledge" / "profile_condensed.md"
 
 # doc 20, Mode 1: condensed profile <= 1500 токенов при num_ctx 8192.

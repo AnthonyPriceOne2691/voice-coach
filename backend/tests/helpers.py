@@ -8,7 +8,7 @@ from typing import Any
 
 from starlette.testclient import WebSocketTestSession
 
-from app.config import Settings
+from app.config import REPO_ROOT, Settings
 from app.container import Container
 from app.contracts.enforcer import ContractEnforcer
 from app.contracts.spec import load_contract
@@ -25,8 +25,6 @@ from app.storage.repositories.vocabulary import VocabularyRepository
 from app.summary.service import SummaryService
 from tests.db_lifecycle import owned_database
 from tests.fakes import FakeDecoder, FakeStt, FakeTts
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Реплики подтверждения темпа. В тестовом контейнере они СВОИ, а не копия
 #: настоящих: тест мета-хода проверяет механику, а не текст. Что настоящие
