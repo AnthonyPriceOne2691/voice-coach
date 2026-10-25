@@ -32,11 +32,25 @@ const DETAIL = {
   ],
 };
 
-/** Бэкенд History: интервью нет, разговоров два; деталь — первого. */
-function stubBackend() {
+// Брошенное интервью: голова строки та же, что у разговора (`SessionWhen`).
+const INTERVIEW = {
+  id: "i1",
+  started_at: "2026-10-22T09:00:00+00:00",
+  ended_at: null,
+  interview_mode: "technical_and_behavioral",
+  duration_sec: 300,
+  status: "failed",
+  has_review: false,
+  review_session_id: null,
+  has_debrief: false,
+  summary_kind: null,
+};
+
+/** Бэкенд History: разговоров два, деталь — первого; интервью — по заказу теста. */
+function stubBackend(interviews: unknown[] = []) {
   const asked: string[] = [];
   const bodies: Record<string, unknown> = {
-    "/sessions/interviews": { items: [] },
+    "/sessions/interviews": { items: interviews },
     "/sessions/talks": { items: [FINISHED, LEFT] },
     "/sessions/talks/t1": DETAIL,
   };
@@ -85,5 +99,17 @@ describe("History — разговоры (C13)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "← Back to history" }));
     expect(await screen.findByText("2 language notes")).toBeTruthy();
+  });
+
+  it("две секции — Interviews, под ней Talks; голова строки интервью та же (C13)", async () => {
+    stubBackend([INTERVIEW]);
+    render(<HistoryPage onStartReview={vi.fn()} />);
+
+    expect(await screen.findByText("Not reviewed")).toBeTruthy(); // C13: строка интервью
+    expect(await screen.findByText("2 language notes")).toBeTruthy(); // C13
+    const titles = screen.getAllByRole("heading").map((node) => node.textContent);
+    expect(titles).toEqual(["Interviews", "Talks"]); // C13: решение human:anthony 2026-10-23
+    expect(screen.getByText("Interrupted")).toBeTruthy(); // C13: голова — SessionWhen
+    expect(screen.getAllByText(/· not finished$/)).toHaveLength(2); // C13: интервью и разговор
   });
 });
