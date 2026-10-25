@@ -21,14 +21,17 @@ include_external_packages = True
 #
 # Внутри слоя модули перечислены через `:` — значит они независимы и не имеют
 # права импортировать друг друга. Сейчас так и есть; контракт это фиксирует.
+# `memory` (D3b) берёт разбор слов у `orchestrator/tips.py`, а запускает её разговор
+# (voice); оркестратор память не импортирует — заметку ему передают параметром.
 # --------------------------------------------------------------------
 [importlinter:contract:app-layered]
-name = app: main -> api -> summary/voice -> orchestrator -> contracts/llm/knowledge -> storage -> common/config
+name = app: main -> api -> summary/voice -> memory -> orchestrator -> contracts/llm/knowledge -> storage -> common/config
 type = layers
 layers =
     main
     api
     summary : voice
+    memory
     orchestrator
     contracts : llm : knowledge
     storage
@@ -54,6 +57,7 @@ forbidden_modules =
     app.orchestrator
     app.voice
     app.summary
+    app.memory
     app.contracts
     app.llm
     app.knowledge
@@ -72,6 +76,7 @@ source_modules =
     app.orchestrator
     app.voice
     app.summary
+    app.memory
     app.contracts
     app.llm
     app.knowledge

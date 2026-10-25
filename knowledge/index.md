@@ -18,6 +18,7 @@ okf_version: "0.2"
 
 * [Ops index](ops/) - приватность данных, локальный запуск
 * [Transcript durability](ops/transcript-durability.md) - транскрипт как невосполнимый артефакт
+* [Talk memory](ops/talk-memory.md) - что может попасть в память Генри между разговорами (D3b)
 
 # References
 

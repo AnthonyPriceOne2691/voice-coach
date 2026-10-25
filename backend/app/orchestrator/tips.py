@@ -102,7 +102,7 @@ def parse_candidate(raw: str) -> Candidate | Rejection:
 
 
 def words(text: str) -> list[str]:
-    """Слова для сверки: без регистра, пунктуации и вида апострофа."""
+    """Слова для сверки: без регистра, пунктуации и вида апострофа; общие с памятью (D3b)."""
     return [_normal(m.group(0)) for m in _WORD.finditer(text)]
 
 
@@ -115,7 +115,7 @@ def decide(
 ) -> dict[str, Any] | Rejection:
     """Станет ли кандидат заметкой — и в каком виде она запишется."""
     said_words, better_words = words(candidate.said), words(candidate.better)
-    fragment = _locate(utterance, said_words)
+    fragment = locate(utterance, said_words)
     if fragment is None:
         return Rejection.NOT_SAID
     # Контракт — ДО сравнения слов: `words` видит только латиницу, и вариант на
@@ -141,7 +141,7 @@ def _normal(word: str) -> str:
     return word.lower().replace("’", "'").replace("‘", "'")
 
 
-def _locate(utterance: str, needle: list[str]) -> str | None:
+def locate(utterance: str, needle: list[str]) -> str | None:
     """Фрагмент реплики, совпавший по словам, — в её собственном написании."""
     tokens = list(_WORD.finditer(utterance))
     size = len(needle)
@@ -158,11 +158,15 @@ def _same_fix(note: Mapping[str, Any], said: list[str], better: list[str]) -> bo
     return words(str(note.get("said", ""))) == said or words(str(note.get("better", ""))) == better
 
 
+def latin_only(text: str) -> bool:
+    """Все буквы — латиница: I3-H1 режет только кириллицу, а иероглифы (утечка, уже
+    виденная у R1 в переводах, L55) и любой третий алфавит прошли бы его насквозь."""
+    return all(ch.isascii() for ch in text if ch.isalpha())
+
+
 def _english(text: str, passes_contract: Callable[[str], bool]) -> bool:
-    """Контракт разговора И латиница: I3-H1 режет только кириллицу, а иероглифы
-    (утечка, уже виденная у R1 в переводах, L55) прошли бы его насквозь."""
-    letters_are_latin = all(ch.isascii() for ch in text if ch.isalpha())
-    return letters_are_latin and passes_contract(text)
+    """Контракт разговора И латиница."""
+    return latin_only(text) and passes_contract(text)
 
 
 def _reason(why: str, passes_contract: Callable[[str], bool]) -> str:
