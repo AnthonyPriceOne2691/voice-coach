@@ -8,7 +8,7 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_contract_keys.py::test_every_contract_key_is_executed_or_declared
 - **diagnosis:** active/diagnosis.md
-- **phase:** verify
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
@@ -30,4 +30,6 @@
 - **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
+- **observe_signal:** K1 в CI: прогоны `CI` на `main` после мержа держат `test_contract_keys.py` зелёным, а каждый PR, добавляющий или меняющий ключ в `data/contracts/*.contract.yaml`, приходит либо с исполнителем, либо с записью `NOT_EXECUTED` и причиной (ни одной записи без причины, ни одного зелёного прогона с новым молчащим ключом); решение человека по детектору дрейфа записано в doc 13
+- **observe_until:** 2026-11-25
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4

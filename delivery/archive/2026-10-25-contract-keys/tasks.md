@@ -81,10 +81,10 @@ doc 13 получает статус раздела «Drift detection»: что 
 
 ## Задачи
 
-- [ ] T1. Сторож `test_contract_keys.py` с пустыми `NOT_EXECUTED`/`MIRRORED`; на `main` — красный по правильной причине
-- [ ] T2. `NOT_EXECUTED` и `MIRRORED` с причинами, проверенными по коду
-- [ ] T3. Комментарии «не исполняется» в `interview`, `review`, `talk`, `summary` `.contract.yaml` (значения не меняются)
-- [ ] T4. Doc 13 (Drift detection, журнал нарушений, что из YAML исполняется), doc 16 (перегенерация и запасная реплика), реестр `rule_enforcers.md`
-- [ ] T5. Мутации KM1–KM7: снятое чтение известного ключа, снятая запись, новый ключ, протухшая запись
-- [ ] T6. Гейты: `run_checks.sh`, `pre-commit run --all-files`, `delivery_check`, smoke
-- [ ] T7. verify-report, handoff, архив и уроки L116, L117 в `INDEX.md`, PR, зелёные `CI` и `quality`
+- [x] T1. Сторож `test_contract_keys.py` с пустыми `NOT_EXECUTED`/`MIRRORED`; на `main` — красный по правильной причине
+- [x] T2. `NOT_EXECUTED` и `MIRRORED` с причинами, проверенными по коду
+- [x] T3. Комментарии «не исполняется» в `interview`, `review`, `talk`, `summary` `.contract.yaml` (значения не меняются)
+- [x] T4. Doc 13 (Drift detection, журнал нарушений, что из YAML исполняется), doc 16 (перегенерация и запасная реплика), реестр `rule_enforcers.md`
+- [x] T5. Мутации KM1–KM7: снятое чтение известного ключа, снятая запись, новый ключ, протухшая запись
+- [x] T6. Гейты: `run_checks.sh`, `pre-commit run --all-files`, `delivery_check`, smoke
+- [x] T7. verify-report, handoff, архив и уроки L116, L117 в `INDEX.md`, PR, зелёные `CI` и `quality`
