@@ -8,7 +8,7 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_summary.py::test_full_summary_sends_the_candidate_profile
 - **diagnosis:** active/diagnosis.md
-- **phase:** implement
+- **phase:** handoff
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
@@ -30,4 +30,6 @@
 - **canon_drift_waiver:** no
 - **baseline_growth_waiver:** no
 - **observability:** 1
+- **observe_signal:** U1 и U2 в живом использовании (после «запускай»): в debrief_json трёх сессий подряд балл `positioning` и хотя бы одна запись `consistency_flags` или `improvements` с category `positioning` опираются на правила `Positioning rules` профиля (builder/delivery, не SEO lead), а не на роль «AI automation engineer»; сводка 15-минутной сессии сохраняется как `full`, не деградирует в `minimal`
+- **observe_until:** 2026-11-25
 - **circuit_breakers:** defaults from AGENT_DELIVERY_HARNESS.md §3.4
