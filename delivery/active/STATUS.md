@@ -8,7 +8,7 @@
 - **kind:** bugfix
 - **repro_test:** backend/tests/test_contract_keys.py::test_every_contract_key_is_executed_or_declared
 - **diagnosis:** active/diagnosis.md
-- **phase:** implement
+- **phase:** verify
 - **builder:** agent:claude-code
 - **verifier:** human:anthony
 - **human_ok_spec:** n/a (class S — mini-spec в tasks.md, §2.2)
