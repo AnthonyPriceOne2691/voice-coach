@@ -1,0 +1,38 @@
+# Memory — что может попасть в память Генри между разговорами (D3b), ABC-lite
+# Spec: docs/13-behavioral-contracts.md · delivery memory-guard (2026-10-25)
+#
+# Не голосовой контракт: правила живут кодом в backend/app/memory/, числа и список
+# «никогда» код читает отсюда и без них не стартует; маркер каждого id в app/memory/
+# сторожит test_contracts.py. Модель предлагает, решает код (I1-H6). Предусловие
+# «≥ 3 реплик и ≥ 20 слов беседы» и повтор на не-JSON придут с memory-write.
+mode: memory
+version: "1.0"
+enforcement: per_candidate
+
+invariants:
+  hard:
+    - id: M-H1_json_shape  # {"memories": [{kind, text, follow_up, evidence}]}
+      check: memory_json_shape
+      max_candidates: 3  # годных больше — первые в порядке модели
+    - id: M-H2_english  # текст, вопрос и цитата — латиница целиком
+      check: latin_only
+    - id: M-H3_from_his_words  # цитата дословно в ОДНОЙ его реплике, текст — о ней
+      check: quote_in_user_turn
+      min_quote_words: 3
+    # Ищется и в реплике, где стоит цитата: обрезанная цитата вымарывала бы категорию (K7).
+    - id: M-H4_never_store
+      check: forbid_patterns
+      patterns_file: memory_never_store.txt
+    - id: M-H5_form  # «you …», одно предложение без «?»; вопрос кончается «?»
+      check: memory_form
+      text_min_words: 3
+      text_max_words: 25
+      follow_up_max_words: 15
+    - id: M-H6_not_a_repeat  # доля общих значимых слов — от МЕНЬШЕГО набора (K12)
+      check: shared_words_below
+      max_shared: 0.6
+    - id: M-H7_speakable  # текст и вопрос проходят talk.contract.yaml целиком
+      check: passes_talk_contract
+
+logging:
+  sink: log_counts_only  # причина, категория и число отказов — никогда текст
