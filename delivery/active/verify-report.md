@@ -5,11 +5,16 @@
 **Verifier:** human:anthony
 **asserts_reviewed_by:** deferred (reason=все 5 новых утверждений ведут к примерам E1–E2 — дайджест ниже; подпись примеров E1–E5 человеком на мерже вместе с human_ok_spec, после неё здесь n/a)
 **CI run:** _заполняется после push_
-**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, отчёты — следующий коммит
+**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, verify `75b3d47`, слияние с `main` `58b1a5c`, сверка документов с кодом #48 — следующий коммит
 
-База — `main` `8d344d4` (#46 deps-refresh): ветка отведена от `c1e4952` и до первого
-коммита сведена fast-forward, venv и node_modules пересобраны по новым lock-файлам.
-Машину делят соседние сессии: load average за время замеров — от 6 до 46.
+Verify прогнан дважды. Первый круг — на `main` `8d344d4` (#46 deps-refresh; ветка
+отведена от `c1e4952` и до первого коммита сведена fast-forward, venv и node_modules
+пересобраны по новым lock-файлам), под нагрузкой соседних сессий: load average 6–74.
+Во время verify в `main` пришёл `5d7d7b7` (#48 talk-check-wiring: `_cancel_warmup` в
+`ws_voice.py` стал `_cancel_background` и получил соседа `TalkChecks.cancel()`, +12
+тестов). Он влит слиянием `58b1a5c` без конфликтов, lock-файлы не менялись; всё, что
+зависит от дерева, перемерено на слитом дереве в тихой машине (load average 2–3).
+Числа ниже — со слитого дерева, если не сказано иное.
 
 ## Оракулы спеки
 
@@ -26,7 +31,9 @@
 
 Скрипт мутаций — по одной, файл восстанавливается в `finally`, после всех пяти
 `git diff` совпадает с коммитом правки. Прогон — три модуля: `test_shutdown_cancellation`,
-`test_shutdown_summary`, `test_ws_voice` (16 тестов).
+`test_shutdown_summary`, `test_ws_voice` (16 тестов). Прогнан дважды — до слияния #48
+под нагрузкой и на слитом дереве в тихой машине (E2 идёт через изменённый
+`ws_voice.py`); результаты совпали полностью.
 
 | Мутация | Ожидание | Результат |
 |---|---|---|
@@ -38,14 +45,15 @@
 
 M2 и M5 — то, ради чего в тесте медленная размотка (decisions D5): с мгновенной
 размоткой вариант «ждать отмену со сроком» краснел бы монеткой — в замере test-leaks
-2 из ~45 под нагрузкой и, вероятно, ни разу на тихой машине.
+2 из ~45 под нагрузкой. С медленной M2 и M5 красные 3 из 3 и в тихой машине (load
+average 2–3 на втором круге), то есть от нагрузки вердикт не зависит.
 
 ## Машинные гейты
 
 | Гейт | Результат |
 |---|---|
-| `uv run pytest` 10 раз подряд (сьют + coverage-гейт 85) | **PASS 10 из 10** — 312 passed и 95.81% в каждом; итог стражей канона одинаковый во всех десяти: «пул: взято 540, не вернулось 0 · утечек 0». Load average 13–74 (соседние сессии), сьют 16–61 s |
-| `./scripts/run_checks.sh` | **PASS** — размер модулей, `ruff check` (All checks passed), `ruff format --check` (99 файлов), `mypy app` strict (57 файлов, 0 ошибок), pytest 312 passed, 95.81% |
+| `uv run pytest` 10 раз подряд (сьют + coverage-гейт 85) | **PASS 10 из 10** на слитом дереве — 324 passed и 95.92% в каждом; итог стражей канона одинаковый во всех десяти: «пул: взято 630, не вернулось 0 · утечек 0»; load average 2–3, сьют 5–6 s. До слияния #48 — тоже **10 из 10**: 312 passed, 95.81%, «пул: взято 540, не вернулось 0 · утечек 0», под load average 13–74, сьют 16–61 s |
+| `./scripts/run_checks.sh` | **PASS** — размер модулей, `ruff check` (All checks passed), `ruff format --check` (102 файла), `mypy app` strict (58 файлов, 0 ошибок), pytest 324 passed, 95.92% |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — 28 хуков из 28, включая jscpd, слои, ратчет сложности, secrets |
 | `bash delivery/evals/smoke/run.sh` | **PASS** — S1–S6 ok, S7 skip (сервер не поднят) |
 | `python3 scripts/lint/contour_doctor.py` | **PASS** — `AUTO 47 · WEAK 17 · ABSENT 0 · TOOL 3 · SKIP 1 · DEAD 0` |
@@ -87,18 +95,20 @@ Linux-контейнер не поднят: демон Docker на машине 
    `backend/app/summary/service.py`, `_drain` в `backend/app/main.py`, новый
    `backend/tests/test_shutdown_cancellation.py` (`StuckOnFinalWrite`,
    `_hold_connection`, `SLOW_UNWIND_S`); соседей правки — `ws_session` и
-   `_SessionHandler.aclose()` / `_cancel_warmup` в `ws_voice.py`, `_safe_full` в
-   `summary/service.py`, `Database.session()`, `AsyncSession.__aexit__` и
-   `AsyncEngine.dispose()` SQLAlchemy 2.0.51.
+   `_SessionHandler.aclose()` / `_cancel_background` в `ws_voice.py`,
+   `TalkChecks.cancel()` в `voice/talk_checks.py` (оба — в виде после слияния #48),
+   `_safe_full` в `summary/service.py`, `Database.session()`, `AsyncSession.__aexit__`
+   и `AsyncEngine.dispose()` SQLAlchemy 2.0.51.
 1. **транзакция БД** (поднят словом `rollback` в докстрингах) — правка меняет не
    транзакцию, а МОМЕНТ `dispose()` относительно размотки: `rollback` и возврат
    соединения делает `AsyncSession.__aexit__` (`create_task(self.close())` под
    `asyncio.shield`), и `await asyncio.wait(pending)` только дожидается, пока он
    закончится. Что может сломаться: задача, глотающая `CancelledError`, держала бы
    гашение — на путях обеих дверей таких нет (`_safe_full` ловит `Exception`, а
-   `_cancel_warmup` глотает отмену уборки лишь пока ждёт прогрев и затем доходит до
-   конечной записи `finish`); выход процесса такую задачу ждал бы и без правки
-   (`asyncio.run`). Сами записи (`set_debrief`, `finish`) и репозитории не тронуты.
+   `_cancel_background` глотает отмену уборки лишь пока ждёт снятие прогрева и
+   проверки речи, затем доходит до конечной записи `finish`; задача проверки речи в
+   базу не пишет); выход процесса такую задачу ждал бы и без правки (`asyncio.run`).
+   Сами записи (`set_debrief`, `finish`) и репозитории не тронуты.
 2. **производительность** (поднят `json.dumps` в новом тесте) — риска нет, потому что
    `json.dumps(SUMMARY)` — подготовка ответа фейковой модели в теле теста, не путь
    продукта; в `backend/app` выборок и разбора в цикле дифф не добавляет. Время
@@ -111,15 +121,20 @@ Linux-контейнер не поднят: демон Docker на машине 
    состоянии (мутации) сторож называет виновника синхронно; (в) зависимость от
    соседних модулей: модуль берёт `GoneClientWebSocket`, `make_container`,
    `MINIMAL_SUMMARY` и не правит ни `fakes.py`, ни `helpers.py`, которые меняют
-   соседние PR #44 и #48.
+   соседние PR #44 и #48 (#48 слит во время поставки, слияние без конфликтов).
 4. **строки лога** — `did not finish in time` и `cancelled by timeout` сохранены
    дословно (их ищет наблюдение `ws-disconnect-hang`) и утверждаются тестами E1/E2:
    переименование покраснело бы здесь, а не тихо обнулило бы сигнал наблюдения.
 
 ## Spec coverage gaps
 
-- `_cancel_warmup` в `ws_voice.py` глотает отмену самой уборки — не тронут (spec,
-  out of scope; `ws_voice.py` — поверхность модели, правится PR #48).
+- `contextlib.suppress(CancelledError)` вокруг ожидания отменённой задачи глотает и
+  отмену того, кто ждёт, — `_cancel_background` в `ws_voice.py` и `TalkChecks.cancel()`
+  в `voice/talk_checks.py` (второй пришёл с PR #48 во время поставки, то есть шаблон
+  копируется). Уборку это не вешает — она доходит до конечной записи, — но отмена
+  обработчика посреди `_on_utterance_end` тоже была бы проглочена. Не тронуто (spec,
+  out of scope; голосовой путь, `ws_voice.py` — поверхность модели); кандидат в
+  следующую поставку вместе с общим помощником на все четыре сайта (plan, D4).
 - Уборки, начатые после того, как `_drain` снял свой список, гашение не ждёт —
   записано, не тронуто.
 - Живое гашение `./scripts/dev.sh` — по «запускай» (`eval-smoke.md`, отложено).

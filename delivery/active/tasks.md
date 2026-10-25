@@ -17,5 +17,8 @@ L60, L61, L62, L88, L89, L90).
 - [x] T7. E1/E2 зелёные; мутации M1–M5 краснят ровно свои тесты; E3–E5 зелёные
 - [x] T8. Полный сьют 10 раз подряд с coverage; гейты, доктор, smoke, `eval-smoke.md`,
       `verify-report.md`, метрики
-- [ ] T9. PR, зелёные `quality` и `CI` по логу; handoff — после подписи примеров
+- [x] T9. `main` ушёл на `5d7d7b7` (#48 talk-check-wiring): влит слиянием, конфликтов
+      нет; `_cancel_warmup` стал `_cancel_background` и получил соседа
+      `TalkChecks.cancel()` — документы сверены с новым кодом, сьют перемерен
+- [ ] T10. PR, зелёные `quality` и `CI` по логу; handoff — после подписи примеров
       человеком (`human_ok_spec`), архив и строка `INDEX.md` в этом же PR
