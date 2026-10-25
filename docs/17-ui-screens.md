@@ -35,8 +35,45 @@
 (`data-testid="start-talk"` — крючок для браузерного стенда, как у интервью). Во время
 разговора — та же панель, что у интервью (`components/LiveSession.tsx`): орб,
 полоска уровня, транскрипт по переключателю Live transcript; в шапке вместо счётчика
-вопросов — «Talk with Henry». После конца — транскрипт и строка «Nice talk — see you
-next time.» Экран «было → лучше» — D3a.2.
+вопросов — «Talk with Henry». После конца — строка «Nice talk — see you next time.»,
+список Language notes этого разговора (Screen 1b) и под ним транскрипт.
+
+## Screen 1b: Language notes (D3a.2, 2026-10-25)
+
+Список «было → лучше» по разговору: после его конца на экране Talk (заметки берутся
+по `session_id` из `session_ended`, `GET /sessions/talks/{id}`) и в детали разговора
+в History. Что считать заметкой, решил сервер (проверка речи, doc 13 G3-H4); экран
+заметки не фильтрует и не пересматривает.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Language notes                                             │
+│  You said: “I go to the office and meet my client”          │
+│  → I went to the office and met my client — past tense      │
+│  [Listen] [Add to Useful Words]                             │
+├────────────────────────────────────────────────────────────┤
+│  You said: “the food was very good”                         │
+│  → the food was delicious                                   │
+│  [Listen] [Already in Useful Words]                         │
+└────────────────────────────────────────────────────────────┘
+```
+
+- **Строка:** что сказано — тихо («You said: “…”»), как лучше — ярко
+  («→ лучше — причина»). Причины нет — нет и тире.
+- **Listen** — лучший вариант голосом Генри в сохранённом темпе (WAV по адресу
+  заметки, doc 15; проигрывает сам браузер). Звук не пошёл — рядом «Can't play
+  right now», а не тишина. Звук живёт, только пока заметки на экране: старт сессии
+  и смена вкладки его глушат — он идёт мимо очереди сессии, и эхо-защита о нём не
+  знает (`knowledge/engineering/echo-protection.md`).
+- **Add to Useful Words** — `Adding…`, затем `Added to Useful Words` или
+  `Already in Useful Words`: кнопка гаснет, повтор с экрана не уходит (сервер и сам
+  не дублирует, doc 10). Отказ (502: перевод не прошёл S-H6 или модель молчит) —
+  `Couldn't add — try again`, и кнопка снова жмётся. Состояние у каждой заметки
+  своё; открыв разговор заново, видишь кнопку снова — повторный клик ответит
+  `Already…`, модель не зовётся.
+- **Пусто:** «No language notes for this talk. They appear when Henry hears a phrase
+  you could say better.» — без кнопок и без похвалы.
+- **Оценок нет ни в каком виде** — ни в строке, ни в причине, ни в итоге списка.
 
 ## Screen 1: Home / Interview (`/`)
 
@@ -145,6 +182,21 @@ Loading review model… (~10s)
 **Detail view (`/history/:interviewId`):**
 - Tabs: Summary | Interview transcript | Review transcript
 - Delete, export (P2)
+
+**Две секции: Interviews и Talks** (D3a.2, 2026-10-25; решение human:anthony
+2026-10-23). «Recent sessions» стали «Interviews», ниже — «Talks». Общий
+хронологический список отклонён: две постраничные выборки, слитые в одну, обрезали
+бы одну из них произвольно, а у строки интервью есть действия, которых у разговора
+нет.
+
+- **Строка разговора:** когда (`начало → конец · длительность` или
+  `· not finished` у брошенного — по `ended_at`, как у интервью, L16), «Completed» /
+  «Interrupted» и таблетка «N language notes» / «No language notes». Действие одно —
+  `Open`: разбора и удаления у разговора нет.
+- **Голова строки общая** у интервью и разговора (`SessionWhen`): вторая копия
+  была бы clone-парой и вторым местом, где «not finished» разъехалось бы молча.
+- **Деталь разговора:** «Talk · когда», Language notes (Screen 1b), под ними
+  транскрипт; `← Back to history` перечитывает оба списка.
 
 ---
 
@@ -272,6 +324,9 @@ Diagnostics section (read-only):
 | `SummaryCard` | < 200 | scores + lists |
 | `VocabularyList` | < 200 | search/filter |
 | `useVoiceSession` hook | < 200 | WebSocket + MediaRecorder |
+| `LanguageNotes` | < 200 | «было → лучше»: Listen, Add to Useful Words (D3a.2) |
+| `TalkHistory` | < 120 | разговоры в History: список и деталь (D3a.2) |
+| `SessionWhen` | < 40 | голова строки History: когда и чем кончилась сессия |
 
 ---
 
@@ -287,3 +342,4 @@ MVP: **desktop-first** (interview at desk). Min width 1024px. Mobile — post-MV
 |------|-----------|
 | 2026-06-26 | Initial UI screens; D-4/D-5/skip-review decisions applied |
 | 2026-10-17 | Вкладка Talk — разговор с Генри; панель живой сессии общая для интервью и разговора |
+| 2026-10-25 | Language notes после разговора: Listen, Add to Useful Words; History — секции Interviews и Talks (D3a.2) |

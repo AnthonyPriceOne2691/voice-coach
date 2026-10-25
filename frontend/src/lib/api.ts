@@ -1,10 +1,13 @@
 // Thin REST client over fetch — one function per endpoint (doc 15).
 
 import type {
+  AddedWord,
   Debrief,
   InterviewDetail,
   InterviewListItem,
   ReviewDetail,
+  TalkDetail,
+  TalkListItem,
   UserSettings,
   VocabularyItem,
 } from "../types/api";
@@ -49,6 +52,12 @@ export const api = {
     request<{ debrief: Debrief }>(`/sessions/interviews/${id}/minimal-summary`, {
       method: "POST",
     }),
+  listTalks: () => request<{ items: TalkListItem[] }>("/sessions/talks").then((r) => r.items),
+  getTalk: (id: string) => request<TalkDetail>(`/sessions/talks/${id}`),
+  addNoteToWords: (talkId: string, n: number) =>
+    request<AddedWord>(`/sessions/talks/${talkId}/notes/${n}/vocabulary`, { method: "POST" }),
+  // Адрес, а не запрос: WAV проигрывает сам браузер (`new Audio(url)`), темп — с сервера.
+  noteAudioUrl: (talkId: string, n: number) => `/sessions/talks/${talkId}/notes/${n}/audio`,
   listVocabulary: (query: string) =>
     request<{ items: VocabularyItem[] }>(
       query ? `/vocabulary?q=${encodeURIComponent(query)}` : "/vocabulary",
