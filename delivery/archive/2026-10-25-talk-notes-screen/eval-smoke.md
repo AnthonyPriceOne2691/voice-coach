@@ -32,6 +32,8 @@ Run during verify, 2026-10-25. Живые модели и браузер не з
 - [x] секция Talks: длительность «· 12 min», «not finished» у брошенного, «2 language
       notes» / «No language notes» — `HistoryPage.test.tsx`
 - [x] открытый разговор — заметки и транскрипт; «← Back to history» — снова список
+- [x] секции идут Interviews, затем Talks; у строки интервью та же голова, что у
+      разговора: «Interrupted», «not finished», таблетка «Not reviewed»
 
 ## Постоянные smoke (`delivery/evals/smoke/run.sh`)
 

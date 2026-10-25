@@ -3,7 +3,19 @@
 Дата прогонов: 2026-10-25. Builder: agent:claude-code (параллельная сессия, worktree
 `.claude/worktrees/agent-a83fad904ac8715eb`). Verifier: human:anthony.
 
-**CI run:** ссылки на прогоны `CI` и `quality` этой ветки — после push, строкой ниже.
+**CI run:** PR #52, коммит `6b6eb34` (весь код и тесты поставки, ветка слита с
+`main` `1fa99e5`): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40224128816
+— **success** (по логу: ruff «All checks passed!», mypy «no issues found in 62 source
+files», «404 passed», coverage 96.47%); `quality`
+https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40224128788 — **success**
+(по логу: pre-commit STRICT=1 — все хуки Passed, jscpd 0 клон-пар, complexity 0,
+layers — 2 половины, ESLint warnings 1 при снимке 1; contour-doctor DEAD 0;
+baseline-ratchet — 15 снимков; новых зависимостей нет; smoke S1–S6 ok; okf_sync_gate —
+6 концептов, okf_validate — 0 ошибок; предупреждения шагов diff-coverage и mutation —
+в «Что CI на этом PR не судит»). Первый прогон — на `4101a3e`, до теста секций
+History: `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40223372166
+и `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40223372135 —
+оба **success**. Прогоны на итоговом коммите этого отчёта (только `delivery/`) — в PR.
 
 ## Оракулы спеки
 
@@ -12,7 +24,7 @@
 | C10 | `LanguageNotes.test.tsx`: «каждая заметка — you said → better», «без заметок — честное пустое состояние»; `TalkPage.test.tsx`: «после разговора — его заметки по session_id» | **PASS** — «You said: “…”» и «→ лучше — причина», без причины нет тире, ни одной оценки; пусто — без кнопок и похвалы; после конца разговора — `GET /sessions/talks/t9` |
 | C11 | `LanguageNotes.test.tsx`: Listen (3 теста) | **PASS** — WAV по адресу своей заметки, `play` один раз; отказ звука виден; уход заметок с экрана — `pause` один раз |
 | C12 | `LanguageNotes.test.tsx`: Add (4 случая) | **PASS** — `added` и `exists` гасят кнопку, запрос один и по адресу своей заметки; 502 — «Couldn't add — try again», кнопка жмётся снова; пока ответа нет — «Adding…», второй клик второго запроса не шлёт |
-| C13 | `HistoryPage.test.tsx` (2 теста) | **PASS** — секция Talks: «· 12 min», «· not finished» у брошенного, «2 language notes» / «No language notes»; открытый разговор — заметки и транскрипт; назад — список |
+| C13 | `HistoryPage.test.tsx` (3 теста) | **PASS** — секция Talks: «· 12 min», «· not finished» у брошенного, «2 language notes» / «No language notes»; открытый разговор — заметки и транскрипт; назад — список; секции идут Interviews, затем Talks, у строки интервью та же голова («Interrupted», «not finished») |
 | C10–C13 (REST) | поставка talk-notes-rest, `main` | в `main` (`a97a621`), проверено там |
 | живое | Listen голосом Piper, снимок, Add на модели | **не прогонялось** — по «запускай» (`eval-smoke.md`) |
 
@@ -21,8 +33,8 @@
 import "./LanguageNotes"»), `HistoryPage.test.tsx` — «Unable to find … 2 language
 notes» и «… button "Open"», новый тест `TalkPage.test.tsx` — «Unable to find …
 Language notes»; три прежних теста TalkPage зелёные. Фронт `main` — 57 тестов в 11
-файлах, ветка — 69 в 13: десять перенесённых и два новых — уборка звука (C11) и Add
-в полёте (C12).
+файлах, ветка — 70 в 13: десять перенесённых и три новых — уборка звука (C11), Add в
+полёте (C12) и секции History со строкой интервью (C13).
 
 ## Перенос на main: чистый cherry-pick — ещё не перенос
 
@@ -62,7 +74,9 @@ Listen проигрывает фразу через `new Audio(url)` — мим�
 
 Скрипт мутаций — во временном каталоге сессии (в репозиторий не едет): точная замена
 одной строки, прогон своих тест-файлов, откат `git checkout`; до старта база зелёная
-(`Tests 15 passed (15)` по трём файлам).
+(`Tests 16 passed (16)` по трём файлам). Мутационный шаг CI фронт не судит: он считает
+python-половину, а Stryker во `frontend/` не установлен (см. «Машинные гейты»), —
+вердикт по фронту даёт только этот прогон.
 
 | Мутация | Пример | Результат |
 |---|---|---|
@@ -73,15 +87,17 @@ Listen проигрывает фразу через `new Audio(url)` — мим�
 | MF5: после «добавлено» кнопка снова жмётся | C12 | **убита** — 2 failed \| 7 passed (9) |
 | MF6: после ошибки повторить нельзя | C12 | **убита** — 1 failed \| 8 passed (9) |
 | MF7: Add шлёт запрос не по адресу заметки | C12 | **убита** — 1 failed \| 8 passed (9) |
-| MF8: History не показывает разговоров | C13 | **убита** — 2 failed (2) |
-| MF9: брошенный разговор показан с длительностью (L16) | C13 | **убита** — 1 failed \| 1 passed (2) |
-| MF10: открытый разговор без транскрипта | C13 | **убита** — 1 failed \| 1 passed (2) |
-| MF11: строка разговора без числа заметок | C13 | **убита** — 2 failed (2) |
+| MF8: History не показывает разговоров | C13 | **убита** — 3 failed (3) |
+| MF9: брошенный разговор показан с длительностью (L16) | C13 | **убита** — 2 failed \| 1 passed (3) |
+| MF10: открытый разговор без транскрипта | C13 | **убита** — 1 failed \| 2 passed (3) |
+| MF11: строка разговора без числа заметок | C13 | **убита** — 3 failed (3) |
 | MF12: после разговора заметки не запрошены | C10 | **убита** — 1 failed \| 3 passed (4) |
 | MF13: уход заметок с экрана не глушит Listen | C11 | **убита** — 1 failed \| 8 passed (9) |
 | MF14: пока Add в полёте, кнопка жмётся — второй запрос | C12 | **убита** — 1 failed \| 8 passed (9) |
+| MF15: секция интервью снова «Recent sessions» | C13 | **убита** — 1 failed \| 2 passed (3) |
+| MF16: голова строки не различает закрытую и прерванную сессию | C13 | **убита** — 1 failed \| 2 passed (3) |
 
-Итог: 14 мутаций, выжило 0. Не сторожится: форма единственного числа «1 language
+Итог: 16 мутаций, выжило 0. Не сторожится: форма единственного числа «1 language
 note» (в тестах 2 и 0) — косметика, мутацией не проверялась.
 
 **Находка мутаций:** сторожа на миг полёта Add не было. talk-notes-rest закрыла гонку
@@ -89,6 +105,12 @@ note» (в тестах 2 и 0) — косметика, мутацией не п
 проверяли только исходы `added`, `exists` и 502 — MF5 и MF6 бьют по ним, состояние
 `busy` не трогал никто. Добавлен тест «пока идёт запрос — Adding…» (`a205177`),
 MF14 убита.
+
+**Находка первого CI:** строка интервью в History не исполнялась ни одним тестом.
+Шаг diff-coverage напомнил, что покрытие фронта не измеряется (ниже), а перенос
+головы строки интервью в `SessionWhen` в заглушке бэкенда без интервью не рендерился
+вовсе. Добавлен тест «две секции — Interviews, под ней Talks» с брошенным интервью
+(`6b6eb34`), MF15 и MF16 убиты.
 
 ## Машинные гейты
 
@@ -98,14 +120,49 @@ MF14 убита.
 |---|---|
 | `UV_FROZEN=1 ./scripts/run_checks.sh` | **PASS** — бэкенд не тронут: 404 passed, coverage 96.47% (гейт 85), mypy strict, ruff, модули ≤ 500 строк |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — все хуки; jscpd 0 клон-пар (python + ts, снимок 0), сложность 0 (python + ts), слои OK (import-linter + dependency-cruiser), ESLint warnings 1 при снимке 1 |
-| `npx vitest run` | **PASS** — 69 тестов в 13 файлах |
+| `npx vitest run` | **PASS** — 70 тестов в 13 файлах |
 | `npm run build` (`artifact_oracle`) | **PASS** — `tsc -b` + `vite build`; в собранном CSS слой заметок есть: `grep -c note-better dist/assets/*.css` → 1 (L46: потерянный `@import` сборку не роняет) |
 | `bash delivery/evals/smoke/run.sh` | **PASS** — S1–S6 ok, S7 (health) пропущен: сервер не поднят |
 | `okf_sync_gate.py --base origin/main`, `okf_validate.py` | **PASS** — 5 mapped concepts, 0 warnings; 0 errors, 13 files |
-| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 14 файлов, net +686 (+716/−30) при лимите 800 |
+| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 14 файлов, net +712 (+742/−30) при лимите 800 |
 
 Поверхность модели (`model_surface`) не задета: дифф — фронт, docs 11 и 17, концепт
 эхо-защиты.
+
+### Покрытие фронта не измеряется — что не исполнено тестами
+
+CI-шаг diff-coverage на этом PR: «Python-файлов в диффе нет, но изменено 9
+prod-файл(ов). Покрытие этих файлов не измерено». Провайдера покрытия у vitest во
+`frontend/` нет (`@vitest/coverage-v8` не установлен; новая зависимость — решение
+человека), поэтому непокрытое названо чтением кода против тестов:
+
+- `LanguageNotes.tsx` — ветка отказа `EndedTalkNotes` («Failed to load language
+  notes — is the backend running?»); «Loading…» рендерится в тесте TalkPage, но не
+  утверждается; уборка с двумя начатыми звуками (тест — с одним).
+- `TalkHistory.tsx` — `notesLabel(1)` («1 language note»); отказы `listTalks` и
+  `getTalk` в `TalkList`; пустое состояние «No talks yet — start one on the Talk tab.»
+- `HistoryPage.tsx` — у строки интервью исполнена только таблетка «Not reviewed»;
+  «Reviewed», «Full summary», «Minimal summary», деталь интервью, разбор и удаление —
+  прежнее поведение, тестов на фронте у него не было и до поставки.
+- `styles.css`, `styles/notes.css`, `types/api.ts` — исполняемого кода нет; вид —
+  снимком по «запускай».
+
+Непокрытое — тексты и ветки отказов. Логика, на которой держатся C10–C13, тестами
+исполнена, и её мутанты MF1–MF16 убиты.
+
+### Что CI на этом PR не судит (по логу `quality`)
+
+- **Мутации фронта.** Шаг «Mutation testing (changed files, budgeted)»: «TS-половина
+  (frontend/src) этим прогоном НЕ судится — считается python» и «изменённых
+  prod-файлов нет (BASE=origin/main, смотрел в backend/app)». Stryker во `frontend/`
+  не установлен (известно с mutation-gate); вердикт по фронту — MF1–MF16 выше.
+- **Архивированную поставку.** Поставка ушла в архив в том же PR, `delivery/active/`
+  пуст, и шаг «Delivery phase gate» идёт веткой без `--diff-base`: «idle: нет
+  delivery/active/STATUS.md», 0 ошибок. Архив `2026-10-25-talk-notes-screen`
+  (phase=handoff) судили pre-push (`delivery-gate` с базой `origin/main`) и ручной
+  прогон: 0 ошибок, 3 предупреждения — разобраны ниже.
+- **Аудит зависимостей** печатает «не найдено ни одного поддерживаемого манифеста»:
+  проверка только в корне (L95), зависимости поставка не меняет.
 
 ### Оставшиеся предупреждения
 
@@ -212,17 +269,18 @@ Talks, категория `fluency`) исполнены: первое и тре�
 
 ## Verdict
 
-**READY FOR HANDOFF** — экранная половина C10–C13 зелёная на тулчейне `main`, 14
-мутаций сторожей убиты, машинные гейты зелёные по правилам delivery@2.07 · cqg@2.74.
-Найдено и закрыто по пути: двойник `Audio` под vitest 5, звук Listen мимо
-эхо-защиты и несторожёный миг полёта Add. Открыто — живое по «запускай»: Listen
-голосом Piper в браузере, снимок экрана, Add на настоящей модели.
+**READY FOR HANDOFF** — экранная половина C10–C13 зелёная на тулчейне `main`, 16
+мутаций сторожей убиты, машинные гейты и CI (`CI`, `quality`) зелёные по правилам
+delivery@2.07 · cqg@2.74. Найдено и закрыто по пути: двойник `Audio` под vitest 5,
+звук Listen мимо эхо-защиты, несторожёный миг полёта Add и неисполненная строка
+интервью в History. Открыто — живое по «запускай»: Listen голосом Piper в браузере,
+снимок экрана, Add на настоящей модели.
 
 ## Assertion digest (ревью ожиданий, не кода)
 
 База: `origin/main` · сгенерировано `assert_digest.sh`
 
-Новых/изменённых утверждений: **30**, из них без ссылки на пример спеки:
+Новых/изменённых утверждений: **35**, из них без ссылки на пример спеки:
 **0**. Вопрос к каждому непривязанному один: **откуда взято ожидаемое
 значение — из спеки или придумано под реализацию?**
 
@@ -254,6 +312,11 @@ C13	expect(screen.getByRole("listitem").textContent).toContain("→ I went to th
 C13	expect(screen.getByText("Yesterday I go to the office.")).toBeTruthy(); // C13: транскрипт
 C13	expect(asked).toContain("/sessions/talks/t1");
 C13	expect(await screen.findByText("2 language notes")).toBeTruthy();
+C13	expect(await screen.findByText("Not reviewed")).toBeTruthy(); // C13: строка интервью
+C13	expect(await screen.findByText("2 language notes")).toBeTruthy(); // C13
+C13	expect(titles).toEqual(["Interviews", "Talks"]); // C13: решение human:anthony 2026-10-23
+C13	expect(screen.getByText("Interrupted")).toBeTruthy(); // C13: голова — SessionWhen
+C13	expect(screen.getAllByText(/· not finished$/)).toHaveLength(2); // C13: интервью и разговор
 C10	expect(await screen.findByText("Language notes")).toBeTruthy(); // C10
 C10	expect(screen.getByRole("listitem").textContent).toContain("→ Pretty good, thanks"); // C10
 C10	expect(asked).toContain("/sessions/talks/t9"); // C10
@@ -274,13 +337,13 @@ asserts_reviewed_by: n/a (все утверждения ведут к одобр
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 14 code (+7 process docs) / +716/-30 (net +686) |
-| commits | 9 |
+| files_touched / loc_diff | 14 code (+10 process docs) / +742/-30 (net +712) |
+| commits | 13 на `6b6eb34`; коммит этого отчёта — четырнадцатый |
 | time_to_accepted_spec | 0.0h |
-| rework_after_done | 0 — после `phase: handoff` в ветке только ссылки на прогоны CI в шапке отчёта и слияния `origin/main`, если он уйдёт вперёд; код поставки не переделывался |
+| rework_after_done | 1 — счётчик видит 3 коммита после первого `phase: handoff` (`a13506f`): архив (`3a63658`), ссылка плана на свои уроки (`4101a3e`) и тест секций History (`6b6eb34`) по предупреждению diff-coverage первого CI — переделкой считаю только последний; код экрана после handoff не менялся |
 | harness_hardened | yes — frontend/src/components/LanguageNotes.test.tsx (новый оракул), frontend/src/pages/HistoryPage.test.tsx (новый оракул) |
-| implement_retries | 1 — перенос: два теста Listen покраснели на vitest 5 (двойник `Audio` стрелкой), починен двойник; правки по ревью (звук мимо эхо-защиты) и по мутациям (миг полёта Add) — converge, а не повтор задачи |
-| verify_fails_before_green | 0 — локальные гейты зелёные с первого полного прогона после починки двойника; прогоны CI — в шапке |
+| implement_retries | 1 — перенос: два теста Listen покраснели на vitest 5 (двойник `Audio` стрелкой), починен двойник; правки по ревью (звук мимо эхо-защиты), по мутациям (миг полёта Add) и по предупреждению diff-coverage первого CI (строка интервью) — converge, а не повтор задачи |
+| verify_fails_before_green | 0 — локальные гейты зелёные с первого полного прогона после починки двойника; CI зелёный на обоих прогонах (`4101a3e`, `6b6eb34`) — ссылки в шапке |
 | est_token_or_cost | n/a |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
