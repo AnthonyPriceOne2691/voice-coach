@@ -68,12 +68,12 @@ mutmut run --max-children 2`) — 514 s, rc 0. Причину показала �
 
 | Гейт | Результат |
 |---|---|
-| `./scripts/run_checks.sh` (после слияния `main` 78102a1) | **PASS** — модули ≤ 500 строк (`ws_voice.py` 488), ruff, mypy strict, 438 passed (в `main` 406, поставка +32), coverage 96.64% |
-| стражи исполнения сьюта (после слияния) | пул взят 770, не вернулось 0, утечек 0; `canary_text` в 5 тестах |
+| `./scripts/run_checks.sh` (после слияния `main` bb1b6af) | **PASS** — модули ≤ 500 строк (`ws_voice.py` 488), ruff, mypy strict, 453 passed (в `main` 420, поставка +33), coverage 96.65% |
+| стражи исполнения сьюта (после слияния) | пул взят 798, не вернулось 0, утечек 0; `canary_text` в 5 тестах |
 | `STRICT=1 pre-commit run --all-files` | **PASS** — все хуки, jscpd, сложность, слои |
 | `check_diff_coverage.sh` (`STRICT=1`, 70%) | **PASS** — `talk_tips.py` 100%, `talk_flow.py` 100%, `talk_checks.py` 98.8%, `talk.py` 98.4%, `turns.py` 95.0%, `ws_voice.py` 94.4% |
 | `okf_sync_gate.py` | **PASS** — концепты `sentence-streaming`, `orchestrator-owns-structure`, `transcript-durability` обновлены |
-| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 24 файла, net +745 (+805/−60) при пределе 800 |
+| `delivery_check.py --diff-base origin/main` | 0 ошибок; предохранитель — 25 файлов при пределе 25, net +761 (+821/−60) при пределе 800 |
 
 ### Оставшиеся предупреждения
 
