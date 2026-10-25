@@ -3,9 +3,9 @@
 **Date:** 2026-10-25
 **Builder:** agent:claude-code (worktree `.claude/worktrees/agent-acb118d08a01f0c55`, ветка `fix/shutdown-leaks`)
 **Verifier:** human:anthony
-**asserts_reviewed_by:** deferred (reason=все 5 новых утверждений ведут к примерам E1–E2 — дайджест ниже; подпись примеров E1–E5 человеком на мерже вместе с human_ok_spec, после неё здесь n/a)
-**CI run:** PR #49, коммит `afeab82` — GitHub гонял его слитым с `main` `1fa99e5` (merge-ref `4940e88`; дерево побайтно равно локальному слиянию `45dedf6`, `git diff` пуст — то есть прогоны судили ровно итоговый код): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40221855803 — **success**, по логу `tests/test_shutdown_cancellation.py ..`, «406 passed», покрытие 96.48%, итог стражей канона «пул: взято 716, не вернулось 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40221855862 — **success**: «Mutation testing» — «убито 219 из 344 (63%), выжило 125», `mutation: OK`; `delivery_check: 0 error(s), 3 warning(s)`; `okf_sync_gate` — drift разрешён waiver'ом; «stack: в STATUS совпадает со снимком docs/canon/»; `smoke: all checks passed`; доктор в CI `DEAD 0`; jscpd — 0 клон-пар; diff coverage — `app/summary/service.py` 96.3%. Прежние зелёные — `c25439c` (до #44): runs 40219453296 (`CI`, 335 passed) и 40219453297 (`quality`). Следующий коммит ветки — только этот отчёт; его прогоны — в PR #49
-**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, verify `75b3d47`; слияния с `main` — `58b1a5c` (#48), `9d7d429` (#42), `25c2282` (#44), `45dedf6` (memory-guard); сверка документов с кодом #48 `c25439c`, третий круг замеров `30726fe`, утверждения E1/E2 строкой лога целиком `1b34e16` и литерал в строке `assert` `83018f4` (та же проверка — для дайджеста), отчёт четвёртого круга `afeab82`, этот отчёт — следующий коммит
+**asserts_reviewed_by:** n/a (все 5 новых утверждений ведут к примерам E1–E2 — дайджест ниже; примеры E1–E5 подписаны человеком 2026-10-25, `human_ok_spec: yes`)
+**CI run:** PR #49, коммит `8bd02ab` (весь код поставки и слияние с `main` `1fa99e5`) — GitHub гонял его слитым с тем же `main` (merge-ref `00067fc`): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40222731601 — **success**, по логу `tests/test_shutdown_cancellation.py ..`, «406 passed», покрытие 96.48%, итог стражей канона «пул: взято 716, не вернулось 0»; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40222731726 — **success**: «Mutation testing» — «убито 219 из 344 (63%), выжило 125», `mutation: OK`; `delivery_check: 0 error(s), 3 warning(s)`; `okf_sync_gate` — drift разрешён waiver'ом; «stack: в STATUS совпадает со снимком docs/canon/»; `smoke: all checks passed`; доктор в CI `DEAD 0`; jscpd — 0 клон-пар. Прежние зелёные — `afeab82` (merge-ref `4940e88`, то же дерево кода): runs 40221855803 и 40221855862 (мутации 63%, diff coverage `app/summary/service.py` 96.3%); `c25439c` (до #44): runs 40219453296 (335 passed) и 40219453297. Коммиты handoff (подпись, метрики, архив, `INDEX.md`) код не меняют; их прогоны — в PR #49
+**Commit:** спека `6c7083f`, repro `3a0b7d5`, правка `13839f6`, verify `75b3d47`; слияния с `main` — `58b1a5c` (#48), `9d7d429` (#42), `25c2282` (#44), `45dedf6` (memory-guard); сверка документов с кодом #48 `c25439c`, третий круг замеров `30726fe`, утверждения E1/E2 строкой лога целиком `1b34e16` и литерал в строке `assert` `83018f4` (та же проверка — для дайджеста), отчёты четвёртого и пятого кругов `afeab82`, `8bd02ab`; handoff — следующие коммиты
 
 Verify прогнан на пяти деревьях — `main` уходил вперёд пять раз, и каждый раз ветка
 сводилась слиянием (force-push в проекте запрещён):
@@ -113,10 +113,12 @@ ERROR в teardown на каждом прогоне. На правленном к
 
 ### Оставшиеся предупреждения
 
-- **`human_ok_spec: deferred`** и **`asserts_reviewed_by: deferred`** — подпись примеров
-  E1–E5 человеком на мерже; до неё `phase` остаётся `verify`.
 - **Реляционный оракул (§6.5)** — решение человека 2026-08-12: зависимость для
   тестов-свойств не добавляется.
+
+На verify стояли ещё два — `human_ok_spec: deferred` и `asserts_reviewed_by: deferred`:
+подпись примеров E1–E5 поставлена человеком 2026-10-25 (через ведущую сессию), оба поля
+закрыты.
 
 ## Изменение поверхности модели (§14.1)
 
@@ -223,9 +225,10 @@ Linux-контейнер не поднят: демон Docker на машине 
 
 - [x] **READY FOR HANDOFF** — E1–E5 и repro зелёные; мутации M1–M5 краснят ровно свои
       тесты; мутационный гейт 62% локально и 63% в CI при пороге 60%, в правленных
-      функциях выживших нет;
-      машинные гейты — таблица выше; переход в `handoff` ждёт подписи примеров E1–E5
-      человеком (`human_ok_spec: deferred`)
+      функциях выживших нет; сьют 10 из 10 на каждом из пяти деревьев; машинные гейты
+      зелёные по правилам delivery@2.07 · cqg@2.74; `quality` и `CI` на ветке — строка
+      «CI run» в шапке; примеры E1–E5 подписаны человеком (`human_ok_spec: yes`,
+      human:anthony, 2026-10-25)
 - [ ] NEED CONVERGE
 - [ ] BLOCKED
 
@@ -252,10 +255,13 @@ E2	assert warned == ["shutdown: 1 ws cleanup(s) did not finish in time — cance
 
 asserts_without_example: 0
 
-Строку дайджеста «примеры человек подписал до кода» эта поставка пока не заслужила:
-примеры E1–E5 написаны и закоммичены до кода (`6c7083f` раньше `3a0b7d5`), но подпись
-человека под ними будет на мерже (`human_ok_spec: deferred`), а строки лога в E1/E2
-уточнены на verify. Поэтому `asserts_reviewed_by` — `deferred`, а не `n/a`.
+Строку дайджеста «примеры человек подписал до кода» эта поставка читает со сдвигом:
+примеры E1–E5 написаны и закоммичены до кода (`6c7083f` раньше `3a0b7d5`), а подпись
+человека поставлена после него, на verify (human:anthony, 2026-10-25, через ведущую
+сессию), — исполнитель работал без человека и вёл поставку под `deferred` (§2.2b).
+Строки лога в E1/E2 уточнены до подписи, и человек подписывал уже уточнённые примеры.
+Поэтому здесь «подписал до кода» значит «подписал до мержа»: утверждения привязаны к
+примерам, которые человек прочёл и принял, и `asserts_reviewed_by: n/a` заслужен.
 
 ## Harness metrics (this shipment)
 
