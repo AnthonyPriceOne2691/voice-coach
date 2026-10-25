@@ -143,6 +143,18 @@
   opening as the automation builder» — сверен с профилем: «SEO lead» стоит в колонке
   Don't, «builder» — его же слово. Не устарел, не тронут.
 
+## После handoff: слияние с memory-guard
+
+`main` ушёл на `1fa99e5` (memory-guard: `backend/app/memory/`, `memory.contract.yaml`, правка
+`test_contracts.py`); ветка сведена слиянием `6ea2dc8`, конфликты — только в `knowledge/log.md`
+и `delivery/archive/INDEX.md` (обе записи 2026-10-25 сохранены). В той же правке путь строки
+INDEX `docs/20-*` заменён полным: сопоставление уроков сравнивает пути через `startswith`, и
+маска не совпала бы ни с чем (L107). Перепрогон после `uv sync --all-extras` и `npm ci`:
+`run_checks.sh` — **411 passed**, покрытие 96.48%; `pre-commit run --all-files` — 28 из 28;
+`delivery_check.py --diff-base origin/main` — судит эту поставку, `0 error(s), 2 warning(s)`
+(idle и размер класса S); `okf_sync_gate: OK (6 mapped concepts, 0 warning(s))`. Прогоны CI на
+итоговом коммите — в PR #51.
+
 ## Verdict
 
 **READY FOR HANDOFF** — U1–U5 зелёные, репро красный на `5d7d7b7` по правильной причине,
