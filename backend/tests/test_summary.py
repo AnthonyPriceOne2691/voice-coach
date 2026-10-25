@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.config import Settings
+from app.config import REPO_ROOT, Settings
 from app.knowledge.prompts import PROFILE_PLACEHOLDER, PromptLibrary
 from app.storage.db import Database
 from app.storage.repositories.interviews import InterviewRepository
@@ -401,7 +401,6 @@ async def test_minimal_gives_up_quietly(prompts: PromptLibrary, db: Database) ->
 # в загрузчике, а не в сервисе, — и синтетический профиль: личное в фикстуры не
 # попадает. Проверяется собранное сообщение вызова, а не наличие файлов (L20).
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_PROMPTS = REPO_ROOT / "data" / "prompts"
 SYNTHETIC_PROFILE = (
     "# Candidate Profile\n\nSam Example - builds AI pipelines for agencies.\n\n"
