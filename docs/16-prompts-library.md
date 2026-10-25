@@ -36,7 +36,7 @@ Knowledge injected via `{{profile_condensed}}` placeholder (from `data/knowledge
 | D-4: skip TMAY | INTRO short → first question = project walkthrough |
 | Mode 1 no coaching | Hard rules in system + contract enforcer |
 | English only (session) | Explicit in all mode prompts |
-| Positioning | Profile stresses AI Automation Engineer, not SEO lead |
+| Positioning | Profile's `Positioning rules` (builder, not SEO lead); both summaries judge positioning against them (since 2026-10-25) |
 
 ---
 
@@ -72,11 +72,17 @@ Structured JSON only. Temperature **0.3**. Model: **deepseek-r1:14b**, `num_ctx:
 
 Output must match schema in [08-post-session-debrief.md](08-post-session-debrief.md). Включает `vocabulary[]` — каждый term **must** include `translation_ru`.
 
+**Injected context:** condensed profile через `{{profile_condensed}}` — в системном
+сообщении, подставляет общий `PromptLibrary.system()`. До 2026-10-25 промпт объявлял
+профиль входом, а подстановки не было: балл `positioning` ставился вслепую.
+
 ---
 
 ## `minimal_summary_system.txt`
 
 When user skips Mode 2: shorter JSON — `scores` (rough), `strengths`, `improvements` (max 3), **no** rich vocabulary list.
+
+**Injected context:** тот же профиль тем же плейсхолдером (с 2026-10-25).
 
 ---
 
@@ -119,3 +125,4 @@ Original intent: {question_seed}
 | 2026-07-02 | v0.2: канонизация params (были расхождения с doc 07); R1 max_tokens с учётом thinking; vocabulary merged в summary; убран несуществующий vocabulary_extract.txt из MVP layout |
 | 2026-07-02 | v0.3: minimal_summary → qwen2.5:14b-instruct (без swap при Skip) |
 | 2026-10-23 | Talk и починка перевода в раскладке и таблице моделей; `language_check.txt` — просьба о проверке речи в конце истории разговора (D3a.2) |
+| 2026-10-25 | Обе сводки получают профиль кандидата плейсхолдером (`PromptLibrary.system()`); позиционирование — по `Positioning rules` профиля, а не по зашитой роли |
