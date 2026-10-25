@@ -3,6 +3,8 @@
 Дата прогонов: 2026-10-23. Builder: agent:claude-code (параллельная сессия, worktree
 `.claude/worktrees/agent-a260dc0585f391a84`). Verifier: human:anthony.
 
+**CI run:** PR #42, коммит `f059ac3` (весь код поставки на контуре 2.74): `CI` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40007690799 — **success**; `quality` https://github.com/AnthonyPriceOne2691/voice-coach/actions/runs/40007690803 — **success**. 2026-10-25 ветка сведена с `main` дважды (test-leaks `c1e4952` и deps-refresh `8d344d4`, затем wiring `5d7d7b7`; конфликт — одна строка истории doc 12, объединена): локально 333 passed под `filterwarnings = ["error"]` и сторожем соединений; прогоны CI на итоговом коммите — в PR.
+
 ## Оракулы спеки
 
 | id | Оракул | Результат |
@@ -232,13 +234,13 @@ asserts_reviewed_by: n/a (все утверждения ведут к одобр
 
 | Metric | Value |
 |---|---|
-| files_touched / loc_diff | 8 code (+5 process docs) / +604/-9 (net +595) |
-| commits | 7 |
+| files_touched / loc_diff | 8 code (+8 process docs) / +604/-10 (net +594) |
+| commits | 13 |
 | time_to_accepted_spec | 0.0h |
-| rework_after_done | 0 (handoff not declared yet) |
+| rework_after_done | 0 — счётчик видит 6 коммитов после `phase: handoff`: это два слияния `origin/main` (test-leaks, deps-refresh, wiring) с их коммитами и разрешённый конфликт строки doc 12, а не переделка кода поставки |
 | harness_hardened | yes — backend/tests/test_rest_talks.py (новый оракул) |
 | implement_retries | 1 — замер собранной talk-notes пробил предохранитель (1,044 > 800 без доков); разрез по слоям без waiver, экран — следующей поставкой |
-| verify_fails_before_green | 0 — CI на ветке зелёный с первого прогона; локальные гейты зелёные |
+| verify_fails_before_green | 0 — CI на ветке зелёный с первого прогона; локальные гейты зелёные; после слияний с `main` 2026-10-25 — 333 passed под `filterwarnings = ["error"]` и сторожем соединений |
 | est_token_or_cost | n/a |
 
 MANUAL-поля заполняет агент/человек на handoff. Если `verify_fails_before_green >= 2` при `harness_hardened: no` — по §9.2 добавь oracle/breaker/hook в этой же поставке.
