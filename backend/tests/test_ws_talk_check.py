@@ -86,7 +86,7 @@ def test_error_is_noted_after_the_reply_with_the_recognized_fragment(tmp_path: P
     llm = RoutingLlm(REPLY, [C2_CHECK])
     metadata, talk = _converse(tmp_path, llm, [C2_SAID])
     notes = metadata["language_notes"]
-    assert [(n["kind"], n["said"], n["better"], n["why"]) for n in notes] == [
+    assert [(n["kind"], n["said"], n["better"], n["why"]) for n in notes] == [  # C2
         (
             "error",
             "I go to the office and meet my client",

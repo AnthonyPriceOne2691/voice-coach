@@ -13,6 +13,7 @@ implementation:
   - backend/app/voice/review_flow.py
   - backend/app/voice/talk_flow.py
   - backend/app/voice/talk_checks.py
+  - backend/app/voice/talk_tips.py
   - backend/app/voice/language_check.py
   - backend/app/voice/warmup.py
   - backend/app/contracts/enforcer.py
@@ -57,6 +58,15 @@ implementation:
   незаконченную проверку и дожидается отмены — ответ не стоит в очереди за ней.
   Фоновая задача в базу не пишет: заметку несёт следующий чекпойнт (класс виса
   L5–L7). Расчёт «вопрос N из M» переехал из `ws_voice.py` в `interview_flow.py`.
+- **Подсказка вслух (D3a.2) — ещё один чанк той же реплики, до `final`.** После
+  ответа ход ждёт проверку речи не дольше конца звука ответа у клиента + 1.5 s. Конец
+  звука сервер считает сам, по длительности отправленных WAV (`PlaybackClock` в
+  `_send_audio`): `max(сейчас, прежний конец) + длительность` — так же `AudioQueue`
+  ставит чанки; `final` закрывает реплику. Подсказка идёт до `final` и `listening`
+  намеренно: после `listening` микрофон открыт, и VAD услышал бы Генри. Не успела —
+  подсказки нет, а проверка не снимается: её заметка ляжет в список. Подсказку
+  говорит код по шаблону, и в историю модели она не попадает — префикс следующего хода
+  тот же, что без неё (L78/L80); поправки самой модели режет енфорсер (I3-H4).
 - **Прогревать префикс, а не модель.** Прогрев «hi» грузит веса и не кэширует ничего:
   первый ход платит полный prefill системного промпта с профилем после реплики
   человека — замер 2026-10-17: 8,763 ms до первого звука при гейте 3,000, тёплые
@@ -84,6 +94,7 @@ implementation:
 | Дыхание между предложениями | `backend/app/voice/prosody.py` |
 | Прогрев префикса сессии | `backend/app/voice/warmup.py` |
 | Проверка речи после ответа (D3a.2): префикс и жизненный цикл | `backend/app/voice/language_check.py`, `backend/app/voice/talk_checks.py` |
+| Подсказка вслух: срок, конец звука у клиента, шаблон | `backend/app/voice/talk_tips.py` |
 | Потоки режимов | `backend/app/voice/interview_flow.py`, `backend/app/voice/review_flow.py`, `backend/app/voice/talk_flow.py` |
 | Per-sentence контракты | `backend/app/contracts/enforcer.py` |
 | Проигрывание на клиенте | `frontend/src/lib/audioQueue.ts` |

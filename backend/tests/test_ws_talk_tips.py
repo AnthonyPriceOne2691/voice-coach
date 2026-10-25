@@ -8,7 +8,7 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from starlette.testclient import TestClient
@@ -59,8 +59,7 @@ def _talk(tmp_path: Path, llm: RoutingLlm, said: list[str]) -> tuple[list[Any], 
         ws.send_json({"type": "end_session", "payload": {"reason": "user"}})
         collect_until(ws, "session_ended")
     talk = fetch_talk(container.settings.database_url, started["payload"]["session_id"])
-    assert isinstance(container.tts, FakeTts)
-    return turns, talk, container.tts
+    return turns, talk, cast(FakeTts, container.tts)
 
 
 def _henry(frames: list[dict[str, Any]]) -> list[str]:
@@ -105,7 +104,7 @@ def test_correction_by_the_model_is_cut_and_without_a_note_no_tip(tmp_path: Path
 
     assert _henry(turns[0]) == ["Sounds fun!"]
     assert not [line for line in tts.synthesized if "could also say" in line]
-    assert not [line for line in tts.synthesized if "By the way" in line]
+    assert not [line for line in tts.synthesized if "By the way" in line]  # C15
     assert json.loads(talk.metadata_json)["hard_violations"] == 1
 
 
