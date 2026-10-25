@@ -4,9 +4,16 @@ import uuid
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.storage.db import Database, utcnow_iso
 from app.storage.models import VocabularyEntry
+
+
+async def _by_term(s: AsyncSession, term: str) -> VocabularyEntry | None:
+    """Запись с этим термином в ЛЮБОМ статусе: dedup по `term_en` без регистра (doc 10)."""
+    stmt = select(VocabularyEntry).where(func.lower(VocabularyEntry.term_en) == term.lower())
+    return (await s.execute(stmt)).scalar_one_or_none()
 
 
 class VocabularyRepository:
@@ -26,13 +33,7 @@ class VocabularyRepository:
                 example = str(item.get("example_en", "")).strip()
                 if not term or not translation or not example:
                     continue  # S-H4: incomplete items are dropped, not stored
-                existing = (
-                    await s.execute(
-                        select(VocabularyEntry).where(
-                            func.lower(VocabularyEntry.term_en) == term.lower()
-                        )
-                    )
-                ).scalar_one_or_none()
+                existing = await _by_term(s, term)
                 if existing is not None:
                     if existing.status != "deleted":
                         existing.times_seen += 1
@@ -53,6 +54,25 @@ class VocabularyRepository:
                 added += 1
             await s.commit()
         return added
+
+    async def find_term(self, term: str) -> VocabularyEntry | None:
+        """Есть ли термин в банке — включая удалённый человеком (`status='deleted'`)."""
+        async with self._db.session() as s:
+            return await _by_term(s, term.strip())
+
+    async def restore(self, entry_id: str) -> None:
+        """Вернуть удалённую запись наверх списка — по явной просьбе человека.
+
+        Правило doc 10 «удалённое не добавлять снова» защищает банк от экстрактора,
+        который предложил бы то же слово после следующей сессии, а не от самого
+        человека: нажав «Add to Useful Words», он просит ровно этого.
+        """
+        async with self._db.session() as s:
+            entry = await s.get(VocabularyEntry, entry_id)
+            if entry is not None and entry.status == "deleted":
+                entry.status = "new"
+                entry.added_at = utcnow_iso()
+                await s.commit()
 
     async def set_translation(self, entry_id: str, translation: str) -> bool:
         """Переписать перевод существующей записи (S-H6: починка банка).

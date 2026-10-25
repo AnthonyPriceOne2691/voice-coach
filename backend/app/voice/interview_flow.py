@@ -57,3 +57,19 @@ class InterviewFlow(SessionFlow[InterviewRepository]):
             }
         )
         await self.repo.checkpoint(self.session_id, self.buffer.to_json_list(), metadata)
+
+
+def question_progress(flow: object) -> dict[str, Any]:
+    """Где мы в интервью — клиенту, чтобы показать «вопрос N из M» (doc 15).
+
+    Знать, сколько осталось, снимает тревогу, а это и есть задача тренажёра.
+    У разбора и разговора своего счётчика вопросов нет, поэтому там поля пустые.
+    Жило в `ws_voice.py`; переехало к интервью, когда обработчик подошёл к 500 строкам.
+    """
+    if not isinstance(flow, InterviewFlow):
+        return {"question_index": None, "question_total": None, "question_kind": None}
+    return {
+        "question_index": flow.orchestrator.question_number,
+        "question_total": flow.orchestrator.question_count,
+        "question_kind": flow.current_plan.question_kind,
+    }

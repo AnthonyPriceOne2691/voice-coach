@@ -13,6 +13,13 @@
 * **Границы**: doc 13 — раздел «Память Генри»; таблицы, извлечение и стирание —
   memory-write, приветствие и экран — memory-recall.
 
+## 2026-10-23 — проверка речи: проводка (talk-check-wiring, D3a.2 — 2 из 5)
+
+* **Sentence streaming**: проверка идёт ПОСЛЕ стрима, в префиксе того же разговора,
+  отменяется следующей репликой и в базу не пишет. `implementation:` дополнен
+  `talk_checks.py` и `language_check.py`.
+* **Границы**: doc 12 — `metadata_json.language_notes` и счётчики `checks_*`.
+
 ## 2026-10-23 — проверка речи: ядро (talk-check-core, D3a.2 — 1 из 4)
 
 * **Orchestrator owns structure**: добавлено правило — заметка к речи решается кодом
