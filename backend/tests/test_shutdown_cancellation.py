@@ -138,9 +138,10 @@ async def test_shutdown_waits_until_a_cancelled_summary_returns_its_connection(
                 await stuck.holding.wait()  # разбор готов и встал на записи в базу
         leaks = ledger.leaks()
 
-    cancelled = ["shutdown: 1 summary task(s) cancelled by timeout"]
+    warned = _messages_of(caplog, "app.summary.service")
     assert leaks == []  # E1: к концу гашения соединение возвращено и закрыто
-    assert _messages_of(caplog, "app.summary.service") == cancelled  # E1: названа и сосчитана
+    # E1: отмена названа и сосчитана — строка целиком, а не подстрока (L104)
+    assert warned == ["shutdown: 1 summary task(s) cancelled by timeout"]  # E1
 
 
 async def test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it(
@@ -168,7 +169,8 @@ async def test_shutdown_cancels_a_stuck_ws_cleanup_and_waits_for_it(
                 await stuck.holding.wait()  # уборка дошла до итоговой записи и встала
         leaks = ledger.leaks()
 
+    warned = _messages_of(caplog, "app.main")
     assert ws.sent[0]["type"] == "session_started"  # E2: сессия была, уборке было что писать
-    cancelling = ["shutdown: 1 ws cleanup(s) did not finish in time — cancelling"]
     assert leaks == []  # E2: к концу гашения соединение возвращено и закрыто
-    assert _messages_of(caplog, "app.main") == cancelling  # E2: срок, отмена и счёт в логе
+    # E2: срок, отмена и счёт уборок в логе — строка целиком, а не подстрока (L104)
+    assert warned == ["shutdown: 1 ws cleanup(s) did not finish in time — cancelling"]  # E2
